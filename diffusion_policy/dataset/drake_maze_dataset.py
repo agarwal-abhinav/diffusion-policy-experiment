@@ -9,13 +9,12 @@ from diffusion_policy.common.sampler import (
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.dataset.base_dataset import BaseLowdimDataset
 
-class PushTLowdimDataset(BaseLowdimDataset):
+class MazeLowdimDataset(BaseLowdimDataset):
     def __init__(self, 
             zarr_path, 
             horizon=1,
             pad_before=0,
             pad_after=0,
-            obs_key='keypoint',
             state_key='state',
             action_key='action',
             seed=42,
@@ -24,8 +23,8 @@ class PushTLowdimDataset(BaseLowdimDataset):
             ):
         super().__init__()
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=[obs_key, state_key, action_key])
-
+            zarr_path, keys=[state_key, action_key])
+        
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -43,7 +42,6 @@ class PushTLowdimDataset(BaseLowdimDataset):
             pad_after=pad_after,
             episode_mask=train_mask
             )
-        self.obs_key = obs_key
         self.state_key = state_key
         self.action_key = action_key
         self.train_mask = train_mask
@@ -59,8 +57,10 @@ class PushTLowdimDataset(BaseLowdimDataset):
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
             episode_mask=~self.train_mask
+            # episode_mask=self.train_mask # for single traj dataset
             )
         val_set.train_mask = ~self.train_mask
+        # val_set.train_mask = self.train_mask # for single traj dataset
         return val_set
 
     def get_normalizer(self, mode='limits', **kwargs):
@@ -76,16 +76,8 @@ class PushTLowdimDataset(BaseLowdimDataset):
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
-        print(sample)
-        keypoint = sample[self.obs_key]
-        state = sample[self.state_key]
-        agent_pos = state[:,:2]
-        obs = np.concatenate([
-            keypoint.reshape(keypoint.shape[0], -1), 
-            agent_pos], axis=-1)
-
         data = {
-            'obs': obs, # T, D_o
+            'obs': sample[self.state_key], # T, D_o
             'action': sample[self.action_key], # T, D_a
         }
         return data
@@ -93,24 +85,5 @@ class PushTLowdimDataset(BaseLowdimDataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         sample = self.sampler.sample_sequence(idx)
         data = self._sample_to_data(sample)
-
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
-
-if __name__ == '__main__':
-    # testing to figure out how the dataset classes work
-    dataset = PushTLowdimDataset(
-        zarr_path='data/pusht/pusht_cchi_v7_replay.zarr',
-        horizon=8,
-        pad_before=3,
-        pad_after=7,
-        obs_key='keypoint',
-        state_key='state',
-        action_key='action',
-        seed=42,
-        val_ratio=0.2,
-        max_train_episodes=None
-    )
-
-    print(dataset[40]['obs'].shape)
-    dataset.get_normalizer()

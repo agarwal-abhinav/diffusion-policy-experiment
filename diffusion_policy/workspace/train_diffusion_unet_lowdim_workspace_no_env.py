@@ -28,7 +28,7 @@ from diffusion_policy.env_runner.base_lowdim_runner import BaseLowdimRunner
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
 from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
-from diffusers.training.utils import EMAModel
+from diffusers.training_utils import EMAModel
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
