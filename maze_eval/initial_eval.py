@@ -74,6 +74,7 @@ def main(checkpoint, output_dir, device):
     obs_dim = cfg.policy.obs_dim
     action_horizon = cfg.policy.n_action_steps
     obs_horizon = cfg.policy.n_obs_steps
+    prepended_target = cfg.policy.prepended_target
     B = 1 # batch size is 1
     num_traj = 10
 
@@ -85,12 +86,18 @@ def main(checkpoint, output_dir, device):
             
             source = sample_collision_free_point(regions, bounds)
             target = np.array([2.0, 1.0])
+            if prepended_target:
+                target = sample_collision_free_point(regions, bounds)
 
             waypoints = [source]
             obs_deque = deque([torch.from_numpy(source).reshape(B,1,2)] * obs_horizon,
                             maxlen=obs_horizon)
             while len(waypoints) <= 300:
-                obs = deque_to_dict(obs_deque)
+                obs = None
+                if prepended_target:
+                    obs = deque_to_dict(obs_deque, torch.from_numpy(target).reshape(B,1,2))
+                else:
+                    obs = deque_to_dict(obs_deque)
                 action_seq = policy.predict_action(obs)['action'][0]
                 for action in action_seq:
                     waypoints.append(action.cpu().detach().numpy())
@@ -108,8 +115,12 @@ def main(checkpoint, output_dir, device):
                 # plot_environment(regions, source, target, waypoints[:,:i+1])
             plot_environment(regions, source, target, waypoints)
 
-def deque_to_dict(obs_deque: deque) -> dict[str, torch.Tensor]:
-    obs_array = torch.cat(list(obs_deque), axis=1)
+def deque_to_dict(obs_deque: deque, target=None) -> dict[str, torch.Tensor]:
+    obs_array = None
+    if target is not None:
+        obs_array = torch.cat([target]+list(obs_deque), axis=1)
+    else:
+        obs_array = torch.cat(list(obs_deque), axis=1)
     return {'obs': obs_array}
     
 if __name__ == '__main__':

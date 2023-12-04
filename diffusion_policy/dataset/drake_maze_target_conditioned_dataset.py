@@ -9,13 +9,14 @@ from diffusion_policy.common.sampler import (
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.dataset.base_dataset import BaseLowdimDataset
 
-class MazeLowdimDataset(BaseLowdimDataset):
+class MazeLowdimTargetConditionedDataset(BaseLowdimDataset):
     def __init__(self, 
             zarr_path, 
             horizon=1,
             pad_before=0,
             pad_after=0,
             state_key='state',
+            target_key = 'target',
             action_key='action',
             seed=42,
             val_ratio=0.0,
@@ -23,7 +24,7 @@ class MazeLowdimDataset(BaseLowdimDataset):
             ):
         super().__init__()
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=[state_key, action_key])
+            zarr_path, keys=[state_key, target_key, action_key])
         
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
@@ -43,6 +44,7 @@ class MazeLowdimDataset(BaseLowdimDataset):
             episode_mask=train_mask
             )
         self.state_key = state_key
+        self.target_key = target_key
         self.action_key = action_key
         self.train_mask = train_mask
         self.horizon = horizon
@@ -74,8 +76,10 @@ class MazeLowdimDataset(BaseLowdimDataset):
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
+        target = sample[self.target_key][0].reshape(1,-1)
+        # target gets preprended to observations
         data = {
-            'obs': sample[self.state_key], # T, D_o
+            'obs': np.concatenate([target, sample[self.state_key]]), # T+1, D_o
             'action': sample[self.action_key], # T, D_a
         }
         return data

@@ -24,6 +24,7 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             obs_as_global_cond=False,
             pred_action_steps_only=False,
             oa_step_convention=False,
+            prepended_target=False, 
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -49,6 +50,7 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
         self.obs_as_global_cond = obs_as_global_cond
         self.pred_action_steps_only = pred_action_steps_only
         self.oa_step_convention = oa_step_convention
+        self.prepended_target = prepended_target
         self.kwargs = kwargs
 
         if num_inference_steps is None:
@@ -128,7 +130,10 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
         elif self.obs_as_global_cond:
             # condition throught global feature
-            global_cond = nobs[:,:To].reshape(nobs.shape[0], -1)
+            if self.prepended_target:
+                global_cond = nobs[:,:To+1].reshape(nobs.shape[0], -1)
+            else:
+                global_cond = nobs[:,:To].reshape(nobs.shape[0], -1)
             shape = (B, T, Da)
             if self.pred_action_steps_only:
                 shape = (B, self.n_action_steps, Da)
@@ -196,7 +201,10 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             local_cond = obs
             local_cond[:,self.n_obs_steps:,:] = 0
         elif self.obs_as_global_cond:
-            global_cond = obs[:,:self.n_obs_steps,:].reshape(
+            slice_end = self.n_obs_steps
+            if self.prepended_target:
+                slice_end += 1
+            global_cond = obs[:,:slice_end,:].reshape(
                 obs.shape[0], -1)
             if self.pred_action_steps_only:
                 To = self.n_obs_steps

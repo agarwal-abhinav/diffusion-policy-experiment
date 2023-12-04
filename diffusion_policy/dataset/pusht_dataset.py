@@ -76,7 +76,6 @@ class PushTLowdimDataset(BaseLowdimDataset):
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
-        print(sample)
         keypoint = sample[self.obs_key]
         state = sample[self.state_key]
         agent_pos = state[:,:2]
