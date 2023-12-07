@@ -150,8 +150,8 @@ def plot_environment(regions, start, goal, waypoints, num_points=100):
         hull = ConvexHull(v)
         plt.fill(*(v[hull.vertices].transpose()), color='white')
 
-    plt.plot(*start, 'rx', )
-    plt.plot(*goal, 'rx')
+    plt.plot(*start, 'gx', )
+    plt.plot(*goal, 'gx')
     plt.plot(*waypoints, 'b')
 
     plt.xlim([0, 5])
@@ -159,12 +159,82 @@ def plot_environment(regions, start, goal, waypoints, num_points=100):
     ax.set_aspect('equal', adjustable='box')
     plt.show()
 
+def save_trajectory_plot(filename,
+                         regions, bounds, start, goal, waypoints, 
+                         velocity_bounds=np.array([[-1,1],[-1,1]]),
+                         collision_indices=[1, 4],
+                         dt=0.1):
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+
+    # plot obstacles
+    ax1.set_facecolor("black")
+    for region in regions:
+        v = VPolytope(region).vertices().transpose()
+        hull = ConvexHull(v)
+        ax1.fill(*(v[hull.vertices].transpose()), color='white')
+
+    # plot trajectory
+    ax1.plot(*start, 'go', mfc='none')
+    ax1.plot(*goal, 'gx')
+    ax1.plot(*waypoints, 'b')
+
+    # plot collisions
+    colliding_points = waypoints[:,collision_indices]
+    ax1.scatter(*colliding_points, color='r', s=4, zorder=2)
+
+    ax1.set_xlim(bounds[0])
+    ax1.set_ylim(bounds[1])
+    ax1.set_aspect('equal', adjustable='box')
+
+    # compute velocities
+    velocities_x = [0]
+    velocities_y = [0]
+    for i in range(1, waypoints.shape[1]):
+        velocities_x.append((waypoints[0,i] - waypoints[0,i-1])/dt)
+        velocities_y.append((waypoints[1,i] - waypoints[1,i-1])/dt)
+    
+    T = waypoints.shape[1]*dt
+    t = np.linspace(0, T-dt, waypoints.shape[1])
+
+    # plot velocities
+    ax2.axhline(velocity_bounds[0,0], color='orange', linestyle='--')
+    ax2.axhline(velocity_bounds[0,1], color='orange', linestyle='--')
+    ax2.axhline(velocity_bounds[1,0], color='blue', linestyle='--')
+    ax2.axhline(velocity_bounds[1,1], color='blue', linestyle='--')
+    ax2.plot(t, velocities_x, 'orange')
+    ax2.plot(t, velocities_y, 'blue')
+    ax2.set_aspect('equal', adjustable='box')
+    plt.savefig(filename, format='png', dpi=300)
+
 def composite_trajectory_to_array(traj, dt=0.1):
     num_waypoints = int(traj.end_time() / dt) + 1       # +1 to make sure we get the last point
     traj_points = np.zeros((2, num_waypoints))
     for i in range(num_waypoints):
         traj_points[:,i] = traj.value(i*dt).reshape(2,)
     return traj_points
+
+def check_velocity_bounds(waypoints, velocity_bounds, dt):
+    # compute velocities
+    velocities_x = []
+    velocities_y = []
+    for i in range(1, waypoints.shape[1]):
+        velocities_x.append((waypoints[0,i] - waypoints[0,i-1])/dt)
+        velocities_y.append((waypoints[1,i] - waypoints[1,i-1])/dt)
+    velocities_x = np.array(velocities_x)
+    velocities_y = np.array(velocities_y)
+
+    if np.any(velocities_x < velocity_bounds[0,0]) or np.any(velocities_x > velocity_bounds[0,1]):
+        return False
+    if np.any(velocities_y < velocity_bounds[1,0]) or np.any(velocities_y > velocity_bounds[1,1]):
+        return False
+    return True
+
+def get_colliding_indices(regions, waypoints):
+    colliding_indices = []
+    for i, point in enumerate(waypoints.transpose()):
+        if in_collision(regions, point):
+            colliding_indices.append(i)
+    return colliding_indices
 
 def in_collision(regions, point):
     for region in regions:
@@ -190,6 +260,37 @@ def collision_free_grid(regions, bounds, points_per_axis):
             collision_free_points.append(point) if not in_collision(regions, point) else None
 
     return np.array(collision_free_points)
+
+def log_eval_results(filename,
+                     passed_all_tests,
+                     passed_collision_tests,
+                     passed_velocity_tests,
+                     failed_to_converge,
+                     num_traj):
+    pass_ratio = len(passed_all_tests)/num_traj
+    collision_free_ratio = len(passed_collision_tests)/num_traj
+    satisfies_velocity_bounds_ratio = len(passed_velocity_tests)/num_traj
+    converged_ratio = len(failed_to_converge)/num_traj
+
+    f = open(filename, "w")
+    f.write("Evaluation Results\n-----------------\n")
+    f.write(f"Passed All Tests: {100.0*pass_ratio:.2f}%\n")
+    f.write(f"Collision Free: {100.0*collision_free_ratio:.2f}%\n")
+    f.write(f"Satisfies Velocity Constraints: {100.0*satisfies_velocity_bounds_ratio:.2f}%\n")
+    f.write(f"Converged: {100.0*converged_ratio:.2f}%\n")
+    f.write(f"\n")
+
+    f.write(f"Passed All Tests: {passed_all_tests}\n")
+    f.write(f"Collision Free: {passed_collision_tests}\n")
+    f.write(f"Satisfies Velocity Constraints: {passed_velocity_tests}\n")
+    f.write(f"Failed To Converge: {failed_to_converge}\n")
+    f.write(f"\n")
+
+    f.write("See plots directory for visualizations.")
+    f.close()
+
+
+
 
 def generate_data(regions, bounds, N=10):
     # build GCS

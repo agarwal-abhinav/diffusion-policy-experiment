@@ -17,11 +17,15 @@ import dill
 import zarr
 import wandb
 import json
+import tqdm
+import pickle
+import shutil
+
 from collections import deque
 from torch.utils.data import DataLoader
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.dataset.base_dataset import BaseLowdimDataset
-from maze_eval.utils.gcs_utils import *
+from data_generation.maze.gcs_utils import *
 
 @click.command()
 @click.option('-c', '--checkpoint', required=True)
@@ -31,7 +35,14 @@ from maze_eval.utils.gcs_utils import *
 def main(checkpoint, output_dir, device):
     # if os.path.exists(output_dir):
     #     click.confirm(f"Output path {output_dir} already exists! Overwrite?", abort=True)
+    # set up output directory
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
     pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(f'{os.path.dirname(checkpoint)}/../.hydra/config.yaml', 
+                    os.path.join(output_dir, 'config.yaml'))
+    pathlib.Path(os.path.join(output_dir, 'plots')).mkdir()
+
     
     # load checkpoint
     payload = torch.load(open(checkpoint, 'rb'), pickle_module=dill)
@@ -76,14 +87,22 @@ def main(checkpoint, output_dir, device):
     obs_horizon = cfg.policy.n_obs_steps
     prepended_target = cfg.policy.prepended_target
     B = 1 # batch size is 1
-    num_traj = 10
+    num_traj = 100
 
-    # plot_environment(regions, source, target, np.array(test_traj['data']['state']).transpose())
+    
 
     with torch.no_grad():
-        for i in range(num_traj):
+        all_trajectories = []
+        passed_all_tests = []
+        passed_collision_tests = []
+        passed_velocity_tests = []
+        failed_to_converge = []
+
+        eps = 0.1
+        for i in tqdm.tqdm(range(num_traj)):
             done = False
-            
+            dt = 0.1
+
             source = sample_collision_free_point(regions, bounds)
             target = np.array([2.0, 1.0])
             if prepended_target:
@@ -103,17 +122,56 @@ def main(checkpoint, output_dir, device):
                     waypoints.append(action.cpu().detach().numpy())
                     obs_deque.append(action.reshape(B,1,2))
 
-                    if np.linalg.norm(action.cpu().detach().numpy() - target) < 0.1:
-                        done = True
+                    dist_to_target = np.linalg.norm(action.cpu().detach().numpy() - target)
+                    vel_estimate = np.linalg.norm((waypoints[-1]-waypoints[-2])/dt)
+                    done = dist_to_target < eps and vel_estimate < eps
+                    if done:
                         break
                 
                 if done:
                     break
 
             waypoints = np.array(waypoints).transpose()
-            # for i in range(len(waypoints[0])):
-                # plot_environment(regions, source, target, waypoints[:,:i+1])
-            plot_environment(regions, source, target, waypoints)
+
+            # check passed conditions
+            collidion_indices = get_colliding_indices(regions, waypoints)
+            collision_free = len(collidion_indices) == 0
+            satisfies_velocity_bounds = check_velocity_bounds(
+                waypoints, velocity_bounds=np.array([[-1,1],[-1,1]]), dt=dt
+            )
+            passed_all = collision_free and satisfies_velocity_bounds and done
+
+            if done == False:
+                failed_to_converge.append(i)
+            if collision_free:
+                passed_collision_tests.append(i)
+            if satisfies_velocity_bounds:
+                passed_velocity_tests.append(i)
+            if passed_all:
+                passed_all_tests.append(i)
+
+            # save plots and add trajectory
+            save_trajectory_plot(f"{output_dir}/plots/{i:0>3}.png", 
+                                 regions, bounds, source, target, waypoints,
+                                 velocity_bounds=np.array([[-1,1],[-1,1]]),
+                                 collision_indices=collidion_indices,
+                                 dt=0.1)
+            all_trajectories.append((source, target, waypoints))
+        
+        # Compute statistics and write to logs
+        log_eval_results(
+            f"{output_dir}/eval_results.txt",
+            passed_all_tests,
+            passed_collision_tests,
+            passed_velocity_tests,
+            failed_to_converge,
+            num_traj,
+        )
+
+        # pickle and save trajectories
+        trajectories_path = os.path.join(output_dir, 'eval_trajectories.pkl')
+        with open(trajectories_path, 'wb') as f:
+            pickle.dump(all_trajectories, f)
 
 def deque_to_dict(obs_deque: deque, target=None) -> dict[str, torch.Tensor]:
     obs_array = None

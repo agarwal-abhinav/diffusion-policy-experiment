@@ -282,8 +282,8 @@ class MazeEnvironment:
         ax.set_aspect('equal', adjustable='box')
 
         # plot trajectory
-        plt.plot(*start, 'ro', mfc='none')
-        plt.plot(*end, 'rx')
+        plt.plot(*start, 'go', mfc='none')
+        plt.plot(*end, 'gx')
         plt.plot(*(waypoints.transpose()), 'b')
 
         plt.show()
