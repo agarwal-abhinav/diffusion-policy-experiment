@@ -2,6 +2,7 @@ import numpy as np
 import time
 import copy
 import matplotlib.pyplot as plt
+import cv2
 
 from typing import (List, Dict, Union)
 from matplotlib.patches import Polygon
@@ -288,8 +289,39 @@ class MazeEnvironment:
 
         plt.show()
 
-    def to_img(self) -> np.ndarray:
-        pass
+    def to_img(self, filepath, 
+               position: np.ndarray=None, 
+               shape: np.ndarray=np.array([96, 96])) -> np.ndarray:
+        # plot environment
+        fig, ax = plt.subplots()
+        ax.set_facecolor('black')
+        for polygon in self.regions_vpolytopes:
+            v = polygon.vertices().transpose()
+            hull = ConvexHull(v)
+            plt.fill(*(v[hull.vertices].transpose()),
+                     facecolor='white')
+        
+        # plot the position if it is not None
+        if position is not None:
+            plt.plot(*position, 'ro', markersize=5)
+        
+        plt.xlim(self.bounds[0])
+        plt.ylim(self.bounds[1])
+        ax.set_aspect('equal', adjustable='box')
+
+        # Save the figure as a RGB numpy array without axis and with no padding
+        fig.canvas.draw()
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        
+        # Crop and resize the image
+        # TODO: figure out a way to avoid this part entirely
+        min_y, max_y = 59, 427
+        min_x, max_x = 144, 512
+        data = cv2.resize(data[min_y:max_y, min_x:max_x, :], shape)
+            
+        plt.close()
+        return data
 
 
     """ Helper functions """
@@ -356,7 +388,16 @@ if __name__ == '__main__':
     bounds = np.array([[0, 5], [0, 5]])
     
     maze_env = MazeEnvironment(bounds, obstacles=obstacles)
-    maze_env.plot_environment(mode='regions')
+    # maze_env.plot_environment(mode='regions')
+
+    np_img = maze_env.to_img(
+        filepath="test.png",
+        position=np.array([2.5, 2.5])
+    )
+    
+    newfig, ax = plt.subplots()
+    ax.imshow(np_img)
+    plt.show()
 
     start = maze_env.sample_start_point()
     end = maze_env.sample_end_point()

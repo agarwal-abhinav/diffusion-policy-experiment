@@ -164,7 +164,7 @@ def save_trajectory_plot(filename,
                          velocity_bounds=np.array([[-1,1],[-1,1]]),
                          collision_indices=[1, 4],
                          dt=0.1):
-    fig, (ax1, ax2) = plt.subplots(1, 2)
+    fig, (ax1, ax2) = plt.subplots(2, 1)
 
     # plot obstacles
     ax1.set_facecolor("black")
@@ -203,8 +203,9 @@ def save_trajectory_plot(filename,
     ax2.axhline(velocity_bounds[1,1], color='blue', linestyle='--')
     ax2.plot(t, velocities_x, 'orange')
     ax2.plot(t, velocities_y, 'blue')
-    ax2.set_aspect('equal', adjustable='box')
+    fig.set_figwidth(2.5)
     plt.savefig(filename, format='png', dpi=300)
+    plt.close()
 
 def composite_trajectory_to_array(traj, dt=0.1):
     num_waypoints = int(traj.end_time() / dt) + 1       # +1 to make sure we get the last point
@@ -290,8 +291,6 @@ def log_eval_results(filename,
     f.close()
 
 
-
-
 def generate_data(regions, bounds, N=10):
     # build GCS
     n = 2
@@ -330,6 +329,7 @@ def generate_data(regions, bounds, N=10):
         if result.is_success():
             waypoints = composite_trajectory_to_array(traj)
             data.append((start, goal, waypoints))
+            pbar.update(1)
 
         # rebuild GCS object if solve times become too slow
         # (i.e. graph got too large)
@@ -341,7 +341,6 @@ def generate_data(regions, bounds, N=10):
             gcs.AddTimeCost()
             gcs.AddPathLengthCost()
 
-        pbar.update(1)
 
     pbar.close()
     return data

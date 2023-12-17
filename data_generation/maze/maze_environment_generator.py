@@ -20,8 +20,8 @@ class MazeEnvironmentGenerator:
                  max_obstacle_width: float,
                  min_obstacle_height: float,
                  max_obstacle_height: float,
-                 padding: float,
-                 bounds: np.ndarray,
+                 padding: float, # padding around edges
+                 bounds: np.ndarray, # bounds of the maze
                  non_overlapping_centers: bool = True):
         
         self.min_num_obstacles = min_num_obstacles

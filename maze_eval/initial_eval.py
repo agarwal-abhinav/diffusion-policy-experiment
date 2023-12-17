@@ -107,6 +107,7 @@ def main(checkpoint, output_dir, device):
             target = np.array([2.0, 1.0])
             if prepended_target:
                 target = sample_collision_free_point(regions, bounds)
+            distance = np.linalg.norm(source - target)
 
             waypoints = [source]
             obs_deque = deque([torch.from_numpy(source).reshape(B,1,2)] * obs_horizon,
@@ -127,7 +128,7 @@ def main(checkpoint, output_dir, device):
                     done = dist_to_target < eps and vel_estimate < eps
                     if done:
                         break
-                
+
                 if done:
                     break
 
