@@ -28,6 +28,7 @@ class MazeDataGenerationWorkspace:
                   num_trajectories_per_maze: int,
                   num_processes: int,
                   data_dir: str,
+                  append_date_time: bool=True,
                   # GCS settings
                   max_rounded_paths: int=3, # number of GCS rounded paths
                   max_velocity: float=1.0,
@@ -40,7 +41,9 @@ class MazeDataGenerationWorkspace:
         self.num_processes = num_processes
         
         now = datetime.now()
-        self.data_dir = f'{data_dir}_{now.strftime("%d-%m-%Y_%H:%M:%S")}'
+        self.data_dir = data_dir
+        if append_date_time:
+            self.data_dir = f'{data_dir}_{now.strftime("%d-%m-%Y_%H:%M:%S")}'
 
         # GCS settings
         self.max_rounded_paths = max_rounded_paths
@@ -60,6 +63,7 @@ class MazeDataGenerationWorkspace:
         - trajectories: a list of trajectories
         - imgs: a list of images corresponding to the trajectories
         """
+        logging.getLogger('drake').setLevel(logging.WARNING)
 
         data = []
         # parallel data collection
@@ -164,7 +168,6 @@ class MazeDataGenerationWorkspace:
         return data
     
 if __name__ == "__main__":
-    logging.getLogger('drake').setLevel(logging.WARNING)
     maze_generator = MazeEnvironmentGenerator(
         min_num_obstacles=10,
         max_num_obstacles=15,
