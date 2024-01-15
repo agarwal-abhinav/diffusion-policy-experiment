@@ -20,7 +20,7 @@ class MazeEnvironmentGenerator:
                  max_obstacle_width: float,
                  min_obstacle_height: float,
                  max_obstacle_height: float,
-                 padding: float, # padding around edges
+                 border_padding: float, # padding around border
                  bounds: np.ndarray, # bounds of the maze
                  non_overlapping_centers: bool = True):
         
@@ -30,9 +30,9 @@ class MazeEnvironmentGenerator:
         self.max_obstacle_width = max_obstacle_width
         self.min_obstacle_height = min_obstacle_height
         self.max_obstacle_height = max_obstacle_height
-        self.padding = padding
+        self.border_padding = border_padding
         self.bounds = bounds
-        self.padded_bounds = bounds + padding*np.array([[1, -1], [1, -1]])
+        self.padded_bounds = bounds + border_padding*np.array([[1, -1], [1, -1]])
         self.non_overlapping_centers = non_overlapping_centers
 
     def generate_obstacle(self, existing_obstacles: List[HPolyhedron]=None) -> HPolyhedron:
@@ -110,7 +110,7 @@ if __name__ == '__main__':
         max_obstacle_width=1.5,
         min_obstacle_height=0.2,
         max_obstacle_height=1.5,
-        padding = 0.3,
+        border_padding = 0.3,
         bounds=np.array([[0, 5], [0, 5]])
     )
     for i in range(10):

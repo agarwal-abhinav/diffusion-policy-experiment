@@ -24,7 +24,9 @@ class MazeEnvironment:
     - The vertices of the obstacles are rounded to the nearest 10th
     """
 
-    def __init__(self, bounds: np.ndarray, obstacles: Polyhedrons=None, regions:Polyhedrons=None):
+    def __init__(self, bounds: np.ndarray, 
+                 obstacles: Polyhedrons=None, 
+                 regions: Polyhedrons=None):
         assert obstacles is not None or regions is not None
         assert bounds.shape[0] == 2 # only support 2 dimensional mazes
 
