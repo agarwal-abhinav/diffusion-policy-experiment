@@ -41,6 +41,11 @@ class MazeEnvironment:
             self.regions = self.get_regions_from_obstacles()
         self.regions_vpolytopes = self.convert_to_vpolytope(self.regions)
 
+        # Variables for image cropping (see to_img function)
+        # This is a hacky solution...
+        self.left_crop, self.right_crop = None, None
+        self.top_crop, self.bot_crop = None, None
+
     def get_regions_from_obstacles(self) -> Polyhedrons:
         """ Generates a convex decomposition of the environment 
         
@@ -289,12 +294,15 @@ class MazeEnvironment:
 
         plt.show()
 
-    def to_img(self, filepath, 
+    def to_img(self, 
                position: np.ndarray=None, 
                shape: np.ndarray=np.array([96, 96])) -> np.ndarray:
         # plot environment
         fig, ax = plt.subplots()
         ax.set_facecolor('black')
+        ax.get_xaxis().set_ticks([])
+        ax.get_yaxis().set_ticks([])
+
         for polygon in self.regions_vpolytopes:
             v = polygon.vertices().transpose()
             hull = ConvexHull(v)
@@ -313,16 +321,48 @@ class MazeEnvironment:
         fig.canvas.draw()
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        
+
         # Crop and resize the image
-        # TODO: figure out a way to avoid this part entirely
-        min_y, max_y = 59, 427
-        min_x, max_x = 144, 512
-        data = cv2.resize(data[min_y:max_y, min_x:max_x, :], shape)
+        # Note: This is a hacky solution! But I haven't found a better
+        # way to remove the border. Other methods require saving to png
+        # first, which would result in unnecessary I/O operations!
+
+        # Find crop borders
+        if self.left_crop is None:
+            RGB_WHITE = np.array([255, 255, 255])
+            vertical_midpoint = int(data.shape[0]/2)
+            horizontal_midpoint = int(data.shape[1]/2)
+            # find left crop
+            for i in range(data.shape[1]):
+                if not np.array_equal(data[vertical_midpoint, i, :], 
+                                      RGB_WHITE):
+                    self.left_crop = i
+                    break
+            # find right crop
+            for i in range(data.shape[1]-1, -1, -1):
+                if not np.array_equal(data[vertical_midpoint, i, :], 
+                                      RGB_WHITE):
+                    self.right_crop = i+1
+                    break
+            # find top crop
+            for i in range(data.shape[0]):
+                if not np.array_equal(data[i, horizontal_midpoint, :],
+                                      RGB_WHITE):
+                    self.top_crop = i
+                    break
+            # find bot crop
+            for i in range(data.shape[0]-1, -1, -1):
+                if not np.array_equal(data[i, horizontal_midpoint, :],
+                                      RGB_WHITE):
+                    self.bot_crop = i+1
+                    break
+
+        data = data[self.top_crop:self.bot_crop, 
+                    self.left_crop:self.right_crop, :]
+        data = cv2.resize(data, shape)
             
         plt.close()
         return data
-
 
     """ Helper functions """
     def is_trajectory_success(self, start: np.ndarray, end: np.ndarray,
@@ -391,7 +431,6 @@ if __name__ == '__main__':
     # maze_env.plot_environment(mode='regions')
 
     np_img = maze_env.to_img(
-        filepath="test.png",
         position=np.array([2.5, 2.5])
     )
     
@@ -406,3 +445,10 @@ if __name__ == '__main__':
 
     maze_env.plot_trajectory(start, end, waypoints)
     print(maze_env.is_trajectory_success(start, end, waypoints))
+
+    for waypoint in waypoints:
+        np_img = maze_env.to_img(position=waypoint)
+        
+        newfig, ax = plt.subplots()
+        ax.imshow(np_img)
+        plt.show()
