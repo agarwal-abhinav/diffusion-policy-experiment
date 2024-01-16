@@ -21,3 +21,5 @@ max_rounded_paths: 3
 max_velocity: 1.0
 continuity_order: 1
 bezier_order: 3
+
+task_id: null

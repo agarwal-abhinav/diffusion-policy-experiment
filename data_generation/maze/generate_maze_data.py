@@ -5,9 +5,10 @@ python data_generation/maze/generate_maze_data.py --config-name maze_data_genera
 
 import hydra
 import numpy as np
+import sys
 import shutil
-import argparse
 import pathlib
+from omegaconf import OmegaConf
 
 from data_generation.maze.maze_data_generation_workspace import MazeDataGenerationWorkspace
 from data_generation.maze.maze_environment_generator import MazeEnvironmentGenerator
@@ -17,14 +18,12 @@ from data_generation.maze.maze_environment_generator import MazeEnvironmentGener
     config_path=str(pathlib.Path(__file__).parent.parent.joinpath(
         'config'))
 )
-def main(cfg):
-    # Parse config file
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config-name', type=str, default='maze_data_generation.yaml')
-    args = parser.parse_args()
-
+def main(cfg: OmegaConf):
     # Generate data
     gen_cfg = cfg.environment_generator
+    data_dir = cfg.data_dir
+    if cfg.task_id is not None:
+        data_dir = f'{data_dir}/{cfg.task_id}'
     maze_generator = MazeEnvironmentGenerator(
         min_num_obstacles=gen_cfg.min_num_obstacles,
         max_num_obstacles=gen_cfg.max_num_obstacles,
@@ -41,7 +40,7 @@ def main(cfg):
         num_mazes_per_proc=cfg.num_mazes_per_proc,
         num_trajectories_per_maze=cfg.num_trajectories_per_maze,
         num_processes=cfg.num_processes,
-        data_dir=cfg.data_dir,
+        data_dir=data_dir,
         append_date_time=cfg.append_date_time,
         max_rounded_paths=cfg.max_rounded_paths,
         max_velocity=cfg.max_velocity,
@@ -51,8 +50,9 @@ def main(cfg):
     maze_data_generation_workspace.run()
 
     # Add config file to data directory
+    config_name = sys.argv[2]
     src = str(pathlib.Path(__file__).parent.parent.joinpath(
-        'config', args.config_name))
+        'config', config_name))
     dst = str(pathlib.Path(__file__).parent.parent.parent.joinpath(
         maze_data_generation_workspace.data_dir, 'config.yaml'))
     shutil.copy(src, dst)
