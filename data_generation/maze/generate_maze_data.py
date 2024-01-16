@@ -5,6 +5,8 @@ python data_generation/maze/generate_maze_data.py --config-name maze_data_genera
 
 import hydra
 import numpy as np
+import time
+import datetime
 import sys
 import shutil
 import pathlib
@@ -20,6 +22,8 @@ from data_generation.maze.maze_environment_generator import MazeEnvironmentGener
 )
 def main(cfg: OmegaConf):
     # Generate data
+    start_time = time.time()
+
     gen_cfg = cfg.environment_generator
     data_dir = cfg.data_dir
     if cfg.task_id is not None:
@@ -42,6 +46,7 @@ def main(cfg: OmegaConf):
         num_processes=cfg.num_processes,
         data_dir=data_dir,
         append_date_time=cfg.append_date_time,
+        image_size=np.array(cfg.image_size),
         max_rounded_paths=cfg.max_rounded_paths,
         max_velocity=cfg.max_velocity,
         continuity_order=cfg.continuity_order,
@@ -56,7 +61,13 @@ def main(cfg: OmegaConf):
     dst = str(pathlib.Path(__file__).parent.parent.parent.joinpath(
         maze_data_generation_workspace.data_dir, 'config.yaml'))
     shutil.copy(src, dst)
-    
+
+    elapsed_time = time.time()-start_time
+    N = cfg.num_processes * cfg.num_mazes_per_proc * cfg.num_trajectories_per_maze
+    traj_per_maze = cfg.num_trajectories_per_maze
+    num_maze = cfg.num_processes*cfg.num_mazes_per_proc
+    time_str = str(datetime.timedelta(seconds=elapsed_time))
+    print(f"Collected {N} traj ({traj_per_maze} traj/maze for {num_maze} mazes) in {time_str} (HH:MM:SS).")
 
 if __name__ == "__main__":
     main()

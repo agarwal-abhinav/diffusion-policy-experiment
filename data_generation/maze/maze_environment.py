@@ -298,7 +298,7 @@ class MazeEnvironment:
 
     def to_img(self, 
                position: np.ndarray=None, 
-               shape: np.ndarray=np.array([96, 96])) -> np.ndarray:
+               shape: np.ndarray=np.array([64, 64])) -> np.ndarray:
         # plot environment
         fig, ax = plt.subplots()
         ax.set_facecolor('black')

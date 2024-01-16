@@ -29,6 +29,7 @@ class MazeDataGenerationWorkspace:
                   num_processes: int,
                   data_dir: str,
                   append_date_time: bool=True,
+                  image_size: np.ndarray=np.ndarray([64, 64]),
                   # GCS settings
                   max_rounded_paths: int=3, # number of GCS rounded paths
                   max_velocity: float=1.0,
