@@ -182,7 +182,7 @@ if __name__ == "__main__":
     )
     maze_data_generation_workspace = MazeDataGenerationWorkspace(
         maze_generator=maze_generator,
-        num_mazes_per_proc=5,
+        num_mazes_per_proc=3,
         num_trajectories_per_maze=2,
         num_processes=1,
         data_dir='data_generation/maze_data',
