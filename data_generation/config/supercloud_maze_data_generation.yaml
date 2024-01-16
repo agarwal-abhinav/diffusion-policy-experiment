@@ -12,8 +12,8 @@ environment_generator:
   non_overlapping_centers: true
 
 # 5000 trajectories per process
-num_mazes_per_proc: 20
-num_trajectories_per_maze: 250
+num_mazes_per_proc: 1
+num_trajectories_per_maze: 10
 num_processes: 1
 image_size:
 - 64

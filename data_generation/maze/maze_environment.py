@@ -313,7 +313,7 @@ class MazeEnvironment:
         
         # plot the position if it is not None
         if position is not None:
-            plt.plot(*position, 'ro', markersize=3)
+            plt.plot(*position, 'ro', markersize=4)
         
         plt.xlim(self.bounds[0])
         plt.ylim(self.bounds[1])
