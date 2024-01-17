@@ -94,7 +94,8 @@ class MazeDataGenerationWorkspace:
 
         pbar = \
             tqdm(total=self.num_mazes_per_proc * self.num_trajectories_per_maze, 
-                position=0)
+                position=0,
+                miniters=10.0)
         for maze in mazes:
             dim = maze.dim
 
