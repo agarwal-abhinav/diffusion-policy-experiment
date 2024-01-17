@@ -94,14 +94,19 @@ def main():
     data_dir = root.create_group('data')
     meta_dir = root.create_group('meta')
 
+    # Chunk sizes optimized for ~1-10MB chunks after compression
+    state_chunk_size = (1000000, 2)
+    target_chunk_size = (4000000, 2) # easier to compress
+    image_chunk_size = (10000, 64, 64, 3)
+    
     # Store data
-    data_dir.create_dataset('state', data=state, dtype='f4')
+    data_dir.create_dataset('state', data=state, chunks=state_chunk_size, dtype='f4')
     print("Stored state data.")
-    data_dir.create_dataset('action', data=action, dtype='f4')
+    data_dir.create_dataset('action', data=action, chunks=state_chunk_size, dtype='f4')
     print("Stored action data.")
-    data_dir.create_dataset('target', data=target, dtype='f4')
+    data_dir.create_dataset('target', data=target, chunks=target_chunk_size, dtype='f4')
     print("Stored target data.")
-    data_dir.create_dataset('img', data=img, dtype='f4')
+    data_dir.create_dataset('img', data=img, chunks=image_chunk_size, dtype='f4')
     print("Stored img data.")
     meta_dir.create_dataset('episode_ends', data=episode_ends)
     print("Stored episode_ends data. All done.")
