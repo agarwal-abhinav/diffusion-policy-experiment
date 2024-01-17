@@ -1,0 +1,179 @@
+# config for target conditioned experiments with image obs
+# appends target to obs history. This is hacky and assumes the target falls within the maze
+
+_target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env.TrainDiffusionUnetHybridWorkspaceNoEnv
+checkpoint:
+  save_last_ckpt: true
+  save_last_snapshot: false
+  topk:
+    format_str: epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt
+    k: 5
+    mode: min
+    monitor_key: val_loss
+# TODO: tune data loader parameters
+dataloader:
+  batch_size: 64
+  num_workers: 8
+  persistent_workers: false
+  pin_memory: true
+  shuffle: true
+dataset_obs_steps: 2 # ??
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  inv_gamma: 1.0
+  max_value: 0.9999
+  min_value: 0.0
+  power: 0.75
+  update_after_step: 0
+exp_name: defaults
+horizon: 16
+keypoint_visible_rate: 1.0
+logging:
+  group: null
+  id: null
+  mode: online
+  name: 2024.01.16_train_diffusion_unet_hybrid_maze_image
+  project: diffusion_policy_debug
+  resume: true
+  tags:
+  - train_diffusion_unet_hybrid
+  - maze_image
+  - default
+multi_run:
+  run_dir: data/outputs/2023.01.16/train_diffusion_unet_hybrid_maze_image
+  wandb_name_base: 2023.01.16_train_diffusion_unet_hybrid_maze_image
+n_action_steps: 8
+n_latency_steps: 0
+n_obs_steps: 2
+name: train_diffusion_unet_hybrid
+obs_as_global_cond: true
+optimizer:
+  _target_: torch.optim.AdamW
+  betas:
+  - 0.95
+  - 0.999
+  eps: 1.0e-08
+  lr: 0.0001
+  weight_decay: 1.0e-06
+past_action_visible: false
+policy:
+  # TODO: review architecture to figure out how to modify dataset
+  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_policy.DiffusionUnetHybridImagePolicy
+  cond_predict_scale: true
+  crop_shape: # ?? Change to 64 ??
+  - 84
+  - 84
+  diffusion_step_embed_dim: 128
+  down_dims:
+  - 512
+  - 1024
+  - 2048
+  eval_fixed_crop: true
+  horizon: 16
+  kernel_size: 5
+  n_action_steps: 8
+  n_groups: 8
+  n_obs_steps: 2
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    beta_start: 0.0001
+    clip_sample: true
+    num_train_timesteps: 100
+    prediction_type: epsilon
+    variance_type: fixed_small
+  num_inference_steps: 100
+  obs_as_global_cond: true
+  obs_encoder_group_norm: true
+  shape_meta:
+    action:
+      shape:
+      - 2
+    # TODO: possible that all agent_pos obs will need to be changed
+    # since I might be concatenating the target to the obs
+    obs:
+      agent_pos:
+        shape:
+        - 2
+        type: low_dim
+      image:
+        shape:
+        - 3
+        - 64
+        - 64
+        type: rgb
+shape_meta:
+  action:
+    shape:
+    - 2
+  obs:
+    agent_pos:
+      shape:
+      - 2
+      type: low_dim
+    image:
+      shape:
+      - 3
+      - 64
+      - 64
+      type: rgb
+task:
+  # TODO: write a new dataset class
+  dataset:
+    _target_: diffusion_policy.dataset.pusht_image_dataset.PushTImageDataset
+    horizon: 16
+    max_train_episodes: null # 90
+    pad_after: 7
+    pad_before: 1
+    seed: 42
+    val_ratio: 0.02 # TODO: choose an appropriate value here
+    # TODO: update datapath
+    zarr_path: data/pusht/pusht_cchi_v7_replay.zarr
+  image_shape:
+  - 3
+  - 64
+  - 64
+  name: maze_image
+  shape_meta:
+    action:
+      shape:
+      - 2
+    obs:
+      agent_pos:
+        shape:
+        - 2
+        type: low_dim
+      image:
+        shape:
+        - 3
+        - 64
+        - 64
+        type: rgb
+task_name: maze_image
+# TODO: tune the values here according to epoch time
+training:
+  checkpoint_every: 5
+  debug: false
+  # device: cuda:0
+  device: cpu # debug on CPU
+  gradient_accumulate_every: 1
+  lr_scheduler: cosine
+  lr_warmup_steps: 500
+  max_train_steps: null
+  max_val_steps: null
+  num_epochs: 100
+  resume: true
+  rollout_every: 5
+  sample_every: 5
+  seed: 42
+  tqdm_interval_sec: 10.0
+  use_ema: true
+  val_every: 1
+# TODO: tune these parameters
+val_dataloader:
+  batch_size: 64
+  num_workers: 8
+  persistent_workers: false
+  pin_memory: true
+  shuffle: false
