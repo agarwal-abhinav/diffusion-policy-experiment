@@ -97,7 +97,7 @@ def main():
     # Chunk sizes optimized for ~1-10MB chunks after compression
     state_chunk_size = (1000000, 2)
     target_chunk_size = (4000000, 2) # easier to compress
-    image_chunk_size = (10000, 64, 64, 3)
+    image_chunk_size = (10000, cfg["image_size"][0], cfg["image_size"][1], 3)
     
     # Store data
     data_dir.create_dataset('state', data=state, chunks=state_chunk_size, dtype='f4')
