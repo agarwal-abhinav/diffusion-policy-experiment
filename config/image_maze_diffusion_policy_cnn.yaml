@@ -1,19 +1,18 @@
 # config for target conditioned experiments with image obs
-# appends target to obs history. This is hacky and assumes the target falls within the maze
 
 _target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env.TrainDiffusionUnetHybridWorkspaceNoEnv
 checkpoint:
   save_last_ckpt: true
   save_last_snapshot: false
   topk:
-    format_str: epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt
+    format_str: epoch={epoch:04d}-val_loss={val_loss:.3f}.ckpt
     k: 5
     mode: min
     monitor_key: val_loss
 # TODO: tune data loader parameters
 dataloader:
-  batch_size: 64
-  num_workers: 8
+  batch_size: 8 # larger is better
+  num_workers: 1
   persistent_workers: false
   pin_memory: true
   shuffle: true
@@ -32,7 +31,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 2024.01.16_train_diffusion_unet_hybrid_maze_image
+  name: 2024.01.18_train_diffusion_unet_hybrid_maze_image
   project: diffusion_policy_debug
   resume: true
   tags:
@@ -40,8 +39,8 @@ logging:
   - maze_image
   - default
 multi_run:
-  run_dir: data/outputs/2023.01.16/train_diffusion_unet_hybrid_maze_image
-  wandb_name_base: 2023.01.16_train_diffusion_unet_hybrid_maze_image
+  run_dir: data/outputs/2023.01.18/train_diffusion_unet_hybrid_maze_image
+  wandb_name_base: 2023.01.18_train_diffusion_unet_hybrid_maze_image
 n_action_steps: 8
 n_latency_steps: 0
 n_obs_steps: 2
@@ -57,12 +56,16 @@ optimizer:
   weight_decay: 1.0e-06
 past_action_visible: false
 policy:
-  # TODO: review architecture to figure out how to modify dataset
-  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_policy.DiffusionUnetHybridImagePolicy
+  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
-  crop_shape: # ?? Change to 64 ??
-  - 84
-  - 84
+  crop_shape:
+  - 62
+  - 62
+  # debugging with a smaller model
+  # diffusion_step_embed_dim: 4
+  # down_dims:
+  # - 16
+  # - 32
   diffusion_step_embed_dim: 128
   down_dims:
   - 512
@@ -86,12 +89,12 @@ policy:
   num_inference_steps: 100
   obs_as_global_cond: true
   obs_encoder_group_norm: true
+  use_target_cond: true
+  target_dim: 2
   shape_meta:
     action:
       shape:
       - 2
-    # TODO: possible that all agent_pos obs will need to be changed
-    # since I might be concatenating the target to the obs
     obs:
       agent_pos:
         shape:
@@ -119,17 +122,17 @@ shape_meta:
       - 64
       type: rgb
 task:
-  # TODO: write a new dataset class
   dataset:
-    _target_: diffusion_policy.dataset.pusht_image_dataset.PushTImageDataset
+    _target_: diffusion_policy.dataset.drake_maze_hybrid_dataset.DrakeMazeHybridDataset
     horizon: 16
     max_train_episodes: null # 90
     pad_after: 7
     pad_before: 1
     seed: 42
-    val_ratio: 0.02 # TODO: choose an appropriate value here
-    # TODO: update datapath
-    zarr_path: data/pusht/pusht_cchi_v7_replay.zarr
+    val_ratio: 0.05 # 0.02
+    # override at command line to test with smaller dataset
+    # ex. task.dataset.zarr_path=data/maze_image/maze_image_dataset_4000.zarr
+    zarr_path: data/maze_image/maze_image_dataset.zarr
   image_shape:
   - 3
   - 64

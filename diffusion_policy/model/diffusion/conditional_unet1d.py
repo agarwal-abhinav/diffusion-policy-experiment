@@ -68,9 +68,9 @@ class ConditionalResidualBlock1D(nn.Module):
 class ConditionalUnet1D(nn.Module):
     def __init__(self, 
         input_dim,
+        target_dim=None,
         local_cond_dim=None,
         global_cond_dim=None,
-        target_cond_dim=None,
         diffusion_step_embed_dim=256,
         down_dims=[256,512,1024],
         kernel_size=3,
@@ -91,8 +91,8 @@ class ConditionalUnet1D(nn.Module):
         cond_dim = dsed
         if global_cond_dim is not None:
             cond_dim += global_cond_dim
-        if target_cond_dim is not None:
-            cond_dim += target_cond_dim
+        if target_dim is not None:
+            cond_dim += target_dim
 
         in_out = list(zip(all_dims[:-1], all_dims[1:]))
         
@@ -182,7 +182,7 @@ class ConditionalUnet1D(nn.Module):
         timestep: (B,) or int, diffusion step
         local_cond: (B,T,local_cond_dim)
         global_cond: (B,global_cond_dim)
-        target_cond: (B,target_cond_dim)
+        target_cond: (B,target_dim)
         output: (B,T,input_dim)
         """
         sample = einops.rearrange(sample, 'b h t -> b t h')
