@@ -45,6 +45,8 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
         assert len(action_shape) == 1
         action_dim = action_shape[0]
         obs_shape_meta = shape_meta['obs']
+        # each list contains the keys of the corresponding modality
+        # ex. {low_dim: [agent_pos], rgb: [image], depth: [], scan: []}
         obs_config = {
             'low_dim': [],
             'rgb': [],
@@ -52,6 +54,7 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             'scan': []
         }
         obs_key_shapes = dict()
+        # ex. {agent_pos: shape, image: shape}
         for key, attr in obs_shape_meta.items():
             shape = attr['shape']
             obs_key_shapes[key] = list(shape)
