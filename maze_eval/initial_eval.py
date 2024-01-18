@@ -85,7 +85,8 @@ def main(checkpoint, output_dir, device):
     obs_dim = cfg.policy.obs_dim
     action_horizon = cfg.policy.n_action_steps
     obs_horizon = cfg.policy.n_obs_steps
-    prepended_target = cfg.policy.prepended_target
+    use_target_cond = cfg.policy.use_target_cond
+    D_t = cfg.policy.target_dim
     B = 1 # batch size is 1
     num_traj = 100
 
@@ -104,21 +105,23 @@ def main(checkpoint, output_dir, device):
             dt = 0.1
 
             source = sample_collision_free_point(regions, bounds)
-            target = np.array([2.0, 1.0])
-            if prepended_target:
+            target = None
+            if use_target_cond:
                 target = sample_collision_free_point(regions, bounds)
+            else:
+                target = np.array([2.0, 1.0])
             distance = np.linalg.norm(source - target)
 
             waypoints = [source]
             obs_deque = deque([torch.from_numpy(source).reshape(B,1,2)] * obs_horizon,
                             maxlen=obs_horizon)
             while len(waypoints) <= 300:
-                obs = None
-                if prepended_target:
-                    obs = deque_to_dict(obs_deque, torch.from_numpy(target).reshape(B,1,2))
+                obs_dict = None
+                if use_target_cond:
+                    obs_dict = deque_to_dict(obs_deque, target)
                 else:
-                    obs = deque_to_dict(obs_deque)
-                action_seq = policy.predict_action(obs)['action'][0]
+                    obs_dict = deque_to_dict(obs_deque)
+                action_seq = policy.predict_action(obs_dict)['action'][0]
                 for action in action_seq:
                     waypoints.append(action.cpu().detach().numpy())
                     obs_deque.append(action.reshape(B,1,2))
@@ -175,12 +178,12 @@ def main(checkpoint, output_dir, device):
             pickle.dump(all_trajectories, f)
 
 def deque_to_dict(obs_deque: deque, target=None) -> dict[str, torch.Tensor]:
-    obs_array = None
-    if target is not None:
-        obs_array = torch.cat([target]+list(obs_deque), axis=1)
+    obs_array = torch.cat(list(obs_deque), axis=1)
+    if target is None:
+        return {'obs': obs_array}
     else:
-        obs_array = torch.cat(list(obs_deque), axis=1)
-    return {'obs': obs_array}
+        target = torch.from_numpy(target).reshape(1,-1)
+        return {'obs': obs_array, 'target': target}
     
 if __name__ == '__main__':
     main()

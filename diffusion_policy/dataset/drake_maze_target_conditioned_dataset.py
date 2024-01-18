@@ -76,11 +76,11 @@ class MazeLowdimTargetConditionedDataset(BaseLowdimDataset):
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
-        target = sample[self.target_key][0].reshape(1,-1)
-        # target gets preprended to observations
+        target = sample[self.target_key][0]
         data = {
-            'obs': np.concatenate([target, sample[self.state_key]]), # T+1, D_o
+            'obs': sample[self.state_key], # T, D_o
             'action': sample[self.action_key], # T, D_a
+            'target': target, # D_t
         }
         return data
 

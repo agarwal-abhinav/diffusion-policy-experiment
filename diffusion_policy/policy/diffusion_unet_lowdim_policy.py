@@ -22,15 +22,19 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             num_inference_steps=None,
             obs_as_local_cond=False,
             obs_as_global_cond=False,
+            use_target_cond=False,
+            target_dim=None,
             pred_action_steps_only=False,
             oa_step_convention=False,
-            prepended_target=False, 
             # parameters passed to step
             **kwargs):
         super().__init__()
         assert not (obs_as_local_cond and obs_as_global_cond)
         if pred_action_steps_only:
             assert obs_as_global_cond
+        if use_target_cond:
+            assert target_dim is not None
+            
         self.model = model
         self.noise_scheduler = noise_scheduler
         self.mask_generator = LowdimMaskGenerator(
@@ -50,7 +54,8 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
         self.obs_as_global_cond = obs_as_global_cond
         self.pred_action_steps_only = pred_action_steps_only
         self.oa_step_convention = oa_step_convention
-        self.prepended_target = prepended_target
+        self.use_target_cond = use_target_cond
+        self.target_dim = target_dim
         self.kwargs = kwargs
 
         if num_inference_steps is None:
@@ -61,7 +66,7 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
     def conditional_sample(self, 
             condition_data, condition_mask,
             local_cond=None, global_cond=None,
-            generator=None,
+            target_cond=None, generator=None,
             # keyword arguments to scheduler.step
             **kwargs
             ):
@@ -83,7 +88,8 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
 
             # 2. predict model output
             model_output = model(trajectory, t, 
-                local_cond=local_cond, global_cond=global_cond)
+                local_cond=local_cond, global_cond=global_cond,
+                target_cond=target_cond)
 
             # 3. compute previous image: x_t -> x_t-1
             trajectory = scheduler.step(
@@ -101,17 +107,25 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
     def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
+        obs_dict: must include "target" key if use_target_cond is True
         result: must include "action" key
         """
 
         assert 'obs' in obs_dict
         assert 'past_action' not in obs_dict # not implemented yet
+        if self.use_target_cond:
+            assert 'target' in obs_dict
+        
         nobs = self.normalizer['obs'].normalize(obs_dict['obs'])
+        ntarget = None
+        if self.use_target_cond:
+            ntarget = self.normalizer['target'].normalize(obs_dict['target'])
         B, _, Do = nobs.shape
         To = self.n_obs_steps
         assert Do == self.obs_dim
         T = self.horizon
         Da = self.action_dim
+        Dt = self.target_dim
 
         # build input
         device = self.device
@@ -129,11 +143,8 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             cond_data = torch.zeros(size=shape, device=device, dtype=dtype)
             cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
         elif self.obs_as_global_cond:
-            # condition throught global feature
-            if self.prepended_target:
-                global_cond = nobs[:,:To+1].reshape(nobs.shape[0], -1)
-            else:
-                global_cond = nobs[:,:To].reshape(nobs.shape[0], -1)
+            # condition through global feature
+            global_cond = nobs[:,:To].reshape(nobs.shape[0], -1)
             shape = (B, T, Da)
             if self.pred_action_steps_only:
                 shape = (B, self.n_action_steps, Da)
@@ -147,12 +158,18 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             cond_data[:,:To,Da:] = nobs[:,:To]
             cond_mask[:,:To,Da:] = True
 
+        # handle target conditioning
+        target_cond = None
+        if self.use_target_cond:
+            target_cond = ntarget.reshape(ntarget.shape[0], -1) # B, D_t
+
         # run sampling
         nsample = self.conditional_sample(
-            cond_data, 
+            cond_data, # always inactive masks unless impainting
             cond_mask,
             local_cond=local_cond,
             global_cond=global_cond,
+            target_cond=target_cond,
             **self.kwargs)
         
         # unnormalize prediction
@@ -191,6 +208,9 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
         nbatch = self.normalizer.normalize(batch)
         obs = nbatch['obs']
         action = nbatch['action']
+        target = None
+        if self.use_target_cond:
+            target = nbatch['target']
 
         # handle different ways of passing observation
         local_cond = None
@@ -202,8 +222,6 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             local_cond[:,self.n_obs_steps:,:] = 0
         elif self.obs_as_global_cond:
             slice_end = self.n_obs_steps
-            if self.prepended_target:
-                slice_end += 1
             global_cond = obs[:,:slice_end,:].reshape(
                 obs.shape[0], -1)
             if self.pred_action_steps_only:
@@ -215,6 +233,11 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
                 trajectory = action[:,start:end]
         else:
             trajectory = torch.cat([action, obs], dim=-1)
+
+        # handle target conditioning
+        target_cond=None
+        if self.use_target_cond:
+            target_cond = target.reshape(target.shape[0], -1) # B, D_t
 
         # generate impainting mask
         if self.pred_action_steps_only:
@@ -243,7 +266,8 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
         
         # Predict the noise residual
         pred = self.model(noisy_trajectory, timesteps, 
-            local_cond=local_cond, global_cond=global_cond)
+            local_cond=local_cond, global_cond=global_cond,
+            target_cond=target_cond)
 
         pred_type = self.noise_scheduler.config.prediction_type 
         if pred_type == 'epsilon':

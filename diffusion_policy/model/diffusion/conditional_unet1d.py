@@ -65,17 +65,17 @@ class ConditionalResidualBlock1D(nn.Module):
         out = out + self.residual_conv(x)
         return out
 
-
 class ConditionalUnet1D(nn.Module):
     def __init__(self, 
         input_dim,
         local_cond_dim=None,
         global_cond_dim=None,
+        target_cond_dim=None,
         diffusion_step_embed_dim=256,
         down_dims=[256,512,1024],
         kernel_size=3,
         n_groups=8,
-        cond_predict_scale=False
+        cond_predict_scale=False # Expect this to be True
         ):
         super().__init__()
         all_dims = [input_dim] + list(down_dims)
@@ -91,9 +91,11 @@ class ConditionalUnet1D(nn.Module):
         cond_dim = dsed
         if global_cond_dim is not None:
             cond_dim += global_cond_dim
+        if target_cond_dim is not None:
+            cond_dim += target_cond_dim
 
         in_out = list(zip(all_dims[:-1], all_dims[1:]))
-
+        
         local_cond_encoder = None
         if local_cond_dim is not None:
             _, dim_out = in_out[0]
@@ -173,12 +175,14 @@ class ConditionalUnet1D(nn.Module):
     def forward(self, 
             sample: torch.Tensor, 
             timestep: Union[torch.Tensor, float, int], 
-            local_cond=None, global_cond=None, **kwargs):
+            local_cond=None, global_cond=None, 
+            target_cond=None, **kwargs):
         """
         x: (B,T,input_dim)
         timestep: (B,) or int, diffusion step
         local_cond: (B,T,local_cond_dim)
         global_cond: (B,global_cond_dim)
+        target_cond: (B,target_cond_dim)
         output: (B,T,input_dim)
         """
         sample = einops.rearrange(sample, 'b h t -> b t h')
@@ -195,9 +199,16 @@ class ConditionalUnet1D(nn.Module):
 
         global_feature = self.diffusion_step_encoder(timesteps)
 
+        # Concatenate global conditioning (ex. observation history)
         if global_cond is not None:
             global_feature = torch.cat([
                 global_feature, global_cond
+            ], axis=-1)
+
+        # Concateante target conditioning (ex. target goal state)
+        if target_cond is not None:
+            global_feature = torch.cat([
+                global_feature, target_cond
             ], axis=-1)
         
         # encode local features
@@ -239,4 +250,3 @@ class ConditionalUnet1D(nn.Module):
 
         x = einops.rearrange(x, 'b t h -> b h t')
         return x
-
