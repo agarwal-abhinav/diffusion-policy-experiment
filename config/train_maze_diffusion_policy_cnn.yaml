@@ -9,10 +9,9 @@ checkpoint:
     k: 5
     mode: min
     monitor_key: val_loss
-# TODO: tune data loader parameters
 dataloader:
-  batch_size: 8 # larger is better
-  num_workers: 1
+  batch_size: 512
+  num_workers: 8
   persistent_workers: false
   pin_memory: true
   shuffle: true
@@ -154,7 +153,6 @@ task:
         - 64
         type: rgb
 task_name: maze_image
-# TODO: tune the values here according to epoch time
 training:
   checkpoint_every: 5
   debug: false
@@ -165,7 +163,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 100
+  num_epochs: 200
   resume: true
   rollout_every: 5
   sample_every: 5
@@ -173,9 +171,8 @@ training:
   tqdm_interval_sec: 10.0
   use_ema: true
   val_every: 1
-# TODO: tune these parameters
 val_dataloader:
-  batch_size: 64
+  batch_size: 512
   num_workers: 8
   persistent_workers: false
   pin_memory: true
