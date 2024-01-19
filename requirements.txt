@@ -1,6 +1,6 @@
 torch
 torchvision==0.13.1
-pytorch3d
+#pytorch3d
 numpy==1.23.3
 #numba==0.56.4
 scipy==1.9.1

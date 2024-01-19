@@ -143,4 +143,4 @@ dmypy.json
 LL*
 
 # virtual envirnonment
-gcs_diffusion_env/
+.robodiff

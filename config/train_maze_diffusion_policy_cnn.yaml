@@ -158,8 +158,8 @@ task_name: maze_image
 training:
   checkpoint_every: 5
   debug: false
-  # device: cuda:0
-  device: cpu # debug on CPU
+  device: cuda:0
+  # device: cpu # debug on CPU
   gradient_accumulate_every: 1
   lr_scheduler: cosine
   lr_warmup_steps: 500
