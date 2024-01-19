@@ -141,3 +141,6 @@ dmypy.json
 
 # MIT Supercloud
 LL*
+
+# virtual envirnonment
+gcs_diffusion_env/
