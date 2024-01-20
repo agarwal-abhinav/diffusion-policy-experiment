@@ -89,7 +89,7 @@ def main():
     print("Concatenated data.")
 
     # Create zarr file and group structure
-    zarr_path = os.path.join(args.data_dir, 'maze_image_dataset_4000.zarr')
+    zarr_path = os.path.join(args.data_dir, 'maze_image_dataset.zarr')
     root = zarr.open_group(zarr_path, mode='w')
     data_dir = root.create_group('data')
     meta_dir = root.create_group('meta')

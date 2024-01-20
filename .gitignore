@@ -139,8 +139,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# MIT Supercloud
+# MIT Supercloud logs
 LL*
+*.log-*
 
 # virtual envirnonment
 .robodiff
