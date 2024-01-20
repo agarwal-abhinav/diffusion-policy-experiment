@@ -14,14 +14,14 @@ class MazeEnvironmentGenerator:
     """
 
     def __init__(self, 
-                 min_num_obstacles: int,
-                 max_num_obstacles: int,
-                 min_obstacle_width: float,
-                 max_obstacle_width: float,
-                 min_obstacle_height: float,
-                 max_obstacle_height: float,
-                 border_padding: float, # padding around border
-                 bounds: np.ndarray, # bounds of the maze
+                 min_num_obstacles: int=10,
+                 max_num_obstacles: int=15,
+                 min_obstacle_width: float=0.2,
+                 max_obstacle_width: float=1.5,
+                 min_obstacle_height: float=0.2,
+                 max_obstacle_height: float=1.5,
+                 border_padding: float=0.3, # padding around border
+                 bounds: np.ndarray=np.array([[0, 5.0], [0, 5.0]]), # bounds of the maze
                  non_overlapping_centers: bool = True):
         
         self.min_num_obstacles = min_num_obstacles
