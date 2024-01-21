@@ -95,13 +95,24 @@ class DrakeMazeHybridDataset(BaseImageDataset):
         return torch_data
 
 
-# def test():
-#     import os
-#     zarr_path = os.path.expanduser('~/dev/diffusion_policy/data/pusht/pusht_cchi_v7_replay.zarr')
-#     dataset = PushTImageDataset(zarr_path, horizon=16)
+def test():
+    dataset = DrakeMazeHybridDataset(
+            zarr_path="data/maze_image/maze_image_dataset_4000.zarr", 
+            horizon=2,
+            pad_before=1,
+            pad_after=7,
+            seed=42,
+            val_ratio=0.05,
+            max_train_episodes=None)
+    item = dataset[0]
+    breakpoint()
 
-#     # from matplotlib import pyplot as plt
-#     # normalizer = dataset.get_normalizer()
-#     # nactions = normalizer['action'].normalize(dataset.replay_buffer['action'])
-#     # diff = np.diff(nactions, axis=0)
-#     # dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
+
+    # from matplotlib import pyplot as plt
+    # normalizer = dataset.get_normalizer()
+    # nactions = normalizer['action'].normalize(dataset.replay_buffer['action'])
+    # diff = np.diff(nactions, axis=0)
+    # dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
+
+if __name__ == "__main__":
+    test()

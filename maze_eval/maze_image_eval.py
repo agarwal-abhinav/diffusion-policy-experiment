@@ -15,18 +15,16 @@ import click
 import hydra
 import torch
 import dill
-import json
 import tqdm
 import pickle
 import shutil
+import time
 
 from collections import deque
-from torch.utils.data import DataLoader
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
-from diffusion_policy.dataset.base_dataset import BaseLowdimDataset
+from diffusion_policy.dataset.base_dataset import BaseImageDataset
 from data_generation.maze.gcs_utils import *
 from data_generation.maze.maze_environment_generator import MazeEnvironmentGenerator
-from data_generation.maze.maze_environment import MazeEnvironment
 
 @click.command()
 @click.option('-c', '--checkpoint', required=True)
@@ -53,11 +51,10 @@ def main(checkpoint, output_dir, device):
     workspace = cls(cfg, output_dir=output_dir)
     workspace.load_payload(payload, exclude_keys=None, include_keys=None)
     
-    # get normalizer
-    # this might be expensive for larger datasets
-    dataset: BaseLowdimDataset
+    # get normalizer: this might be expensive for larger datasets
+    dataset: BaseImageDataset
     dataset = hydra.utils.instantiate(cfg.task.dataset)
-    assert isinstance(dataset, BaseLowdimDataset)
+    assert isinstance(dataset, BaseImageDataset)
     normalizer = dataset.get_normalizer()
 
     # get policy from workspace
@@ -72,17 +69,9 @@ def main(checkpoint, output_dir, device):
     policy.eval()
 
     # get parameters
-    horizon = cfg.policy.horizon
-    action_dim = cfg.policy.action_dim
-    obs_dim = cfg.policy.obs_dim
-    action_horizon = cfg.policy.n_action_steps
     obs_horizon = cfg.policy.n_obs_steps
-    use_target_cond = cfg.policy.use_target_cond
-    D_t = cfg.policy.target_dim
     B = 1 # batch size is 1
     num_traj = 100
-
-    
 
     with torch.no_grad():
         all_trajectories = []
@@ -113,7 +102,7 @@ def main(checkpoint, output_dir, device):
             state_deque = deque([torch.from_numpy(source).reshape(B,1,2)] * obs_horizon,
                             maxlen=obs_horizon)
             init_img = maze.to_img(source)
-            init_img = np.moveaxis(init_img,-1,1)/255
+            init_img = np.moveaxis(init_img,-1,-3)/255
             init_img = init_img.reshape(B,1,*init_img.shape) # 1, 1, 3, 64, 64
             img_deque = deque([torch.from_numpy(init_img)] * obs_horizon,
                             maxlen=obs_horizon)
@@ -127,8 +116,9 @@ def main(checkpoint, output_dir, device):
                     # update deques
                     state_deque.append(action.reshape(B,1,2))
                     img = maze.to_img(action.cpu().detach().numpy())
-                    img = np.moveaxis(img,-1,1)/255
-                    img_deque.append(img.reshape(B,1,*img.shape))
+                    img = np.moveaxis(img,-1,-3)/255
+                    img = img.reshape(B,1,*img.shape)
+                    img_deque.append(torch.from_numpy(img))
 
                     # check success conditions (arrived near target with low velocity)
                     dist_to_target = np.linalg.norm(action.cpu().detach().numpy() - target)
