@@ -104,7 +104,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 config=config,
                 obs_key_shapes=obs_key_shapes,
                 ac_dim=action_dim,
-                device='cpu',
+                # device='cpu',
+                device='cuda'
             )
 
         # extract the image encoder
@@ -306,13 +307,54 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def set_normalizer(self, normalizer: LinearNormalizer):
         self.normalizer.load_state_dict(normalizer.state_dict())
 
+    def forward(self, batch, noisy_trajectory, timesteps):
+        assert 'valid_mask' not in batch
+        nobs = self.normalizer.normalize(batch['obs'])
+        ntarget = None
+        if self.use_target_cond:
+            ntarget = self.normalizer['target'].normalize(batch['target'])
+        nactions = self.normalizer['action'].normalize(batch['action'])
+        batch_size = nactions.shape[0]
+        horizon = nactions.shape[1]
+        # print(f"Inside batch size: {batch_size}")
+
+        # handle different ways of passing observation
+        local_cond = None
+        global_cond = None
+        trajectory = nactions
+        cond_data = trajectory
+        if self.obs_as_global_cond:
+            # reshape B, T, ... to B*T
+            this_nobs = dict_apply(nobs, 
+                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
+            nobs_features = self.obs_encoder(this_nobs)
+            # reshape back to B, Do
+            global_cond = nobs_features.reshape(batch_size, -1)
+        else:
+            # reshape B, T, ... to B*T
+            this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
+            nobs_features = self.obs_encoder(this_nobs)
+            # reshape back to B, T, Do
+            nobs_features = nobs_features.reshape(batch_size, horizon, -1)
+            cond_data = torch.cat([nactions, nobs_features], dim=-1)
+            trajectory = cond_data.detach()
+        
+        # handle target conditioning
+        target_cond = None
+        if self.use_target_cond:
+            target_cond = ntarget.reshape(batch_size, -1) # B, D_t
+
+        # Predict the noise residual
+        return self.model(noisy_trajectory, timesteps, 
+            local_cond=local_cond, global_cond=global_cond,
+            target_cond=target_cond)
+
     def compute_loss(self, batch):
         # normalize input
         assert 'valid_mask' not in batch
         nobs = self.normalizer.normalize(batch['obs'])
         nactions = self.normalizer['action'].normalize(batch['action'])
         ntarget = None
-        # DEBUG: ntarget is sometimes a tuple, sometimes a tensor
         if self.use_target_cond:
             ntarget = self.normalizer['target'].normalize(batch['target'])
         batch_size = nactions.shape[0]

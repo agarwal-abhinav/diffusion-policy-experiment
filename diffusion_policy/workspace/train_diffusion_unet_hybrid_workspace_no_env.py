@@ -19,6 +19,10 @@ import wandb
 import tqdm
 import numpy as np
 import shutil
+import torch
+from torch.nn.parallel import DataParallel
+from einops import rearrange, reduce
+import torch.nn.functional as F
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy import DiffusionUnetHybridImageTargetedPolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
@@ -31,11 +35,20 @@ from diffusion_policy.model.common.lr_scheduler import get_scheduler
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
+class DataParallelWrapper(DataParallel):
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+        
 class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
     include_keys = ['global_step', 'epoch']
 
     def __init__(self, cfg: OmegaConf, output_dir=None):
         super().__init__(cfg, output_dir=output_dir)
+        # This environment does not support impainting or local conditioning
+        assert cfg.policy.obs_as_global_cond is True
 
         # set seed
         seed = cfg.training.seed
@@ -69,6 +82,11 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             obs_encoder_group_norm=p_cfg.obs_encoder_group_norm,
             eval_fixed_crop=p_cfg.eval_fixed_crop,
         )
+        self.model = self.model.to(torch.device("cuda:0"))
+
+        num_GPU = torch.cuda.device_count()
+        print(f"Training on {num_GPU} GPU(s).")
+        self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
 
         self.ema_model: DiffusionUnetHybridImageTargetedPolicy = None
         if cfg.training.use_ema:
@@ -185,9 +203,27 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                         if train_sampling_batch is None:
                             train_sampling_batch = batch
-
+                        batch_size = batch['action'].shape[0]
+                        # print(f"Outside batch size: {batch_size}")
+                        
+                        # construct noisy trajectory
+                        trajectory = self.model.normalizer['action'].normalize(batch['action'])
+                        noise = torch.randn(trajectory.shape, device=trajectory.device)
+                        # Sample a random timestep for each image
+                        timesteps = torch.randint(
+                            0, self.model.noise_scheduler.config.num_train_timesteps, 
+                            (batch_size,), device=trajectory.device
+                        ).long()
+                        # Add noise to the clean images according to the noise magnitude at each timestep
+                        # (this is the forward diffusion process)
+                        noisy_trajectory = self.model.noise_scheduler.add_noise(
+                            trajectory, noise, timesteps)
+                        
+                        # call to the policy's forward function: computes 1 denoising step
+                        pred = self.model(batch, noisy_trajectory, timesteps)
+                        
                         # compute loss
-                        raw_loss = self.model.compute_loss(batch)
+                        raw_loss = self.compute_loss(trajectory, noise, pred)
                         loss = raw_loss / cfg.training.gradient_accumulate_every
                         loss.backward()
 
@@ -309,6 +345,20 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 json_logger.log(step_log)
                 self.global_step += 1
                 self.epoch += 1
+    
+    def compute_loss(self, trajectory, noise, pred):
+        pred_type = self.model.noise_scheduler.config.prediction_type 
+        if pred_type == 'epsilon':
+            target = noise
+        elif pred_type == 'sample':
+            target = trajectory
+        else:
+            raise ValueError(f"Unsupported prediction type {pred_type}")
+        
+        loss = F.mse_loss(pred, target, reduction='none')
+        loss = reduce(loss, 'b ... -> b (...)', 'mean')
+        loss = loss.mean()
+        return loss
                 
 
 @hydra.main(
