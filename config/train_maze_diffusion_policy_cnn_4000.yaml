@@ -10,7 +10,7 @@ checkpoint:
     mode: min
     monitor_key: val_loss
 dataloader:
-  batch_size: 512
+  batch_size: 256
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -131,7 +131,7 @@ task:
     val_ratio: 0.05 # 0.02
     # override at command line to test with smaller dataset
     # ex. task.dataset.zarr_path=data/maze_image/maze_image_dataset_4000.zarr
-    zarr_path: data/maze_image/maze_image_dataset.zarr
+    zarr_path: data/maze_image/maze_image_dataset_4000.zarr
   image_shape:
   - 3
   - 64
@@ -163,16 +163,16 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 500
+  num_epochs: 200
   resume: true
   rollout_every: 5
   sample_every: 5
   seed: 42
-  tqdm_interval_sec: 30.0
+  tqdm_interval_sec: 10.0
   use_ema: true
   val_every: 1
 val_dataloader:
-  batch_size: 512
+  batch_size: 256
   num_workers: 8
   persistent_workers: false
   pin_memory: true

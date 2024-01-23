@@ -20,6 +20,6 @@ DATE=`date +"%Y.%m.%d"`
 TIME=`date +"%H.%M.%S"`
 
 echo "[submit_maze_training.sh] Running training code..."
-python train.py --config-dir=config --config-name=train_maze_diffusion_policy_cnn.yaml \
-    training.seed=42 hydra.run.dir=data/outputs/${DATE}/${TIME}_maze_image \
-    task.dataset.zarr_path=data/maze_image/maze_image_dataset.zarr
+python train.py --config-dir=config --config-name=train_maze_diffusion_policy_cnn_4000.yaml \
+    training.seed=42 hydra.run.dir=data/outputs/${DATE}/${TIME}_maze_image_4000 \
+    task.dataset.zarr_path=data/maze_image/maze_image_dataset_4000.zarr
