@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Usage
-# LLsub ./submit_maze_training.sh -s 20 -g volta:2
+# LLsub ./submit_maze_training_4000.sh -s 20 -g volta:2
 
 # Initialize and Load Modules
 echo "[submit_maze_training.sh] Loading modules and virtual environment"
