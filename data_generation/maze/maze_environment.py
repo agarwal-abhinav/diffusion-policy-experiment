@@ -2,6 +2,7 @@ import numpy as np
 import time
 import copy
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import cv2
 
 from typing import (List, Dict, Union)
@@ -36,7 +37,7 @@ class MazeEnvironment:
         self.obstacles = obstacles
         self.obstacles_vpolytopes = None
         if obstacles is not None:
-            self.obstacles_vpolytopes = self.convert_to_vpolytope(obstacles)
+            self.obstacles_vpolytopes = self.convert_to_vpolytope(obstacles)            
         
         self.regions = regions
         if regions is None:
@@ -448,9 +449,11 @@ if __name__ == '__main__':
     maze_env.plot_trajectory(start, end, waypoints)
     print(maze_env.is_trajectory_success(start, end, waypoints))
 
-    for waypoint in waypoints:
-        np_img = maze_env.to_img(position=waypoint)
-        
-        newfig, ax = plt.subplots()
-        ax.imshow(np_img)
-        plt.show()
+    # Create animation
+    fig, ax = plt.subplots()
+    num_frames = len(waypoints)
+    def animate(i):
+        plt.imshow(maze_env.to_img(waypoints[i]))
+    animation = FuncAnimation(fig, animate, frames=num_frames, 
+                              interval=50, repeat=True)
+    plt.show()
