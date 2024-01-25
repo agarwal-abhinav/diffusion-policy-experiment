@@ -124,6 +124,7 @@ task:
   dataset:
     _target_: diffusion_policy.dataset.drake_maze_hybrid_dataset.DrakeMazeHybridDataset
     horizon: 16
+    n_obs_steps: 2
     max_train_episodes: null # 90
     pad_after: 7
     pad_before: 1

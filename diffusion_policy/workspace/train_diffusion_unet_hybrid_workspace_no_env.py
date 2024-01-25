@@ -85,7 +85,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         self.model = self.model.to(torch.device("cuda:0"))
 
         num_GPU = torch.cuda.device_count()
-        print(f"Training on {num_GPU} GPU(s).")
+        print(f"Running on {num_GPU} GPU(s).")
         self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
 
         self.ema_model: DiffusionUnetHybridImageTargetedPolicy = None

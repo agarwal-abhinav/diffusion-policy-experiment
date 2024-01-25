@@ -1,5 +1,7 @@
 from typing import Dict
+import zarr
 import torch
+import time
 import numpy as np
 import copy
 from diffusion_policy.common.pytorch_util import dict_apply
@@ -14,6 +16,7 @@ class DrakeMazeHybridDataset(BaseImageDataset):
     def __init__(self,
             zarr_path, 
             horizon=1,
+            n_obs_steps=None,
             pad_before=0,
             pad_after=0,
             seed=42,
@@ -22,8 +25,11 @@ class DrakeMazeHybridDataset(BaseImageDataset):
             ):
         
         super().__init__()
+        keys = ['img', 'state', 'action', 'target']
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['img', 'state', 'action', 'target'])
+            zarr_path=zarr_path, 
+            # store=zarr.MemoryStore(),
+            keys=keys)
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -33,6 +39,12 @@ class DrakeMazeHybridDataset(BaseImageDataset):
             mask=train_mask, 
             max_n=max_train_episodes, 
             seed=seed)
+
+        # key_first_k = dict()
+        # if n_obs_steps is not None:
+        #     # only take first k obs from images
+        #     for key in keys:
+        #         key_first_k[key] = n_obs_steps
 
         self.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer, 
@@ -97,16 +109,22 @@ class DrakeMazeHybridDataset(BaseImageDataset):
 
 def test():
     dataset = DrakeMazeHybridDataset(
-            zarr_path="data/maze_image/maze_image_dataset_4000.zarr", 
-            horizon=2,
+            zarr_path="data/maze_image/maze_image_dataset_150k.zarr", 
+            horizon=16,
+            n_obs_steps=2,
             pad_before=1,
             pad_after=7,
             seed=42,
             val_ratio=0.05,
             max_train_episodes=None)
-    item = dataset[0]
-    breakpoint()
-
+    
+    num_samples = 10
+    avg_time = 0
+    for i in range(num_samples):
+        start_time = time.time()
+        item = dataset[i]
+        avg_time += (time.time() - start_time) / num_samples
+    print(f"Average time to get item: {avg_time}")
 
     # from matplotlib import pyplot as plt
     # normalizer = dataset.get_normalizer()

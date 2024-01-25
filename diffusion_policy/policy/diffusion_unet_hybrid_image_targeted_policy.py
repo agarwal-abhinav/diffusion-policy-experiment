@@ -104,8 +104,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 config=config,
                 obs_key_shapes=obs_key_shapes,
                 ac_dim=action_dim,
-                # device='cpu',
-                device='cuda'
+                device='cuda' if torch.cuda.is_available() else 'cpu'
             )
 
         # extract the image encoder

@@ -25,7 +25,7 @@ def main():
     It will only store trajectories from the subdirectories [start_idx, end_idx)
 
     Usage:
-    python convert_pkl_to_zarr.py --data_dir <path_to_data_dir> \
+    python data_generation/maze/convert_pkl_to_zarr.py --data_dir <path_to_data_dir> \
         --start_idx <start_idx> --end_idx <end_idx>
     
     """
@@ -136,6 +136,8 @@ def main():
     data_dir.create_dataset('target', data=target, chunks=target_chunk_size, dtype='f4')
     print("Stored target data.")
     data_dir.create_dataset('img', data=img, chunks=image_chunk_size, dtype='f4')
+    # data_dir.create_dataset('img', data=img, dstype='f4')
+
     print("Stored img data.")
     meta_dir.create_dataset('episode_ends', data=episode_ends)
     print("Stored episode_ends data.")
