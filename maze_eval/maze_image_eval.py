@@ -154,7 +154,7 @@ def main(checkpoint, output_dir, device):
                                  velocity_bounds=np.array([[-1,1],[-1,1]]),
                                  collision_indices=collidion_indices,
                                  dt=0.1)
-            all_trajectories.append((source, target, waypoints))
+            all_trajectories.append((source, target, waypoints, maze))
         
         # Compute statistics and write to logs
         log_eval_results(
