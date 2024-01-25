@@ -5,7 +5,7 @@ checkpoint:
   save_last_ckpt: true
   save_last_snapshot: false
   topk:
-    format_str: epoch={epoch:04d}-val_loss={val_loss:.3f}.ckpt
+    format_str: epoch={epoch:04d}-val_loss={val_loss:.6f}.ckpt
     k: 5
     mode: min
     monitor_key: val_loss
