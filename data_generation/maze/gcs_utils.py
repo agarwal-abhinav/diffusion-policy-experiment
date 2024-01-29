@@ -271,7 +271,7 @@ def log_eval_results(filename,
     pass_ratio = len(passed_all_tests)/num_traj
     collision_free_ratio = len(passed_collision_tests)/num_traj
     satisfies_velocity_bounds_ratio = len(passed_velocity_tests)/num_traj
-    converged_ratio = len(failed_to_converge)/num_traj
+    converged_ratio = (num_traj-len(failed_to_converge))/num_traj
 
     f = open(filename, "w")
     f.write("Evaluation Results\n-----------------\n")
