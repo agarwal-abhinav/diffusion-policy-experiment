@@ -45,7 +45,8 @@ class MazeDataGenerationWorkspace:
         self.data_dir = data_dir
         if append_date_time:
             self.data_dir = f'{data_dir}_{now.strftime("%d-%m-%Y_%H:%M:%S")}'
-
+        self.image_size = image_size
+        
         # GCS settings
         self.max_rounded_paths = max_rounded_paths
         self.max_velocity = max_velocity
@@ -159,7 +160,7 @@ class MazeDataGenerationWorkspace:
                 # Generate corresponding images
                 imgs = []
                 for waypoint in maze_data['trajectories'][-1]:
-                    imgs.append(maze.to_img(waypoint))
+                    imgs.append(maze.to_img(waypoint, shape=self.image_size))
                 maze_data['imgs'].append(np.array(imgs))
                 
                 pbar.update(1)

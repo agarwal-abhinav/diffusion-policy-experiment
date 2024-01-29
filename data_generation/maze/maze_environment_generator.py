@@ -21,6 +21,7 @@ class MazeEnvironmentGenerator:
                  min_obstacle_height: float=0.2,
                  max_obstacle_height: float=1.5,
                  border_padding: float=0.3, # padding around border
+                 obstacle_padding: float=0.0,
                  bounds: np.ndarray=np.array([[0, 5.0], [0, 5.0]]), # bounds of the maze
                  non_overlapping_centers: bool = True):
         
@@ -31,6 +32,7 @@ class MazeEnvironmentGenerator:
         self.min_obstacle_height = min_obstacle_height
         self.max_obstacle_height = max_obstacle_height
         self.border_padding = border_padding
+        self.obstacle_padding = obstacle_padding
         self.bounds = bounds
         self.padded_bounds = bounds + border_padding*np.array([[1, -1], [1, -1]])
         self.non_overlapping_centers = non_overlapping_centers
@@ -89,7 +91,9 @@ class MazeEnvironmentGenerator:
 
     def generate_maze_environment(self) -> MazeEnvironment:
         obstacles = self.generate_obstacle_list()
-        return MazeEnvironment(bounds=self.bounds, obstacles=obstacles)
+        return MazeEnvironment(bounds=self.bounds, 
+                               obstacles=obstacles,
+                               obstacle_padding=self.obstacle_padding)
     
     """ Helper Functions """
     def compute_obstacle_center(self, vpolytope: VPolytope) -> np.ndarray:
@@ -111,6 +115,7 @@ if __name__ == '__main__':
         min_obstacle_height=0.2,
         max_obstacle_height=1.5,
         border_padding = 0.3,
+        obstacle_padding = 0.1,
         bounds=np.array([[0, 5], [0, 5]])
     )
     for i in range(10):

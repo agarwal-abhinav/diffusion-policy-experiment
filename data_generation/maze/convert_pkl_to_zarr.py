@@ -4,6 +4,8 @@ import zarr
 import argparse
 import os
 import yaml
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 from tqdm import tqdm
 
@@ -50,6 +52,24 @@ def main():
     config_path = os.path.join(args.data_dir, '0/config.yaml')
     with open(config_path, 'r') as yaml_file:
         cfg = yaml.load(yaml_file, Loader=yaml.FullLoader)
+
+    # Visualize data
+    # dir_idx = 0
+    # datapath = os.path.join(data_dir, str(dir_idx), 'maze_data.pkl')
+    # data = pickle.load(open(datapath, 'rb'))
+    # for maze_data in data:
+    #     maze_env = maze_data['maze']
+    #     for i in range(len(maze_data['trajectories'])):
+    #         fig, ax = plt.subplots()
+    #         def animate(idx):
+    #             # apply the 62 by 62 crop as well
+    #             plt.imshow(maze_data['imgs'][i][idx][1:-2, 1:-2, :])
+    #         num_frames = len(maze_data['imgs'][i])
+    #         dt = 0.1
+    #         animation = FuncAnimation(fig, animate, frames=num_frames, 
+    #                             interval=dt*1000, repeat=True)
+    #         plt.show()
+    # return
 
     # Compute size of arrays and episode ends
     episode_ends = []

@@ -12,10 +12,23 @@ environment_generator:
   - [0, 5.0]
   non_overlapping_centers: true
 
+# Collection V1
 # 6250 trajectories per process
 # Triples mode: [2,40,1] (total of 500k trajectories)
-num_mazes_per_proc: 25
-num_trajectories_per_maze: 250
+# num_mazes_per_proc: 25
+# num_trajectories_per_maze: 250
+
+# Collection V2
+# 1250 trajectories per process
+# Triples mode: [2,40,1] (total of 100k trajectories)
+num_mazes_per_proc: 250
+num_trajectories_per_maze: 5
+
+# Debug collection
+# 10 trajectories per process
+# num_mazes_per_proc: 2
+# num_trajectories_per_maze: 5
+
 num_processes: 1
 image_size:
 - 64

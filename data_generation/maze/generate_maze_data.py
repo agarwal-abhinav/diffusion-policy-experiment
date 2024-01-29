@@ -36,6 +36,7 @@ def main(cfg: OmegaConf):
         min_obstacle_height=gen_cfg.min_obstacle_height,
         max_obstacle_height=gen_cfg.max_obstacle_height,
         border_padding=gen_cfg.border_padding,
+        obstacle_padding = gen_cfg.obstacle_padding,
         bounds=np.array(gen_cfg.bounds),
         non_overlapping_centers=gen_cfg.non_overlapping_centers
     )
