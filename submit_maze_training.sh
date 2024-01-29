@@ -15,11 +15,17 @@ source .robodiff/bin/activate
 echo "[submit_maze_training.sh] Setting wandb to offline"
 wandb offline
 
-# Export date and time
+# Export date, time, environment variables
 DATE=`date +"%Y.%m.%d"`
 TIME=`date +"%H.%M.%S"`
+HYDRA_FULL_ERROR=1
 
 echo "[submit_maze_training.sh] Running training code..."
 python train.py --config-dir=config --config-name=train_maze_diffusion_policy_cnn.yaml \
-    training.seed=42 hydra.run.dir=data/outputs/${DATE}/${TIME}_maze_image_150k \
+    training.seed=42 hydra.run.dir=data/outputs/${DATE}/${TIME}_maze_image_100k \
     task.dataset.zarr_path=data/maze_image/maze_image_dataset_100k.zarr
+
+# resume training for 100k training session
+# python train.py --config-dir=config --config-name=train_maze_diffusion_policy_cnn.yaml \
+#     training.seed=42 hydra.run.dir=data/outputs/2024.01.23/15.49.15_maze_image_100k \
+#     task.dataset.zarr_path=data/maze_image/maze_image_dataset_100k.zarr

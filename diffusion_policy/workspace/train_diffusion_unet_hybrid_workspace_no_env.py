@@ -109,7 +109,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             if lastest_ckpt_path.is_file():
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
-        breakpoint()
 
         # configure dataset
         dataset: BaseImageDataset
