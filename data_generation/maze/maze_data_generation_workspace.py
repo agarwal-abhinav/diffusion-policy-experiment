@@ -206,7 +206,7 @@ if __name__ == "__main__":
             end = maze_data['targets'][j]
             waypoints = maze_data['trajectories'][j]
 
-            maze.plot_trajectory(start, end, waypoints)
+            maze.plot_trajectory(start, end, waypoints, mode='obstacles')
             waypoint = waypoints[0]
             np_img = maze.to_img(position=waypoint)
             newfig, ax = plt.subplots()

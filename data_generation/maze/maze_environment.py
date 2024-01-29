@@ -27,20 +27,29 @@ class MazeEnvironment:
 
     def __init__(self, bounds: np.ndarray, 
                  obstacles: Polyhedrons=None, 
-                 regions: Polyhedrons=None):
+                 regions: Polyhedrons=None,
+                 obstacle_padding: float=0.0) -> None:
         assert obstacles is not None or regions is not None
         assert bounds.shape[0] == 2 # only support 2 dimensional mazes
 
         self.dim = 2
         self.bounds = bounds
+        self.padding = obstacle_padding
         
         self.obstacles = obstacles
         self.obstacles_vpolytopes = None
+        self.padded_obstacles = None
+        self.padded_obstacles_vpolytopes = None
         if obstacles is not None:
-            self.obstacles_vpolytopes = self.convert_to_vpolytope(obstacles)            
+            self.obstacles_vpolytopes = self.convert_to_vpolytope(obstacles)
+            self.padded_obstacles = self.get_padded_obstacles(
+                self.obstacles_vpolytopes, obstacle_padding, bounds)
+            self.padded_obstacles_vpolytopes = self.convert_to_vpolytope(
+                self.padded_obstacles)
         
         self.regions = regions
         if regions is None:
+            assert obstacles is not None
             self.regions = self.get_regions_from_obstacles()
         self.regions_vpolytopes = self.convert_to_vpolytope(self.regions)
 
@@ -50,20 +59,21 @@ class MazeEnvironment:
         self.top_crop, self.bot_crop = None, None
 
     def get_regions_from_obstacles(self) -> Polyhedrons:
-        """ Generates a convex decomposition of the environment 
+        """ Generates a convex decomposition of the environment from the padded
+        obstacles.
         
         This is a naive implementation that does not generate a minimal cover.
         The algorithm is run in both the vertical and the horizontal direction.
         The decomposition with the fewest number of regions will be used.
         """
 
-        assert self.obstacles is not None
+        assert self.padded_obstacles is not None
         
         # extract and sort all the splits
         vertical_planes = [*self.bounds[0]]
         horizontal_planes = [*self.bounds[1]]
 
-        for v_obstacle in self.obstacles_vpolytopes:
+        for v_obstacle in self.padded_obstacles_vpolytopes:
             planes = self.get_planes(v_obstacle)
             vertical_planes.append(planes['left'])
             vertical_planes.append(planes['right'])
@@ -87,7 +97,7 @@ class MazeEnvironment:
                     (vertical_planes[i]+vertical_planes[i+1])/2,
                     (horizontal_planes[j]+horizontal_planes[j+1])/2
                 ])
-                is_free_space = not self.in_collision(center, mode='obstacles')
+                is_free_space = not self.in_collision(center, mode='padded_obstacles')
                 if is_free_space and 'bot' not in planes:
                     # start of new region
                     planes['bot'] = horizontal_planes[j]
@@ -157,7 +167,7 @@ class MazeEnvironment:
                     (vertical_planes[j]+vertical_planes[j+1])/2,
                     (horizontal_planes[i]+horizontal_planes[i+1])/2
                 ])
-                is_free_space = not self.in_collision(center, mode='obstacles')
+                is_free_space = not self.in_collision(center, mode='padded_obstacles')
                 if is_free_space and 'left' not in planes:
                     # start of new region
                     planes['left'] = vertical_planes[j]
@@ -235,12 +245,12 @@ class MazeEnvironment:
             bounds = self.bounds
         while True:
             sample = np.random.uniform(bounds[:,0], bounds[:,1])
-            if not self.in_collision(sample):
+            if not self.in_collision(sample, mode='regions'):
                 return sample
 
 
     """ Plotting functions """
-    def plot_environment(self, mode: str='regions') -> None:
+    def plot_environment(self, mode: str) -> None:
         fig, ax = plt.subplots()
         if mode == 'regions':
             polygons_to_plot = self.regions_vpolytopes
@@ -248,6 +258,10 @@ class MazeEnvironment:
             polygons_color = 'white'
         elif mode == 'obstacles':
             polygons_to_plot = self.obstacles_vpolytopes
+            background_color = 'white'
+            polygons_color = 'black'
+        elif mode == 'padded_obstacles':
+            polygons_to_plot = self.padded_obstacles_vpolytopes
             background_color = 'white'
             polygons_color = 'black'
         else:
@@ -264,9 +278,31 @@ class MazeEnvironment:
         plt.ylim(self.bounds[1])
         ax.set_aspect('equal', adjustable='box')
         plt.show()
+    
+    def plot_convex_regions(self) -> None:
+        fig, ax = plt.subplots()
+
+        ax.set_facecolor('white')
+        # plot obstacles
+        for polygon in self.obstacles_vpolytopes:
+            v = polygon.vertices().transpose()
+            hull = ConvexHull(v)
+            plt.fill(*(v[hull.vertices].transpose()), 
+                     facecolor='black')
+        # plot convex regions
+        for polygon in self.regions_vpolytopes:
+            v = polygon.vertices().transpose()
+            hull = ConvexHull(v)
+            plt.fill(*(v[hull.vertices].transpose()), 
+                     facecolor='white',
+                     edgecolor='blue')
+        plt.xlim(self.bounds[0])
+        plt.ylim(self.bounds[1])
+        ax.set_aspect('equal', adjustable='box')
+        plt.show()
 
     def plot_trajectory(self, start: np.ndarray, end: np.ndarray,
-                        waypoints: np.ndarray, mode: str='regions') -> None:
+                        waypoints: np.ndarray, mode: str) -> None:
         fig, ax = plt.subplots()
         if mode == 'regions':
             polygons_to_plot = self.regions_vpolytopes
@@ -298,23 +334,29 @@ class MazeEnvironment:
         plt.show()
 
     def to_img(self, 
-               position: np.ndarray=None, 
+               position: np.ndarray=None,
+               start: np.ndarray=None,
+               end: np.ndarray=None,
                shape: np.ndarray=np.array([64, 64])) -> np.ndarray:
         # plot environment
         fig, ax = plt.subplots()
-        ax.set_facecolor('black')
+        ax.set_facecolor('white')
         ax.get_xaxis().set_ticks([])
         ax.get_yaxis().set_ticks([])
 
-        for polygon in self.regions_vpolytopes:
+        for polygon in self.obstacles_vpolytopes:   
             v = polygon.vertices().transpose()
             hull = ConvexHull(v)
             plt.fill(*(v[hull.vertices].transpose()),
-                     facecolor='white')
+                     facecolor='black')
         
         # plot the position if it is not None
         if position is not None:
             plt.plot(*position, 'ro', markersize=4)
+        if start is not None:
+            assert end is not None
+            plt.plot(*start, 'go', mfc='none')
+            plt.plot(*end, 'gx')
         
         plt.xlim(self.bounds[0])
         plt.ylim(self.bounds[1])
@@ -366,13 +408,37 @@ class MazeEnvironment:
             
         plt.close()
         return data
+    
+    def animate_trajectory(self, 
+                           waypoints: np.ndarray, 
+                           start: np.ndarray=None, 
+                           end: np.ndarray=None,
+                           dt: float=0.1,
+                           repeat: bool=True) -> None:
+        """
+        Animates a trajectory on the maze.
+
+        waypoints: the waypoints of the trajectory
+        start: the start point of the trajectory
+        end: the end point of the trajectory
+        dt: the time between frames in seconds
+        """
+        fig, ax = plt.subplots()
+        num_frames = len(waypoints)
+        def animate(i):
+            plt.imshow(self.to_img(waypoints[i], start, end))
+        animation = FuncAnimation(fig, animate, frames=num_frames, 
+                                interval=dt*1000, repeat=repeat)
+        plt.show()
+
+
 
     """ Helper functions """
     def is_trajectory_success(self, start: np.ndarray, end: np.ndarray,
                               waypoints: np.ndarray, eps: float=0.1) -> bool:
         # check for collisions
         for waypoint in waypoints:
-            if self.in_collision(waypoint):
+            if self.in_collision(waypoint, mode='obstacles'):
                 return False
         # check starting condition
         if np.linalg.norm(waypoints[0]-start) > eps:
@@ -383,14 +449,19 @@ class MazeEnvironment:
         # passed all checks
         return True
 
-    def in_collision(self, x: np.ndarray, mode='regions') -> bool:
+    def in_collision(self, x: np.ndarray, mode: str='regions') -> bool:
         if mode == 'regions':
             for region in self.regions:
                 if np.all(region.A() @ x <= region.b()):
                     return False
             return True
         elif mode == 'obstacles':
-            for obstacle in self.obstacles:
+            for obstacle in self.padded_obstacles:
+                if np.all(obstacle.A() @ x <= obstacle.b()):
+                    return True
+            return False
+        elif mode == 'padded_obstacles':
+            for obstacle in self.padded_obstacles:
                 if np.all(obstacle.A() @ x <= obstacle.b()):
                     return True
             return False
@@ -400,13 +471,15 @@ class MazeEnvironment:
     def get_planes(self, v_obstacle: VPolytope) -> Dict[str, float]:
         v = v_obstacle.vertices()
         return {
-            'left': np.min(v[0]),
-            'right': np.max(v[0]),
-            'bot': np.min(v[1]),
-            'top': np.max(v[1]),
+            'left': np.round(np.min(v[0]), 1),
+            'right': np.round(np.max(v[0]), 1),
+            'bot': np.round(np.min(v[1]), 1),
+            'top': np.round(np.max(v[1]), 1)
         }
 
     def planes_to_hpolyhedron(self, planes: Dict[str, float]) -> HPolyhedron:
+        for key, value in planes.items():
+            planes[key] = np.round(value, 1)
         vertices = np.array([[planes['left'], planes['left'], planes['right'], planes['right']],
                              [planes['bot'], planes['top'], planes['bot'], planes['top']]])
         return HPolyhedron(VPolytope(vertices))
@@ -424,14 +497,29 @@ class MazeEnvironment:
             v_polytopes.append(VPolytope(np.round(v, 1)))
         return v_polytopes
 
+    def get_padded_obstacles(self, obstacles_vpolytopes, padding, bounds) -> Polyhedrons:
+        if padding <= 0.0:
+            return self.obstacles
+        
+        padded_obstacles = []
+        for v_obstacle in obstacles_vpolytopes:
+            planes = self.get_planes(v_obstacle)
+            planes['left'] = max(planes['left']-padding, bounds[0][0])
+            planes['right'] = min(planes['right']+padding, bounds[0][1])
+            planes['bot'] = max(planes['bot']-padding, bounds[1][0])
+            planes['top'] = min(planes['top']+padding, bounds[1][1])
+            padded_obstacles.append(self.planes_to_hpolyhedron(planes))
+        return padded_obstacles
+
+
 if __name__ == '__main__':
     """Tests for MazeEnvironment"""
     import data_generation.maze.gcs_utils as gcs_utils
     obstacles = gcs_utils.create_test_box_env()
     bounds = np.array([[0, 5], [0, 5]])
     
-    maze_env = MazeEnvironment(bounds, obstacles=obstacles)
-    # maze_env.plot_environment(mode='regions')
+    maze_env = MazeEnvironment(bounds, obstacles=obstacles, padding=0.1)
+    maze_env.plot_convex_regions()
 
     np_img = maze_env.to_img(
         position=np.array([2.5, 2.5])
@@ -441,19 +529,13 @@ if __name__ == '__main__':
     ax.imshow(np_img)
     plt.show()
 
-    start = maze_env.sample_start_point()
-    end = maze_env.sample_end_point()
-    traj = gcs_utils.run_gcs(maze_env.regions, start, end)
+    traj = None
+    while traj is None:
+        start = maze_env.sample_start_point()
+        end = maze_env.sample_end_point()
+        traj = gcs_utils.run_gcs(maze_env.regions, start, end)
+    
     waypoints = gcs_utils.composite_trajectory_to_array(traj).transpose()
-
-    maze_env.plot_trajectory(start, end, waypoints)
+    maze_env.plot_trajectory(start, end, waypoints, mode='obstacles')
     print(maze_env.is_trajectory_success(start, end, waypoints))
-
-    # Create animation
-    fig, ax = plt.subplots()
-    num_frames = len(waypoints)
-    def animate(i):
-        plt.imshow(maze_env.to_img(waypoints[i]))
-    animation = FuncAnimation(fig, animate, frames=num_frames, 
-                              interval=50, repeat=True)
-    plt.show()
+    maze_env.animate_trajectory(waypoints, dt=0.1, repeat=True)

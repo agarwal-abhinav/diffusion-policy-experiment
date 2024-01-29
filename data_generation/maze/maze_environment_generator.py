@@ -115,4 +115,4 @@ if __name__ == '__main__':
     )
     for i in range(10):
         env = generator.generate_maze_environment()
-        env.plot_environment()
+        env.plot_convex_regions()

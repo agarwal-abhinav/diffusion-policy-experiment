@@ -132,13 +132,13 @@ def run_gcs(regions, start, goal):
     options = GraphOfConvexSetsOptions()
     options.max_rounded_paths = 3
 
-    # start = time.time()
+    # start_time = time.time()
     [traj, result] = gcs.SolvePath(source, target, options)
     # if result.is_success():
-    #     print(f"Solved in {time.time()-start}s")
+    #     print(f"Solved in {time.time()-start_time}s")
     # else:
     #     print("Failure.")
-    return traj if result else None
+    return traj if result.is_success() else None
 
 
 def plot_environment(regions, start, goal, waypoints, num_points=100):
@@ -238,12 +238,18 @@ def get_colliding_indices(regions, waypoints):
     return colliding_indices
 
 def in_collision(regions, point):
+    """
+    LEGACY: use MazeEnvironment.in_collision instead
+    """
     for region in regions:
         if np.all(region.A() @ point <= region.b()):
             return False
     return True
 
 def sample_collision_free_point(regions, bounds):
+    """
+    LEGACY: use MazeEnvironment.sample_collision_free_point instead
+    """
     while True:
         sample = np.random.uniform(bounds[:,0], bounds[:,1])
         if not in_collision(regions, sample):
