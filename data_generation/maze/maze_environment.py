@@ -526,7 +526,8 @@ if __name__ == '__main__':
     obstacles = gcs_utils.create_test_box_env()
     bounds = np.array([[0, 5], [0, 5]])
     
-    maze_env = MazeEnvironment(bounds, obstacles=obstacles, padding=0.1)
+    maze_env = MazeEnvironment(bounds, obstacles=obstacles, 
+                               obstacle_padding=0.1)
     maze_env.plot_convex_regions()
 
     np_img = maze_env.to_img(
