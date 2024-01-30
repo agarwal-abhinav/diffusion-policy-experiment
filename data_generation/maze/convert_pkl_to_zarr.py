@@ -6,8 +6,9 @@ import os
 import yaml
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-
 from tqdm import tqdm
+
+from diffusion_policy.common.replay_buffer import get_optimal_chunks
 
 def main():
     """
@@ -143,24 +144,30 @@ def main():
     data_dir = root.create_group('data')
     meta_dir = root.create_group('meta')
 
-    # Chunk sizes optimized for ~1-10MB chunks after compression
-    state_chunk_size = (1000000, 2)
-    target_chunk_size = (4000000, 2) # easier to compress
-    image_chunk_size = (10000, cfg["image_size"][0], cfg["image_size"][1], 3)
+    # Chunk sizes optimized for read (not for supercloud storage, sorry admins)
+    state_chunk_size = (1024, 2)
+    action_chunk_size = (2048, 2)
+    target_chunk_size = (1024, 2)
+    image_chunk_size = (64, cfg["image_size"][0], cfg["image_size"][1], 3)
+
+    # state_chunk_size = get_optimal_chunks(
+    #     shape=state.shape, dtype=state.dtype)
+    # target_chunk_size = get_optimal_chunks(
+    #     shape=target.shape, dtype=target.dtype)
+    # image_chunk_size = get_optimal_chunks(
+    #     shape=img.shape, dtype=img.dtype)
     
     # Store data
     data_dir.create_dataset('state', data=state, chunks=state_chunk_size, dtype='f4')
-    print("Stored state data.")
-    data_dir.create_dataset('action', data=action, chunks=state_chunk_size, dtype='f4')
-    print("Stored action data.")
+    print("Stored state data. Chunk size: ", state_chunk_size)
+    data_dir.create_dataset('action', data=action, chunks=action_chunk_size, dtype='f4')
+    print("Stored action data. Chunk size: ", action_chunk_size)
     data_dir.create_dataset('target', data=target, chunks=target_chunk_size, dtype='f4')
-    print("Stored target data.")
+    print("Stored target data. Chunk size: ", target_chunk_size)
     data_dir.create_dataset('img', data=img, chunks=image_chunk_size, dtype='f4')
-    # data_dir.create_dataset('img', data=img, dstype='f4')
-
-    print("Stored img data.")
+    print("Stored img data. Chunk size: ", image_chunk_size)
     meta_dir.create_dataset('episode_ends', data=episode_ends)
-    print("Stored episode_ends data.")
+    print("Stored episode_ends data. Chunk size: default", )
     print("All done.")
 
 if __name__ == '__main__':

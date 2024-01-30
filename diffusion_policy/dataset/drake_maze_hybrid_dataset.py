@@ -26,10 +26,18 @@ class DrakeMazeHybridDataset(BaseImageDataset):
         
         super().__init__()
         keys = ['img', 'state', 'action', 'target']
+        chunks = {
+            'state': (1024, 2),
+            'action': (2048, 2),
+            'target': (1024, 2),
+            'img': (64, 64, 64, 3),
+        }
         self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path=zarr_path, 
-            # store=zarr.MemoryStore(),
+            store=zarr.MemoryStore(),
+            # chunks=chunks,
             keys=keys)
+
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -52,10 +60,12 @@ class DrakeMazeHybridDataset(BaseImageDataset):
             pad_before=pad_before, 
             pad_after=pad_after,
             episode_mask=train_mask)
+        
         self.train_mask = train_mask
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
+        self.n_obs_steps = n_obs_steps
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -108,8 +118,9 @@ class DrakeMazeHybridDataset(BaseImageDataset):
 
 
 def test():
+    zarr_path = "data/maze_image/maze_image_dataset_4000_rechunked.zarr"
     dataset = DrakeMazeHybridDataset(
-            zarr_path="data/maze_image/maze_image_dataset_150k.zarr", 
+            zarr_path=zarr_path, 
             horizon=16,
             n_obs_steps=2,
             pad_before=1,
@@ -118,19 +129,64 @@ def test():
             val_ratio=0.05,
             max_train_episodes=None)
     
-    num_samples = 10
+    num_samples = 1000
     avg_time = 0
     for i in range(num_samples):
         start_time = time.time()
         item = dataset[i]
         avg_time += (time.time() - start_time) / num_samples
-    print(f"Average time to get item: {avg_time}")
+    print(f"Average time to get zarr sample: {avg_time*1000.0:.3f}ms")
 
-    # from matplotlib import pyplot as plt
-    # normalizer = dataset.get_normalizer()
-    # nactions = normalizer['action'].normalize(dataset.replay_buffer['action'])
-    # diff = np.diff(nactions, axis=0)
-    # dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
+
+    # find optimal chunk sizes
+    # base_chunks = {
+    #     'state': (dataset.n_obs_steps, 2),
+    #     'action': (dataset.horizon, 2),
+    #     'target': (dataset.n_obs_steps, 2),
+    #     'img': (dataset.n_obs_steps, 64, 64, 3),
+    # }
+    
+    # factors = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
+    # avg_times = []
+    # for factor in factors:
+    #     factor *= 16
+    #     print("\nResults for ", factor)
+    #     chunks = {
+    #         'state': dataset.replay_buffer.root['data']['state'].chunks,
+    #         'action': dataset.replay_buffer.root['data']['action'].chunks,
+    #         'target': dataset.replay_buffer.root['data']['target'].chunks,
+    #         'img': dataset.replay_buffer.root['data']['img'].chunks,
+    #     }
+    #     # chunks['state'] = (dataset.n_obs_steps * factor, 2)
+    #     # chunks['target'] = (dataset.n_obs_steps * factor, 2)
+    #     chunks['img'] = (dataset.n_obs_steps * factor, 64, 64, 3)
+    #     dataset.replay_buffer = ReplayBuffer.copy_from_store(
+    #             src_store=dataset.replay_buffer.root.store, 
+    #             store=zarr.MemoryStore(),
+    #             chunks=chunks,
+    #             keys=['img', 'state', 'action', 'target'])
+    #     dataset.sampler = SequenceSampler(
+    #             replay_buffer=dataset.replay_buffer, 
+    #             sequence_length=dataset.horizon,
+    #             pad_before=dataset.pad_before, 
+    #             pad_after=dataset.pad_after,
+    #             episode_mask=dataset.train_mask)
+    
+    #     avg_time = 0
+    #     for i in range(num_samples):
+    #         item, time_taken = dataset[i]
+    #         avg_time += time_taken / num_samples
+    #     print(f"Average time to get zarr sample: {avg_time*1000.0:.3f}ms")
+    #     avg_times.append(avg_time)
+    
+    # print(avg_times)
+    
+    # avg_time = 0
+    # for i in range(num_samples):
+    #     start_time = time.time()
+    #     item = dataset.get_dummy_item(i)
+    #     avg_time += (time.time() - start_time) / num_samples
+    # print(f"Average time to get dummy sample: {avg_time*1000.0:.3f}ms")      
 
 if __name__ == "__main__":
     test()

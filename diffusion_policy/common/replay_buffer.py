@@ -156,6 +156,7 @@ class ReplayBuffer:
         root = None
         if store is None:
             # numpy backend
+            print("Storing dataset in memory with numpy backend")
             meta = dict()
             for key, value in src_root['meta'].items():
                 if len(value.shape) == 0:
@@ -175,6 +176,7 @@ class ReplayBuffer:
                 'data': data
             }
         else:
+            print("Storing dataset in memory with zarr backend")
             root = zarr.group(store=store)
             # copy without recompression
             n_copied, n_skipped, n_bytes_copied = zarr.copy_store(source=src_store, dest=store,
