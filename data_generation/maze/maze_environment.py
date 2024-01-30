@@ -58,13 +58,18 @@ class MazeEnvironment:
         self.left_crop, self.right_crop = None, None
         self.top_crop, self.bot_crop = None, None
 
-    def get_regions_from_obstacles(self) -> Polyhedrons:
+    def get_regions_from_obstacles(self, try_both = True) -> Polyhedrons:
         """ Generates a convex decomposition of the environment from the padded
         obstacles.
         
         This is a naive implementation that does not generate a minimal cover.
         The algorithm is run in both the vertical and the horizontal direction.
         The decomposition with the fewest number of regions will be used.
+
+        try_both: determines whether to try to generate regions horizontally and vertically
+        if true: generate regions horizontally and vertically. Pick the oritentation with
+        less regions
+        if false: only generate regions vertically
         """
 
         assert self.padded_obstacles is not None
@@ -152,6 +157,9 @@ class MazeEnvironment:
             
             # add the last region
             planes_vertical_direction.append(copy.deepcopy(planes))
+        
+        if not try_both:
+            return [self.planes_to_hpolyhedron(planes) for planes in planes_vertical_direction]
 
         # Try horizontal version of algorithm
         # initial region creation

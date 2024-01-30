@@ -89,14 +89,18 @@ class MazeDataGenerationWorkspace:
         seed = int((datetime.now().timestamp() % 1) * 1e6)
         np.random.seed(seed)
 
+        print("about to generate mazes")
         mazes = [self.maze_generator.generate_maze_environment() \
-                 for i in range(self.num_mazes_per_proc)]
+                 for i in tqdm(range(self.num_mazes_per_proc),
+                               desc='Environment generation',
+                               miniters=30.0)]
         data = []
 
         pbar = \
             tqdm(total=self.num_mazes_per_proc * self.num_trajectories_per_maze, 
                 position=0,
-                miniters=10.0)
+                miniters=30.0,
+                desc='Trajectory generation')
         for maze in mazes:
             dim = maze.dim
 
