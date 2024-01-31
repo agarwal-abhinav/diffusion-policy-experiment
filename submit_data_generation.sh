@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Usage
-# LLsub ./submit_data_generation.sh [NODES, NPPN, NT]
+# LLsub ./submit_data_generation.sh [2,40,1]
 
 # Initialize and Load Modules
 source /etc/profile

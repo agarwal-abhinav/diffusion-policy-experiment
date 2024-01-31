@@ -19,21 +19,18 @@ environment_generator:
 # num_trajectories_per_maze: 250
 
 # Collection V2
-# 2500 trajectories per process
+# 6250 trajectories per process
 # Triples mode: [2,40,1] (total of 200k trajectories from 10k mazes)
-num_mazes_per_proc: 1250
+num_mazes_per_proc: 3125
 num_trajectories_per_maze: 2
 
 # Debug collection
-# 10 trajectories per process
-# num_mazes_per_proc: 1
-# num_trajectories_per_maze: 1
+# 25 trajectories per process
+# num_mazes_per_proc: 5
+# num_trajectories_per_maze: 5
 
 num_processes: 1
-image_size:
-- 64
-- 64
-data_dir: 'data_generation/maze_data_v2'
+data_dir: 'data_generation/maze_data_binary_img'
 append_date_time: false
 
 max_rounded_paths: 10

@@ -73,6 +73,9 @@ def main(checkpoint, output_dir, device):
     B = 1 # batch size is 1
     num_traj = 100
 
+    # using binary images or RGB images
+    use_binary_imgs = (cfg.shape_meta.obs.image.shape[0] == 1)
+
     with torch.no_grad():
         all_trajectories = []
         passed_all_tests = []
@@ -101,9 +104,14 @@ def main(checkpoint, output_dir, device):
             # Create observation deques
             state_deque = deque([torch.from_numpy(source).reshape(B,1,2)] * obs_horizon,
                             maxlen=obs_horizon)
-            init_img = maze.to_img(source)
-            init_img = np.moveaxis(init_img,-1,-3)/255
-            init_img = init_img.reshape(B,1,*init_img.shape) # 1, 1, 3, 64, 64
+            init_img = None
+            if use_binary_imgs:
+                init_img = maze.get_binary_maze_representation(source)
+                init_img = np.moveaxis(init_img.astype(np.float32),-1,-3) / 2.0
+            else:
+                init_img = maze.to_img(source)
+                init_img = np.moveaxis(init_img,-1,-3)/255
+            init_img = init_img.reshape(B,1,*init_img.shape) # 1, 1, C, H, W
             img_deque = deque([torch.from_numpy(init_img)] * obs_horizon,
                             maxlen=obs_horizon)
             
@@ -115,8 +123,14 @@ def main(checkpoint, output_dir, device):
 
                     # update deques
                     state_deque.append(action.reshape(B,1,2))
-                    img = maze.to_img(action.cpu().detach().numpy())
-                    img = np.moveaxis(img,-1,-3)/255
+                    img = None
+                    if use_binary_imgs:
+                        img = maze.get_binary_maze_representation(
+                            action.cpu().detach().numpy())
+                        img = np.moveaxis(img.astype(np.float32),-1,-3) / 2.0
+                    else:
+                        img = maze.to_img(action.cpu().detach().numpy())
+                        img = np.moveaxis(img,-1,-3)/255
                     img = img.reshape(B,1,*img.shape)
                     img_deque.append(torch.from_numpy(img))
 

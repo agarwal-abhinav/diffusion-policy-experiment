@@ -47,7 +47,7 @@ def main(cfg: OmegaConf):
         num_processes=cfg.num_processes,
         data_dir=data_dir,
         append_date_time=cfg.append_date_time,
-        image_size=np.array(cfg.image_size),
+        # image_size=np.array(cfg.image_size),
         max_rounded_paths=cfg.max_rounded_paths,
         max_velocity=cfg.max_velocity,
         continuity_order=cfg.continuity_order,

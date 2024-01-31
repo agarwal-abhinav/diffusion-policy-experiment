@@ -54,22 +54,17 @@ def main():
     with open(config_path, 'r') as yaml_file:
         cfg = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
-    # Visualize data
+    # Visualize mazes
     # dir_idx = 0
     # datapath = os.path.join(data_dir, str(dir_idx), 'maze_data.pkl')
     # data = pickle.load(open(datapath, 'rb'))
     # for maze_data in data:
-    #     maze_env = maze_data['maze']
-    #     for i in range(len(maze_data['trajectories'])):
-    #         fig, ax = plt.subplots()
-    #         def animate(idx):
-    #             # apply the 62 by 62 crop as well
-    #             plt.imshow(maze_data['imgs'][i][idx][1:-2, 1:-2, :])
-    #         num_frames = len(maze_data['imgs'][i])
-    #         dt = 0.1
-    #         animation = FuncAnimation(fig, animate, frames=num_frames, 
-    #                             interval=dt*1000, repeat=True)
-    #         plt.show()
+    #     binary_img = maze_data['img']
+    #     for row in binary_img:
+    #         for item in row:
+    #             print(item, end='')
+    #         print()
+    #     print('\n')
     # return
 
     # Compute size of arrays and episode ends
@@ -88,14 +83,16 @@ def main():
     episode_ends = np.array(episode_ends)
     print("Computed episode ends.")
     
-    # Allocate memory for the arrays (these are VERY large)
+    # Allocate memory for the arrays
     state = np.zeros((total_points, 2)).astype(np.float32)
     action = np.zeros((total_points, 2)).astype(np.float32)
+    # target and img could be stored more efficiently
+    # since they contain a lot of repeated data
+    # but this approach fits easiest into the existing framework
     target = np.zeros((total_points, 2)).astype(np.float32)
-    img = np.zeros((total_points, 
-                    cfg["image_size"][0],
-                    cfg["image_size"][1],
-                    3)).astype(np.float32)
+    img_H = int(10*cfg['environment_generator']['bounds'][1][1]+2)
+    img_W = int(10*cfg['environment_generator']['bounds'][0][1]+2)
+    img = np.zeros((total_points, img_H, img_W, 1)).astype(np.int8)
     print("Allocated memory for arrays.")
 
     # Set up progress bar
@@ -112,22 +109,44 @@ def main():
         for maze_data in data:
             targets = maze_data['targets']
             trajectories = maze_data['trajectories']
-            imgs = maze_data['imgs']
+            binary_img = maze_data['img'].astype(np.int8)
             num_trajectories = len(trajectories)
 
             for i in range(num_trajectories):
                 trajectory = trajectories[i]
+                trajectory_length = trajectory.shape[0]
                 goal = targets[i]
                 shifted_trajectory = \
                     np.concatenate([trajectory[1:, :], trajectory[-1:, :]], axis=0)
                 
-                traj_start_idx = episode_ends[traj_idx]-trajectory.shape[0]
+                traj_start_idx = episode_ends[traj_idx]-trajectory_length
                 traj_end_idx = episode_ends[traj_idx]
                 state[traj_start_idx:traj_end_idx, :] = trajectory
                 action[traj_start_idx:traj_end_idx, :] = shifted_trajectory
-                target[traj_start_idx:traj_end_idx, :] = np.array([goal]*trajectory.shape[0])
-                img[traj_start_idx:traj_end_idx, :, :, :] = imgs[i]
+                target[traj_start_idx:traj_end_idx, :] = np.array([goal]*trajectory_length)
+
+                # add robot position to imgs
+                # TODO: assumes image is square
+                robot_pixel_pos = np.minimum(10*trajectory+1, img_H-2).astype(int)
+                binary_imgs = np.array([binary_img]*trajectory_length)
+                binary_imgs[range(trajectory_length), 
+                            img_H-1-robot_pixel_pos[:,1], 
+                            robot_pixel_pos[:,0]] = 2
                 
+                # data visualization
+                # for i in range(len(binary_imgs)):
+                #     binary_img = binary_imgs[i]
+                #     print(trajectory[i])
+                #     for row in binary_img:
+                #         for item in row:
+                #             print(item, end='')
+                #         print()
+                #     print('\n')
+                # breakpoint()
+                
+                img[traj_start_idx:traj_end_idx, :, :, :] = \
+                    binary_imgs.reshape(*binary_imgs.shape, 1)
+            
                 traj_idx += 1
                 pbar.update(1)
 
@@ -148,7 +167,7 @@ def main():
     state_chunk_size = (1024, 2)
     action_chunk_size = (2048, 2)
     target_chunk_size = (1024, 2)
-    image_chunk_size = (64, cfg["image_size"][0], cfg["image_size"][1], 3)
+    image_chunk_size = (256, img_H, img_W, 1)
 
     # state_chunk_size = get_optimal_chunks(
     #     shape=state.shape, dtype=state.dtype)
@@ -164,7 +183,7 @@ def main():
     print("Stored action data. Chunk size: ", action_chunk_size)
     data_dir.create_dataset('target', data=target, chunks=target_chunk_size, dtype='f4')
     print("Stored target data. Chunk size: ", target_chunk_size)
-    data_dir.create_dataset('img', data=img, chunks=image_chunk_size, dtype='f4')
+    data_dir.create_dataset('img', data=img, chunks=image_chunk_size, dtype='i1')
     print("Stored img data. Chunk size: ", image_chunk_size)
     meta_dir.create_dataset('episode_ends', data=episode_ends)
     print("Stored episode_ends data. Chunk size: default", )

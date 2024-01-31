@@ -30,12 +30,12 @@ class DrakeMazeHybridDataset(BaseImageDataset):
             'state': (1024, 2),
             'action': (2048, 2),
             'target': (1024, 2),
-            'img': (64, 64, 64, 3),
+            'img': (256, 52, 52, 1),
         }
         self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path=zarr_path, 
             store=zarr.MemoryStore(),
-            # chunks=chunks,
+            # chunks=chunks, # rechunk if read time is slow
             keys=keys)
 
         val_mask = get_val_mask(
@@ -98,11 +98,13 @@ class DrakeMazeHybridDataset(BaseImageDataset):
     def _sample_to_data(self, sample):
         target = sample['target'][0].astype(np.float32)
         agent_pos = sample['state'].astype(np.float32)
-        image = np.moveaxis(sample['img'],-1,1)/255
+        # normalize binary img (0: free space, 1: obstacle, 2: robot)
+        image = np.moveaxis(sample['img'].astype(np.float32),-1,1) / 2.0
+        # image = np.moveaxis(sample['img'],-1,1)/255
 
         data = {
             'obs': {
-                'image': image, # T, 3, 64, 64
+                'image': image, # T, 1, 52, 52
                 'agent_pos': agent_pos, # T, 2
             },
             'target': target, # T, 2
@@ -143,7 +145,7 @@ def test():
     #     'state': (dataset.n_obs_steps, 2),
     #     'action': (dataset.horizon, 2),
     #     'target': (dataset.n_obs_steps, 2),
-    #     'img': (dataset.n_obs_steps, 64, 64, 3),
+    #     'img': (dataset.n_obs_steps, 52, 52, 1),
     # }
     
     # factors = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
@@ -159,7 +161,7 @@ def test():
     #     }
     #     # chunks['state'] = (dataset.n_obs_steps * factor, 2)
     #     # chunks['target'] = (dataset.n_obs_steps * factor, 2)
-    #     chunks['img'] = (dataset.n_obs_steps * factor, 64, 64, 3)
+    #     chunks['img'] = (dataset.n_obs_steps * factor, 52, 52, 1)
     #     dataset.replay_buffer = ReplayBuffer.copy_from_store(
     #             src_store=dataset.replay_buffer.root.store, 
     #             store=zarr.MemoryStore(),

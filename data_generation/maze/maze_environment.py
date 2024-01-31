@@ -53,11 +53,25 @@ class MazeEnvironment:
             self.regions = self.get_regions_from_obstacles()
         self.regions_vpolytopes = self.convert_to_vpolytope(self.regions)
 
+        self.binary_maze = self.construct_binary_maze_representation()
+        # debug for binary maze
+        # for row in binary_img:
+        #     for item in row:
+        #         c = ' '
+        #         if item == 1:
+        #             c = '#'
+        #         if item == 2:
+        #             c = 'R'
+        #         print(c, end=' ')
+        #     print()
+
         # Variables for image cropping (see to_img function)
         # This is a hacky solution...
         self.left_crop, self.right_crop = None, None
         self.top_crop, self.bot_crop = None, None
 
+
+    """ Constructor functions """
     def get_regions_from_obstacles(self, try_both = True) -> Polyhedrons:
         """ Generates a convex decomposition of the environment from the padded
         obstacles.
@@ -240,6 +254,31 @@ class MazeEnvironment:
         
         return [self.planes_to_hpolyhedron(planes) for planes in planes_to_convert]
 
+    def construct_binary_maze_representation(self):
+        W = int(10*self.bounds[0][1]+2) # +2 for border
+        H = int(10*self.bounds[1][1]+2) # +2 for border
+        binary_maze = np.ones((H, W), dtype='int8')
+        # loop through interior points
+        for i in range(1,H-1):
+            for j in range(1,W-1):
+                point = np.array([j/10 - 1/20, i/10 - 1/20])
+                if not self.in_collision(point, mode='obstacles'):
+                    binary_maze[H-i-1,j] = 0
+        return binary_maze.astype('int8')
+    
+    def get_binary_maze_representation(self, position: np.ndarray=None) -> np.ndarray:
+        if position is None:
+            return self.binary_maze
+        
+        assert self.bounds[0][0] <= position[0] <= self.bounds[0][1]
+        assert self.bounds[1][0] <= position[1] <= self.bounds[1][1]
+        assert self.bounds[0][1] == self.bounds[1][1] # assume picture is square
+
+        img_H = self.binary_maze.shape[0]
+        robot_pixel_pos = np.minimum(10*position+1, img_H-2).astype(int)
+        binary_img = np.copy(self.binary_maze)
+        binary_img[img_H-1-robot_pixel_pos[1], robot_pixel_pos[0]] = 2
+        return binary_img
                 
     """ Sampling functions """
     def sample_start_point(self, bounds: np.array=None) -> np.ndarray:
@@ -255,8 +294,8 @@ class MazeEnvironment:
             sample = np.random.uniform(bounds[:,0], bounds[:,1])
             if not self.in_collision(sample, mode='regions'):
                 return sample
-
-
+            
+        
     """ Plotting functions """
     def plot_environment(self, mode: str) -> None:
         fig, ax = plt.subplots()
@@ -464,7 +503,7 @@ class MazeEnvironment:
                     return False
             return True
         elif mode == 'obstacles':
-            for obstacle in self.padded_obstacles:
+            for obstacle in self.obstacles:
                 if np.all(obstacle.A() @ x <= obstacle.b()):
                     return True
             return False
@@ -528,6 +567,17 @@ if __name__ == '__main__':
     
     maze_env = MazeEnvironment(bounds, obstacles=obstacles, 
                                obstacle_padding=0.1)
+    binary_img = maze_env.get_binary_maze_representation(np.array([1.0, 4.0]))
+    for row in binary_img:
+        for item in row:
+            c = ' '
+            if item == 1:
+                c = '#'
+            if item == 2:
+                c = 'R'
+            print(c, end=' ')
+        print()
+
     maze_env.plot_convex_regions()
 
     np_img = maze_env.to_img(

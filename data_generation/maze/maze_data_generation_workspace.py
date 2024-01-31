@@ -63,7 +63,7 @@ class MazeDataGenerationWorkspace:
         - sources: a list of start points
         - targets: a list of end points
         - trajectories: a list of trajectories
-        - imgs: a list of images corresponding to the trajectories
+        - img: a binary representation of the maze
         """
         logging.getLogger('drake').setLevel(logging.WARNING)
 
@@ -103,6 +103,7 @@ class MazeDataGenerationWorkspace:
                 desc='Trajectory generation')
         for maze in mazes:
             dim = maze.dim
+            binary_img = maze.get_binary_maze_representation()
 
             # Build graph
             start_time = time.time()
@@ -126,7 +127,7 @@ class MazeDataGenerationWorkspace:
                          'sources': [],
                          'targets': [],
                          'trajectories': [],
-                         'imgs': []
+                         'img': binary_img
             }
 
             while len(maze_data['trajectories']) < self.num_trajectories_per_maze:
@@ -161,11 +162,6 @@ class MazeDataGenerationWorkspace:
                 maze_data['trajectories'].append(
                     gcs_utils.composite_trajectory_to_array(traj).transpose()
                 )
-                # Generate corresponding images
-                imgs = []
-                for waypoint in maze_data['trajectories'][-1]:
-                    imgs.append(maze.to_img(waypoint, shape=self.image_size))
-                maze_data['imgs'].append(np.array(imgs))
                 
                 pbar.update(1)
             
