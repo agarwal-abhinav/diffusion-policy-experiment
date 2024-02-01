@@ -107,6 +107,7 @@ def main(checkpoint, output_dir, device):
             init_img = None
             if use_binary_imgs:
                 init_img = maze.get_binary_maze_representation(source)
+                init_img = init_img.reshape(*init_img.shape,1) # expand dims
                 init_img = np.moveaxis(init_img.astype(np.float32),-1,-3) / 2.0
             else:
                 init_img = maze.to_img(source)
@@ -127,6 +128,7 @@ def main(checkpoint, output_dir, device):
                     if use_binary_imgs:
                         img = maze.get_binary_maze_representation(
                             action.cpu().detach().numpy())
+                        img = init_img.reshape(*img.shape,1) # expand dims
                         img = np.moveaxis(img.astype(np.float32),-1,-3) / 2.0
                     else:
                         img = maze.to_img(action.cpu().detach().numpy())
