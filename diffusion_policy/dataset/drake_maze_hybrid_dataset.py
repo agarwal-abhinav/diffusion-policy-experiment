@@ -1,7 +1,6 @@
 from typing import Dict
 import zarr
 import torch
-import time
 import numpy as np
 import copy
 from diffusion_policy.common.pytorch_util import dict_apply
@@ -48,18 +47,20 @@ class DrakeMazeHybridDataset(BaseImageDataset):
             max_n=max_train_episodes, 
             seed=seed)
 
-        # key_first_k = dict()
-        # if n_obs_steps is not None:
-        #     # only take first k obs from images
-        #     for key in keys:
-        #         key_first_k[key] = n_obs_steps
+        key_first_k = dict()
+        if n_obs_steps is not None:
+            # only take first k obs from images
+            for key in keys:
+                key_first_k[key] = n_obs_steps
+        key_first_k['action'] = horizon
 
         self.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer, 
             sequence_length=horizon,
             pad_before=pad_before, 
             pad_after=pad_after,
-            episode_mask=train_mask)
+            episode_mask=train_mask,
+            key_first_k=key_first_k)
         
         self.train_mask = train_mask
         self.horizon = horizon
@@ -120,7 +121,22 @@ class DrakeMazeHybridDataset(BaseImageDataset):
 
 
 def test():
-    zarr_path = "data/maze_image/maze_image_dataset_4000_rechunked.zarr"
+    import time
+    import random
+    from data_generation.maze.maze_environment import print_binary_img
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--zarr_path', type=str, default=None)
+    args = parser.parse_args()
+    
+    zarr_path = None
+    if args.zarr_path is not None:
+        zarr_path = args.zarr_path
+    else:
+        zarr_path = "data/maze_image/maze_image_dataset_4000_rechunked.zarr"
+
+    # default params from maze image config file
     dataset = DrakeMazeHybridDataset(
             zarr_path=zarr_path, 
             horizon=16,
@@ -138,6 +154,35 @@ def test():
         item = dataset[i]
         avg_time += (time.time() - start_time) / num_samples
     print(f"Average time to get zarr sample: {avg_time*1000.0:.3f}ms")
+
+
+    # visualize some of the data
+    while True:
+        idx = random.randint(0, len(dataset)-1)
+        item = dataset[idx]
+        print(f"Sample: {idx}\n")
+        
+        # visualize observations
+        obs = item['obs']
+        img = obs['image']
+        agent_pos = obs['agent_pos']
+        for i in range(len(img)):
+            # check if agent postition contains nan
+            if not np.isnan(agent_pos[i]).any():
+                print("Agent position: ", agent_pos[i])
+                print_binary_img(2*img[i,0])
+
+        # visualize actions
+        actions = item['action']
+        for i in range(len(actions)):
+            print("Action: ", actions[i])
+        print("\nTarget: ", item['target'])
+        print()
+        
+        # inspect data before moving on
+        breakpoint()
+            
+
 
 
     # find optimal chunk sizes

@@ -16,12 +16,11 @@ def main():
     The script will store the generated zarr file in data_dir.
 
     Usage:
-    python combine_zarr.py --data_dir <path_to_data_dir>
+    python data_generation/maze/combine_zarr.py --data_dir <path_to_data_dir>
     """
     # parse data_dir from command line
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str)
-    parser.add_argument('--debug', type=int, default=0)
     args = parser.parse_args()
     assert args.data_dir is not None
 
@@ -48,13 +47,13 @@ def main():
     combined_episode_ends = []
     current_end = 0
     for z in zarrs:
-        episodes_ends = z['meta']['episode_ends']
-        for episode_end in episodes_ends:
-            current_end += episode_end
-            combined_episode_ends.append(current_end)
+        episode_ends = z['meta']['episode_ends']
+        for episode_end in episode_ends:
+            combined_episode_ends.append(current_end+episode_end)
+        current_end += episode_ends[-1]
     combined_episode_ends = np.array(combined_episode_ends)
+    assert(combined_episode_ends[-1] == combined_states.shape[0])
     print("Concatenated data.")
-
 
     # save to zarr
     combined_zarr_path = os.path.join(args.data_dir, 'maze_image_dataset_combined.zarr')
@@ -72,30 +71,38 @@ def main():
                component='data/img', overwrite=False)
     meta_dir.create_dataset('episode_ends', data=combined_episode_ends)
     print("Saved combined dataset to zarr file.")
+    
+    # print chunk sizes
+    print("\nChunk sizes:")
+    print("state:", combined_states.chunksize)
+    print("action:", combined_actions.chunksize)
+    print("target:", combined_targets.chunksize)
+    print("img:", combined_imgs.chunksize)
+    print('episode_ends:', meta_dir['episode_ends'].chunks)
 
-    if args.debug != 0:
-        dataset = zarr.open(combined_zarr_path, mode='r')
-        zarr_ends = [0]
-        for z in zarrs:
-            zarr_ends.append(z['meta']['episode_ends'][-1] + zarr_ends[-1])
-        for i in range(len(zarrs)):
-            # check 5 random point
-            z = zarrs[i]
-            start_idx = zarr_ends[i]
-            end_idx = zarr_ends[i+1]
-            length = end_idx - start_idx
+    dataset = zarr.open(combined_zarr_path, mode='r')
+    zarr_ends = [0]
+    for z in zarrs:
+        zarr_ends.append(z['meta']['episode_ends'][-1] + zarr_ends[-1])
+    for i in range(len(zarrs)):
+        # check 5 random point
+        z = zarrs[i]
+        start_idx = zarr_ends[i]
+        end_idx = zarr_ends[i+1]
+        length = end_idx - start_idx
 
-            for j in range(10):
-                idx = np.random.randint(0, length)
-                assert np.allclose(dataset['data']['state'][idx+start_idx], 
-                                   z['data']['state'][idx])
-                assert np.allclose(dataset['data']['action'][idx+start_idx], 
-                                   z['data']['action'][idx])
-                assert np.allclose(dataset['data']['target'][idx+start_idx], 
-                                   z['data']['target'][idx])
-                assert np.allclose(dataset['data']['img'][idx+start_idx], 
-                                   z['data']['img'][idx])
-        print("Passed debug tests.")
+        for j in range(10):
+            idx = np.random.randint(0, length)
+            assert np.allclose(dataset['data']['state'][idx+start_idx], 
+                                z['data']['state'][idx])
+            assert np.allclose(dataset['data']['action'][idx+start_idx], 
+                                z['data']['action'][idx])
+            assert np.allclose(dataset['data']['target'][idx+start_idx], 
+                                z['data']['target'][idx])
+            assert np.allclose(dataset['data']['img'][idx+start_idx], 
+                                z['data']['img'][idx])
+    print("\nPassed debug tests.")
+    
 
 
 # Code modified from:

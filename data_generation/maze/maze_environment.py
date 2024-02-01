@@ -54,16 +54,7 @@ class MazeEnvironment:
         self.regions_vpolytopes = self.convert_to_vpolytope(self.regions)
 
         self.binary_maze = self.construct_binary_maze_representation()
-        # debug for binary maze
-        # for row in binary_img:
-        #     for item in row:
-        #         c = ' '
-        #         if item == 1:
-        #             c = '#'
-        #         if item == 2:
-        #             c = 'R'
-        #         print(c, end=' ')
-        #     print()
+        # print_binary_img(self.binary_maze)
 
         # Variables for image cropping (see to_img function)
         # This is a hacky solution...
@@ -558,6 +549,17 @@ class MazeEnvironment:
             padded_obstacles.append(self.planes_to_hpolyhedron(planes))
         return padded_obstacles
 
+def print_binary_img(binary_img):
+    for row in binary_img:
+        for item in row:
+            c = ' '
+            if item == 1:
+                c = '#'
+            if item == 2:
+                c = 'R'
+            print(c, end=' ')
+        print()
+
 
 if __name__ == '__main__':
     """Tests for MazeEnvironment"""
@@ -568,15 +570,7 @@ if __name__ == '__main__':
     maze_env = MazeEnvironment(bounds, obstacles=obstacles, 
                                obstacle_padding=0.1)
     binary_img = maze_env.get_binary_maze_representation(np.array([1.0, 4.0]))
-    for row in binary_img:
-        for item in row:
-            c = ' '
-            if item == 1:
-                c = '#'
-            if item == 2:
-                c = 'R'
-            print(c, end=' ')
-        print()
+    print_binary_img(binary_img)
 
     maze_env.plot_convex_regions()
 
