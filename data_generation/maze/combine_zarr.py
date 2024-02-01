@@ -69,7 +69,9 @@ def main():
                component='data/target', overwrite=False)
     da.to_zarr(arr=combined_imgs, url=combined_zarr_path, 
                component='data/img', overwrite=False)
-    meta_dir.create_dataset('episode_ends', data=combined_episode_ends)
+    da.to_zarr(arr=combined_episode_ends, url=combined_zarr_path, 
+               component='meta/episode_ends', overwrite=False)
+    # meta_dir.create_dataset('episode_ends', data=combined_episode_ends)
     print("Saved combined dataset to zarr file.")
     
     # print chunk sizes
