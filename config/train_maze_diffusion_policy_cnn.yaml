@@ -132,7 +132,7 @@ task:
     val_ratio: 0.05 # 0.02
     # override at command line to test with smaller dataset
     # ex. task.dataset.zarr_path=data/maze_image/maze_image_dataset_4000.zarr
-    zarr_path: data/maze_image/maze_image_dataset.zarr
+    zarr_path: data/maze_image/maze_binary_image_dataset.zarr
   image_shape:
   - 1
   - 52
@@ -155,7 +155,7 @@ task:
         type: rgb
 task_name: maze_image
 training:
-  checkpoint_every: 5
+  checkpoint_every: 1
   debug: false
   device: cuda
   # device: cpu # debug on CPU
