@@ -1,7 +1,9 @@
 """
 Usage:
 Training:
-python train.py --config-name=train_diffusion_lowdim_workspace
+python train.py --config-name=train_maze_diffusion_policy_cnn.yaml \
+    training.seed=42 \
+    hydra.run.dir=data/outputs/`date +"%Y.%m.%d"`/`date +"%H.%M.%S"`_maze_binary_image_100k     task.dataset.zarr_path=data/maze_image/maze_binary_image_dataset_100k.zarr
 """
 
 import sys

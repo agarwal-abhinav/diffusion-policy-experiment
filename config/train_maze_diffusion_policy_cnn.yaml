@@ -51,7 +51,7 @@ optimizer:
   - 0.95
   - 0.999
   eps: 1.0e-08
-  lr: 0.0004
+  lr: 0.0002
   weight_decay: 1.0e-06
 past_action_visible: false
 policy:
@@ -164,7 +164,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 500
+  num_epochs: 50
   resume: true
   rollout_every: 5
   sample_every: 5

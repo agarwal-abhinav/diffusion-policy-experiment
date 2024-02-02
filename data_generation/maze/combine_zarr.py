@@ -39,7 +39,6 @@ def main():
     
     # double chunk size for images
     chunk_size = zarrs[0]['data']['img'].chunks
-    chunk_size = (chunk_size[0]*2, *chunk_size[1:])
     combined_imgs = concatenate_and_rechunk([z['data']['img'] for z in zarrs],
                                             chunks=chunk_size)
 
@@ -71,6 +70,7 @@ def main():
                component='data/img', overwrite=False)
     meta_dir.create_dataset('episode_ends', data=combined_episode_ends)
     print("Saved combined dataset to zarr file.")
+    breakpoint()
     
     # print chunk sizes
     print("\nChunk sizes:")
