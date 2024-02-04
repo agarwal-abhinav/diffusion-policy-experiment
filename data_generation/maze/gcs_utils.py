@@ -77,7 +77,7 @@ def create_test_box_env():
                            [3.0, 4.5, 3.0, 4.5]])
     region_1 = HPolyhedron(VPolytope(vertices_1))
 
-    vertices_2 = np.array([[2.5, 2.5, 3.5, 3.5],
+    vertices_2 = np.array([[2.5, 2.5, 3.0, 3.0],
                            [1.0, 1.5, 1.0, 1.5]])
     region_2 = HPolyhedron(VPolytope(vertices_2))
 
