@@ -184,18 +184,3 @@ class BaseRRT:
             if not self.is_free(q_intermediate):
                 return False
         return True
-
-# payload class for kdtree. emulates a tuple
-class KDTreePayload(object):
-    def __init__(self, q, data):
-        self.q = q
-        self.data = data
-    
-    def __len__(self):
-        return len(self.q)
-    
-    def __getitem__(self, i):
-        return self.q[i]
-    
-    def __repr__(self):
-        return f'({self.q}, {self.data})'
