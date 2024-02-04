@@ -113,6 +113,24 @@ class BaseRRT:
         """
         for _ in tqdm(range(N), desc='Growing RRT'):
             self.sample_and_add_vertex()
+    
+    def grow_to_goal(self, q_goal, 
+                     distance_metric = _euclidean_distance,
+                     num_shortcut_attempts: int=0):
+        """
+        Grows the RRT tree to q_goal. Returns path if successful, None otherwise.
+        """
+        # check if a node already exists
+        nearest_node, distance = self.find_nearest(q_goal, distance_metric)
+        if distance < self.max_step_size and self._obstacle_free(nearest_node.value, q_goal):
+            return self.find_path(q_goal)
+        
+        # no node close to goal. continue growing
+        while True:
+            new_node = self.sample_and_add_vertex()
+            if _euclidean_distance(new_node.value, q_goal) < self.max_step_size:
+                break
+        return self.find_path(q_goal, num_shortcut_attempts)
         
     def find_path(self, q_goal, num_shortcut_attempts: int=0):
         """
@@ -140,6 +158,12 @@ class BaseRRT:
         Shortcuts the path using the straight line path between
         two configurations.
         """
+        # try straight line path
+        src, dst = path[0], path[-1]
+        if self._obstacle_free(src, dst):
+            return [src, dst]
+
+        # try random shortcuts
         for _ in range(num_attempts):
             if len(path) < 3:
                 return path

@@ -68,16 +68,25 @@ def main():
                             obstacle_padding=0.1)
     source = np.array([2.5, 2.5])
     maze_rrt = MazeRRT(maze_env, source)
-    maze_rrt.grow(N=5000)
 
+    # grow tree to goal
+    path = maze_rrt.grow_to_goal(np.array([4.5, 4.5]), num_shortcut_attempts=100)
+    maze_rrt.visualize(path=path)
+
+    # add 500 more nodes
+    maze_rrt.grow(N=1000)
     q_goal = maze_env.sample_collision_free_point()
+    q_goal = np.array([2.5, 2.7])
     path = maze_rrt.find_path(q_goal, num_shortcut_attempts=0)
     maze_rrt.visualize(path=path)
 
+    # test shortcutting
     shortcut_path = maze_rrt.shortcut_path(path)
     print(f'Original path length: {len(path)}')
     print(f'Shortcut path length: {len(shortcut_path)}')
     maze_rrt.visualize(path=shortcut_path)
+
+
 
 if __name__ == '__main__':
     main()
