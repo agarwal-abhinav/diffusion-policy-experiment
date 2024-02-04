@@ -71,7 +71,7 @@ def main():
     maze_rrt.grow(N=5000)
 
     q_goal = maze_env.sample_collision_free_point()
-    path = maze_rrt.find_path(q_goal)
+    path = maze_rrt.find_path(q_goal, num_shortcut_attempts=0)
     maze_rrt.visualize(path=path)
 
     shortcut_path = maze_rrt.shortcut_path(path)

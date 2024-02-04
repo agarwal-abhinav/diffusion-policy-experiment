@@ -114,7 +114,7 @@ class BaseRRT:
         for _ in tqdm(range(N), desc='Growing RRT'):
             self.sample_and_add_vertex()
         
-    def find_path(self, q_goal):
+    def find_path(self, q_goal, num_shortcut_attempts: int=0):
         """
         Returns a path from the root to q_goal.
         If no path is found, return None
@@ -130,6 +130,9 @@ class BaseRRT:
         # passed collision checks: find path
         path = self.RRT_tree.find_path_to_root(nearest_node)
         path.append(q_goal)
+        # shortcut path
+        if num_shortcut_attempts > 0:
+            path = self.shortcut_path(path, num_shortcut_attempts)
         return path
     
     def shortcut_path(self, path, num_attempts=100):
