@@ -45,7 +45,7 @@ class MazeRRT(BaseRRT):
         ax.set_aspect('equal', adjustable='box')
 
         # plot the RRT tree
-        for vertex in self.configuration_to_node.values():
+        for vertex in self.vertices:
             if vertex.parent is not None:
                 plt.plot([vertex.value[0], vertex.parent.value[0]], 
                          [vertex.value[1], vertex.parent.value[1]], 
@@ -76,7 +76,6 @@ def main():
     # add 500 more nodes
     maze_rrt.grow(N=1000)
     q_goal = maze_env.sample_collision_free_point()
-    q_goal = np.array([2.5, 2.7])
     path = maze_rrt.find_path(q_goal, num_shortcut_attempts=0)
     maze_rrt.visualize(path=path)
 

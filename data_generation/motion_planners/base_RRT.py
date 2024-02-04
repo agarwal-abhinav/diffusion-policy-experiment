@@ -1,23 +1,16 @@
 import numpy as np
 from tqdm import tqdm
-from data_generation.motion_planners.tree import TreeNode, Tree
-import kdtree # TODO: figure this out
-
-def _euclidean_distance(a, b):
-    """
-    Returns the Euclidean distance between a and b.
-    """
-    return np.linalg.norm(a - b)
+from data_generation.motion_planners.common import (
+    TreeNode, Tree, _euclidean_distance, KDTreePayload
+)
+import kdtree
 
 class BaseRRT:
     def __init__(self, source, max_step_size=0.1):
         self.RRT_tree = Tree(TreeNode(source))
-        # used for nearest neighbor queries
-        self.configuration_to_node = {
-            tuple(source): self.RRT_tree.root
-        }
+        self.vertices = [self.RRT_tree.root] # easy indexing into all vertices
         self.max_step_size = max_step_size
-        self.kdtree = kdtree.create([source])
+        self.kdtree = kdtree.create([KDTreePayload(source, self.RRT_tree.root)])
 
     def sample_free(self):
         """
@@ -55,11 +48,11 @@ class BaseRRT:
         # kd tree
         if distance_metric is _euclidean_distance:
             kd_nearest, _ = self.kdtree.search_nn(q)
-            nearest_distance = _euclidean_distance(kd_nearest.data, q)
-            nearest_node = self.configuration_to_node[tuple(kd_nearest.data)]
+            nearest_node = kd_nearest.data.data
+            nearest_distance = _euclidean_distance(nearest_node.value, q)
         # brute force
         else:
-            for vertex in self.configuration_to_node.values():
+            for vertex in self.vertices:
                 distance = distance_metric(q, vertex.value)
                 if distance < nearest_distance:
                     nearest_node = vertex
@@ -92,8 +85,8 @@ class BaseRRT:
         # collision-free, add new node to the tree
         new_node = TreeNode(q_new, nearest_node)
         self.RRT_tree.add_node(new_node, nearest_node)
-        self.configuration_to_node[tuple(q_new)] = new_node
-        self.kdtree.add(tuple(q_new))
+        self.vertices.append(new_node)
+        self.kdtree.add(KDTreePayload(q_new, new_node))
         return new_node
     
     def sample_and_add_vertex(self):
@@ -191,4 +184,18 @@ class BaseRRT:
             if not self.is_free(q_intermediate):
                 return False
         return True
+
+# payload class for kdtree. emulates a tuple
+class KDTreePayload(object):
+    def __init__(self, q, data):
+        self.q = q
+        self.data = data
     
+    def __len__(self):
+        return len(self.q)
+    
+    def __getitem__(self, i):
+        return self.q[i]
+    
+    def __repr__(self):
+        return f'({self.q}, {self.data})'
