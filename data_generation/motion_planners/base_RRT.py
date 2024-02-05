@@ -7,6 +7,7 @@ import kdtree
 
 class BaseRRT:
     def __init__(self, source, max_step_size=0.1):
+        self.source = source
         self.RRT_tree = Tree(TreeNode(source))
         self.vertices = [self.RRT_tree.root] # easy indexing into all vertices
         self.max_step_size = max_step_size
@@ -186,3 +187,9 @@ class BaseRRT:
             if not self.is_free(q_intermediate):
                 return False
         return True
+    
+    def reset(self):
+        # garbage collection should happen naturally
+        self.RRT_tree = Tree(TreeNode(self.source))
+        self.vertices = [self.RRT_tree.root] # easy indexing into all vertices
+        self.kdtree = kdtree.create([KDTreePayload(self.source, self.RRT_tree.root)])
