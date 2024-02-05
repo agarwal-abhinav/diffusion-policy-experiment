@@ -169,18 +169,18 @@ def main():
         'data_generation/maze_data_rrt_star/rrt_star.zarr', 
         mode='r')
     current_start = 0
-    for i in range(10):
+    for i in range(dataset['meta/episode_ends'].shape[0]):
         current_end = dataset['meta/episode_ends'][i]
         trajectory = dataset['data/state'][current_start:current_end]
         source = trajectory[0]
         target = dataset['data/target'][current_start]
         current_start = current_end
 
-        # maze.plot_trajectory(start=source,
-        #                      end=target,
-        #                      waypoints=trajectory,
-        #                      mode='obstacles')
-        maze.animate_trajectory(trajectory, source, target)
+        maze.plot_trajectory(start=source,
+                             end=target,
+                             waypoints=trajectory,
+                             mode='obstacles')
+        # maze.animate_trajectory(trajectory, source, target)
         
 if __name__ == '__main__':
     main()

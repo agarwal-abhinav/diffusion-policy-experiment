@@ -34,7 +34,7 @@ class BaseRRTStar(BaseRRT):
         # Collision check
         if not self.is_free(q_new):
             return None
-        if not self._obstacle_free(nearest_node.value, q_new):
+        if not self._obstacle_free(nearest_node.value, q_new, 50):
             return None
         
         # Collision-free, add new node to the tree
@@ -44,7 +44,7 @@ class BaseRRTStar(BaseRRT):
         x_new_parent = nearest_node
         min_cost = nearest_node.cost + _euclidean_distance(nearest_node.value, q_new)
         for node, distance in nearest_neighbors:
-            if not self._obstacle_free(node.value, q_new):
+            if not self._obstacle_free(node.value, q_new, distance // 0.05):
                 continue
             new_cost = node.cost + distance
             if new_cost < min_cost:
@@ -60,7 +60,7 @@ class BaseRRTStar(BaseRRT):
 
         # rewire the tree
         for node, distance in nearest_neighbors:
-            if not self._obstacle_free(q_new, node.value):
+            if not self._obstacle_free(q_new, node.value, distance // 0.05):
                 continue
             new_cost = new_node.cost + distance
             if new_cost < node.cost:
@@ -104,7 +104,7 @@ class BaseRRTStar(BaseRRT):
         parent_node = None
         parent_cost = float('inf')
         for node, distance in nearest_nodes:
-            if not self._obstacle_free(node.value, q_goal):
+            if not self._obstacle_free(node.value, q_goal, int(distance // 0.05)):
                 continue
             new_cost = node.cost + distance
             if new_cost < parent_cost:

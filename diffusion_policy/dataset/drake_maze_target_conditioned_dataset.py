@@ -20,12 +20,25 @@ class MazeLowdimTargetConditionedDataset(BaseLowdimDataset):
             action_key='action',
             seed=42,
             val_ratio=0.0,
-            max_train_episodes=None
+            max_train_episodes=None,
+            max_train_trajectories=None
             ):
         super().__init__()
         self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=[state_key, target_key, action_key])
         
+        if max_train_trajectories:
+            print(f"Downsampling trajectories to {max_train_trajectories}")
+            root = self.replay_buffer.root
+            assert 0 < max_train_trajectories < root['meta']['episode_ends'].shape[0]
+            
+            root['meta']['episode_ends'] = root['meta']['episode_ends'][:max_train_trajectories]
+            end_idx = root['meta']['episode_ends'][-1]
+            root['data']['state'] = root['data']['state'][:end_idx]
+            root['data']['action'] = root['data']['action'][:end_idx]
+            root['data']['target'] = root['data']['target'][:end_idx]
+            self.replay_buffer.root= root
+
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,

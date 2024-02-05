@@ -165,11 +165,11 @@ class BaseRRT:
         # try straight line path
         src, dst = path[0], path[-1]
         straight_line_dist = _euclidean_distance(src, dst)
-        if self._obstacle_free(src, dst, int(straight_line_dist // 0.1)):
+        if self._obstacle_free(src, dst, int(straight_line_dist // 0.05)):
             return [src, dst]
 
         # try random shortcuts
-        for _ in range(num_attempts):
+        for _ in range(int(num_attempts)):
             if len(path) < 3:
                 return path
             # sample indices i and j st.
@@ -187,11 +187,11 @@ class BaseRRT:
         """
         raise NotImplementedError
     
-    def _obstacle_free(self, q1, q2, n=3):
+    def _obstacle_free(self, q1, q2, n=50):
         """
         Returns True if the straight line path between q1 and q2 is obstacle-free.
         """
-        for i in range(n):
+        for i in range(int(n)):
             q_intermediate = q1 + (q2 - q1) * (i + 1) / (n+2)
             if not self.is_free(q_intermediate):
                 return False

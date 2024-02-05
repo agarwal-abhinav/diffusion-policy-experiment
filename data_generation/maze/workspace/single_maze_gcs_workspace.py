@@ -186,7 +186,7 @@ def main():
         'data_generation/maze_data_gcs/gcs.zarr', 
         mode='r')
     current_start = 0
-    for i in range(10):
+    for i in range(dataset['meta/episode_ends'].shape[0]):
         current_end = dataset['meta/episode_ends'][i]
         trajectory = dataset['data/state'][current_start:current_end]
         source = trajectory[0]
