@@ -85,7 +85,7 @@ def create_test_box_env():
                            [2.5, 3.5, 2.5, 3.5]])
     region_3 = HPolyhedron(VPolytope(vertices_3))
 
-    vertices_4 = np.array([[0.0, 0.0, 1.5, 1.5],
+    vertices_4 = np.array([[0.5, 0.5, 1.5, 1.5],
                            [1.0, 1.5, 1.0, 1.5]])
     region_4 = HPolyhedron(VPolytope(vertices_4))
 
@@ -94,7 +94,7 @@ def create_test_box_env():
     region_5 = HPolyhedron(VPolytope(vertices_5))
 
     vertices_6 = np.array([[3.0, 3.0, 4.0, 4.0],
-                           [4.0, 5.0, 4.0, 5.0]])
+                           [4.0, 4.5, 4.0, 4.5]])
     region_6 = HPolyhedron(VPolytope(vertices_6))
 
     vertices_7 = np.array([[3.7, 3.7, 4.2, 4.2],
@@ -105,8 +105,17 @@ def create_test_box_env():
                             [1.0, 1.5, 1.0, 1.5]])
     region_8 = HPolyhedron(VPolytope(vertices_8))
 
+    vertices_9 = np.array([[0.7, 1.5, 0.7, 1.5],
+                           [2.5, 2.5, 3.5, 3.5]])
+    region_9 = HPolyhedron(VPolytope(vertices_9))
+
+    vertices_10 = np.array([[2.0, 2.3, 2.0, 2.3],
+                           [2.7, 2.7, 3.5, 3.5]])
+    region_10 = HPolyhedron(VPolytope(vertices_10))
+
     regions_ = [region_1, region_2, region_3, region_4, 
-                region_5, region_6, region_7, region_8]
+                region_5, region_6, region_7, region_8,
+                region_9, region_10]
     return regions_
 
 def run_gcs(regions, start, goal):
