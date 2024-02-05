@@ -109,6 +109,7 @@ class BaseRRT:
             self.sample_and_add_vertex()
     
     def grow_to_goal(self, q_goal, 
+                     max_samples=-1,
                      distance_metric = _euclidean_distance,
                      num_shortcut_attempts: int=0):
         """
@@ -121,11 +122,19 @@ class BaseRRT:
             return self.find_path(q_goal)
         
         # no node close to goal. continue growing
-        while True:
+        found_path = False
+        i = 0
+        while max_samples < 0 or i < max_samples:
             new_node = self.sample_and_add_vertex()
             if _euclidean_distance(new_node.value, q_goal) < self.max_step_size:
+                found_path = True
                 break
-        return self.find_path(q_goal, num_shortcut_attempts)
+            i += 1
+        
+        if not found_path:
+            return None
+        else:
+            return self.find_path(q_goal, num_shortcut_attempts)
         
     def find_path(self, q_goal, num_shortcut_attempts: int=0):
         """

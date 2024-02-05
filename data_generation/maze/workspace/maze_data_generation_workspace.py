@@ -45,6 +45,8 @@ class MazeDataGenerationWorkspace:
             assert num_trajectories_per_maze > 0
             assert num_processes > 0
             assert data_dir != ''
+
+            self.cfg = cfg
             
             self.maze_generator = maze_generator
             self.num_mazes_per_proc = num_mazes_per_proc
@@ -124,6 +126,10 @@ class MazeDataGenerationWorkspace:
             os.makedirs(self.data_dir, exist_ok=False)
         with open(f'{self.data_dir}/maze_data.pkl', 'wb') as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # Save config file
+        config_path = f'{self.data_dir}/config.yaml'
+        OmegaConf.save(self.cfg, config_path)
 
     
     def generate_data(self):

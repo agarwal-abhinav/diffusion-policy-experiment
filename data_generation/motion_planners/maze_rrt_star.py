@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial import ConvexHull
 
 
-from data_generation.motion_planners.base_RRT_star import BaseRRTStar
+from data_generation.motion_planners.base_rrt_star import BaseRRTStar
 from data_generation.maze.maze_environment import MazeEnvironment
 
 class MazeRRTStar(BaseRRTStar):
@@ -70,10 +70,16 @@ def main():
     maze_rrt = MazeRRTStar(maze_env, source)
 
     # grow tree to goal
-    path = maze_rrt.grow_to_goal(np.array([0.5, 4.5]), num_shortcut_attempts=100)
+    path = maze_rrt.grow_to_goal(np.array([0.5, 4.5]))
+    maze_rrt.visualize(path=path)
+
+    # test reset function
+    maze_rrt.reset()
+    path = maze_rrt.grow_to_goal(np.array([2.5, 2.7]))
     maze_rrt.visualize(path=path)
 
     # add 500 more nodes
+    maze_rrt.reset()
     maze_rrt.grow(N=1000)
     q_goal = maze_env.sample_collision_free_point()
     path = maze_rrt.find_path(q_goal, num_shortcut_attempts=0)

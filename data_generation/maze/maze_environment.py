@@ -451,6 +451,7 @@ class MazeEnvironment:
                            waypoints: np.ndarray, 
                            start: np.ndarray=None, 
                            end: np.ndarray=None,
+                           image_size: np.ndarray=np.array([64, 64]),
                            dt: float=0.1,
                            repeat: bool=True) -> None:
         """
@@ -464,7 +465,7 @@ class MazeEnvironment:
         fig, ax = plt.subplots()
         num_frames = len(waypoints)
         def animate(i):
-            plt.imshow(self.to_img(waypoints[i], start, end))
+            plt.imshow(self.to_img(waypoints[i], start, end, shape=image_size))
         animation = FuncAnimation(fig, animate, frames=num_frames, 
                                 interval=dt*1000, repeat=repeat)
         plt.show()

@@ -17,17 +17,10 @@ from omegaconf import OmegaConf
 )
 def main(cfg: OmegaConf):
     # Generate data
+    OmegaConf.resolve(cfg)
     cls = hydra.utils.get_class(cfg._target_)
     maze_data_generation_workspace = cls(cfg=cfg)
     maze_data_generation_workspace.run()
-
-    # Add config file to data directory
-    config_name = sys.argv[2]
-    src = str(pathlib.Path(__file__).parent.parent.joinpath(
-        'config', config_name))
-    dst = str(pathlib.Path(__file__).parent.parent.parent.joinpath(
-        maze_data_generation_workspace.data_dir, 'config.yaml'))
-    shutil.copy(src, dst)
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,7 @@ from tqdm import tqdm
 from data_generation.motion_planners.common import (
     TreeNode, Tree, _euclidean_distance, KDTreePayload
 )
-from data_generation.motion_planners.base_RRT import BaseRRT
+from data_generation.motion_planners.base_rrt import BaseRRT
 import kdtree
 
 class BaseRRTStar(BaseRRT):
