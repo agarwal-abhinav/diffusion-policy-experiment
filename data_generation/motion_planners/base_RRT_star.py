@@ -16,8 +16,8 @@ class BaseRRTStar(BaseRRT):
                             distance_metric=_euclidean_distance):
         if distance_metric is _euclidean_distance:
             knn = self.kdtree.search_knn(q, k)
-            distances = [distance_metric(x.data.q, q) for x in knn]
-            return [(knn[i].data.data, distances[i]) for i in range(len(knn))]
+            distances = [distance_metric(kd_node.data.q, q) for kd_node, dist in knn]
+            return [(knn[i][0].data.data, distances[i]) for i in range(len(knn))]
         else:
             # Brute force solution
             raise NotImplementedError()
@@ -38,15 +38,44 @@ class BaseRRTStar(BaseRRT):
             return None
         
         # Collision-free, add new node to the tree
-        k = self.k_RRT * math.log(len(self.vertices))
+        k = self._get_k()
         nearest_neighbors = self.k_nearest_neighbors(q_new, k)
         # Connect along a minimum-cost path
+        x_new_parent = nearest_node
+        min_cost = nearest_node.cost + _euclidean_distance(nearest_node.value, q_new)
         for node, distance in nearest_neighbors:
-            # TODO:
+            if not self._obstacle_free(node.value, q_new):
+                continue
+            new_cost = node.cost + distance
+            if new_cost < min_cost:
+                x_new_parent = node
+                min_cost = new_cost
 
-    def _rewire_tree(self, q_new, nearest_neighbors):
-        pass
-    
+        # add new node to RRT
+        new_node = TreeNode(q_new, x_new_parent)
+        new_node.cost = min_cost
+        self.RRT_tree.add_node(new_node, x_new_parent)
+        self.vertices.append(new_node)
+        self.kdtree.add(KDTreePayload(q_new, new_node))
+
+        # rewire the tree
+        for node, distance in nearest_neighbors:
+            if not self._obstacle_free(q_new, node.value):
+                continue
+            new_cost = new_node.cost + distance
+            if new_cost < node.cost:
+                old_parent = node.parent
+                # old parent is None iff node is root
+                # the lowest cost path to the root is [root]
+                # which means no rewiring is necessary
+                if old_parent is not None:
+                    old_parent.children.remove(node)
+                    node.parent = new_node
+                    new_node.children.append(node)
+                    node.cost = new_cost
+        
+        return new_node
+        
     def sample_and_add_vertex(self):
         """
         Samples a new configuration and adds it to the tree.
@@ -65,12 +94,32 @@ class BaseRRTStar(BaseRRT):
         for _ in tqdm(range(N), desc='Growing RRT'):
             self.sample_and_add_vertex()
 
-    def grow_to_goal(self, q_goal,
-                     distance_metric=_euclidean_distance,
-                     num_shortcut_attempts: int=0):
-        # needs to consider k nearest neighbors
-        pass
-
     def find_path(self, q_goal, num_shortcut_attempts: int=0):
-        # needs to consider k nearest neighbors
-        pass
+        # check for collisions
+        if not self.is_free(q_goal):
+            return None
+        k = self._get_k()
+        nearest_nodes = self.k_nearest_neighbors(q_goal, k)
+
+        parent_node = None
+        parent_cost = float('inf')
+        for node, distance in nearest_nodes:
+            if not self._obstacle_free(node.value, q_goal):
+                continue
+            new_cost = node.cost + distance
+            if new_cost < parent_cost:
+                parent_node = node
+                parent_cost = new_cost
+        
+        if parent_node == None:
+            return None
+        
+        path = self.RRT_tree.find_path_to_root(parent_node)
+        path.append(q_goal)
+        if num_shortcut_attempts > 0:
+            path = self.shortcut_path(path, num_shortcut_attempts)
+        return path
+    
+    def _get_k(self):
+        k = self.k_RRT * math.log(len(self.vertices))
+        return int(math.floor(k+1))

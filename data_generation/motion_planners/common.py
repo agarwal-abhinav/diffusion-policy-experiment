@@ -5,7 +5,7 @@ class TreeNode:
         assert isinstance(parent, TreeNode) or parent is None
         self.value = value
         self.parent = parent
-        distance = 0 # used in RRT*
+        self.cost = 0 # used in RRT*
         self.children = []
 
 class Tree:

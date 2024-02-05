@@ -114,6 +114,7 @@ class BaseRRT:
         Grows the RRT tree to q_goal. Returns path if successful, None otherwise.
         """
         # check if a node already exists
+        assert self.is_free(q_goal)
         nearest_node, distance = self.find_nearest(q_goal, distance_metric)
         if distance < self.max_step_size and self._obstacle_free(nearest_node.value, q_goal):
             return self.find_path(q_goal)
@@ -153,7 +154,8 @@ class BaseRRT:
         """
         # try straight line path
         src, dst = path[0], path[-1]
-        if self._obstacle_free(src, dst):
+        straight_line_dist = _euclidean_distance(src, dst)
+        if self._obstacle_free(src, dst, int(straight_line_dist // 0.1)):
             return [src, dst]
 
         # try random shortcuts
