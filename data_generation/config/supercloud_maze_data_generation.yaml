@@ -1,3 +1,4 @@
+_target_: data_generation.maze.maze_data_generation_workspace.MazeDataGenerationWorkspace
 environment_generator:
   min_num_obstacles: 10
   max_num_obstacles: 15
@@ -21,17 +22,20 @@ environment_generator:
 # Collection V2
 # 6250 trajectories per process
 # Triples mode: [2,40,1] (total of 200k trajectories from 10k mazes)
-num_mazes_per_proc: 3125
-num_trajectories_per_maze: 2
+# num_mazes_per_proc: 3125
+# num_trajectories_per_maze: 2
 
 # Debug collection
 # 25 trajectories per process
-# num_mazes_per_proc: 5
-# num_trajectories_per_maze: 5
+num_mazes_per_proc: 5
+num_trajectories_per_maze: 5
 
 num_processes: 1
-data_dir: 'data_generation/maze_data_binary_img'
+data_dir: 'data_generation/test_maze_data'
 append_date_time: false
+image_size:
+- 64
+- 64
 
 max_rounded_paths: 10
 max_velocity: 1.0

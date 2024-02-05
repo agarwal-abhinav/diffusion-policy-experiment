@@ -11,6 +11,7 @@ import logging
 from multiprocessing import Pool
 from tqdm import tqdm
 from typing import List
+from omegaconf import OmegaConf
 
 import data_generation.maze.gcs_utils as gcs_utils
 from data_generation.maze.maze_environment import MazeEnvironment
@@ -23,11 +24,13 @@ from pydrake.solvers import MosekSolver
 from pydrake.planning import GcsTrajectoryOptimization
 
 class MazeDataGenerationWorkspace:
-    def __init__(self, maze_generator: MazeEnvironmentGenerator,
-                  num_mazes_per_proc: int, 
-                  num_trajectories_per_maze: int,
-                  num_processes: int,
-                  data_dir: str,
+    def __init__(self, 
+                  cfg: OmegaConf=None,
+                  maze_generator: MazeEnvironmentGenerator=None,
+                  num_mazes_per_proc: int=0, 
+                  num_trajectories_per_maze: int=0,
+                  num_processes: int=0,
+                  data_dir: str='',
                   append_date_time: bool=True,
                   image_size: np.ndarray=np.ndarray([64, 64]),
                   # GCS settings
@@ -35,23 +38,62 @@ class MazeDataGenerationWorkspace:
                   max_velocity: float=1.0,
                   continuity_order: int=1,
                   bezier_order: int=3):
+        
+        if cfg is None:
+            assert maze_generator is not None
+            assert num_mazes_per_proc > 0
+            assert num_trajectories_per_maze > 0
+            assert num_processes > 0
+            assert data_dir != ''
+            
+            self.maze_generator = maze_generator
+            self.num_mazes_per_proc = num_mazes_per_proc
+            self.num_trajectories_per_maze = num_trajectories_per_maze
+            self.num_processes = num_processes
+            
+            now = datetime.now()
+            self.data_dir = data_dir
+            if append_date_time:
+                self.data_dir = f'{data_dir}_{now.strftime("%d-%m-%Y_%H:%M:%S")}'
+            self.image_size = image_size
+            
+            # GCS settings
+            self.max_rounded_paths = max_rounded_paths
+            self.max_velocity = max_velocity
+            self.continuity_order = continuity_order
+            self.bezier_order = bezier_order
+        else:
+            env_gen_cfg = cfg.environment_generator
+            self.maze_generator = MazeEnvironmentGenerator(
+                min_num_obstacles=env_gen_cfg.min_num_obstacles,
+                max_num_obstacles=env_gen_cfg.max_num_obstacles,
+                min_obstacle_width=env_gen_cfg.min_obstacle_width,
+                max_obstacle_width=env_gen_cfg.max_obstacle_width,
+                min_obstacle_height=env_gen_cfg.min_obstacle_height,
+                max_obstacle_height=env_gen_cfg.max_obstacle_height,
+                border_padding=env_gen_cfg.border_padding,
+                obstacle_padding = env_gen_cfg.obstacle_padding,
+                bounds=np.array(env_gen_cfg.bounds),
+                non_overlapping_centers=env_gen_cfg.non_overlapping_centers
+            )
+            
+            self.num_mazes_per_proc = cfg.num_mazes_per_proc
+            self.num_trajectories_per_maze = cfg.num_trajectories_per_maze
+            self.num_processes = cfg.num_processes
 
-        self.maze_generator = maze_generator
-        self.num_mazes_per_proc = num_mazes_per_proc
-        self.num_trajectories_per_maze = num_trajectories_per_maze
-        self.num_processes = num_processes
-        
-        now = datetime.now()
-        self.data_dir = data_dir
-        if append_date_time:
-            self.data_dir = f'{data_dir}_{now.strftime("%d-%m-%Y_%H:%M:%S")}'
-        self.image_size = image_size
-        
-        # GCS settings
-        self.max_rounded_paths = max_rounded_paths
-        self.max_velocity = max_velocity
-        self.continuity_order = continuity_order
-        self.bezier_order = bezier_order
+            if cfg.task_id is not None:
+                cfg.data_dir = f'{cfg.data_dir}/{cfg.task_id}'
+            self.data_dir = cfg.data_dir
+            if cfg.append_date_time:
+                now = datetime.now()
+                self.data_dir = f'{self.data_dir}_{now.strftime("%d-%m-%Y_%H:%M:%S")}'
+            self.image_size = np.array(cfg.image_size)
+
+            # GCS settings
+            self.max_rounded_paths = cfg.max_rounded_paths
+            self.max_velocity = cfg.max_velocity
+            self.continuity_order = cfg.continuity_order
+            self.bezier_order = cfg.bezier_order
 
     def run(self):
         # Generate the random maze environments
@@ -89,7 +131,6 @@ class MazeDataGenerationWorkspace:
         seed = int((datetime.now().timestamp() % 1) * 1e6)
         np.random.seed(seed)
 
-        print("about to generate mazes")
         mazes = [self.maze_generator.generate_maze_environment() \
                  for i in tqdm(range(self.num_mazes_per_proc),
                                desc='Environment generation',
