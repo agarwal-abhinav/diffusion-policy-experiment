@@ -98,18 +98,17 @@ class SingleMazeGCSWorkspace:
         options = GraphOfConvexSetsOptions()
         options.max_rounded_paths = self.max_rounded_paths
         
+        solves_since_rebuild = 0
+        solves_per_build = 7 # computed roughly as sqrt(2*time_to_build_graph / rate_of_solve_time_increase)
         while len(data) < self.num_trajectories:
-            start_time = time.time()
             goal = self.maze.sample_end_point()
             target_region = gcs.AddRegions([Point(goal)], 0)
             gcs.AddEdges(free_space, target_region)
-
             [traj, result] = gcs.SolvePath(source_region, target_region, options)
-            end_time = time.time()
+            solves_since_rebuild += 1
 
-            # Rebuild GCS object if solve times become too slow
-            factor = 1.5
-            if end_time-start_time > factor * time_to_build_graph:
+            # Rebuild GCS
+            if solves_since_rebuild == 7:
                 gcs = GcsTrajectoryOptimization(self.maze.dim)
                 free_space = gcs.AddRegions(self.maze.regions, self.bezier_order)
                 source_region = gcs.AddRegions([Point(self.source)], 0)
@@ -119,6 +118,8 @@ class SingleMazeGCSWorkspace:
                 gcs.AddPathContinuityConstraints(self.continuity_order)
                 gcs.AddTimeCost()
                 gcs.AddPathLengthCost()
+                solves_since_rebuild = 0
+
             
             if not result.is_success():
                 continue
@@ -182,7 +183,7 @@ def main():
     
     # read from disk
     dataset = zarr.open(
-        'data_generation/test_maze_data_gcs/single_maze_gcs.zarr', 
+        'data_generation/maze_data_gcs/gcs.zarr', 
         mode='r')
     current_start = 0
     for i in range(10):

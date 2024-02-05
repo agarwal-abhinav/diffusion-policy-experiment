@@ -86,8 +86,9 @@ def main(checkpoint, output_dir, device):
         eps = 0.1
         dt = 0.1
         # TODO: read these from the config file
-        # Currently relying on default constructor values
-        environment_generator = MazeEnvironmentGenerator()
+        environment_generator = MazeEnvironmentGenerator(
+            obstacle_padding=0.1
+        )
         for i in tqdm.tqdm(range(num_traj)):
             done = False
 

@@ -2,9 +2,9 @@ _target_: data_generation.maze.workspace.single_maze_rrt_workspace.SingleMazeRRT
 source:
 - 2.5
 - 2.5
-num_trajectories: 10
-data_dir: 'data_generation/test_maze_data_rrt'
-zarr_name: 'single_maze_rrt.zarr'
+num_trajectories: 50000
+data_dir: 'data_generation/maze_data_rrt'
+zarr_name: 'rrt.zarr'
 
 # RRT settings
 reset_every_trajectory: false

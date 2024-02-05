@@ -166,7 +166,7 @@ def main():
     
     # read from disk
     dataset = zarr.open(
-        'data_generation/test_maze_data_rrt_star/single_maze_rrt_star.zarr', 
+        'data_generation/maze_data_rrt_star/rrt_star.zarr', 
         mode='r')
     current_start = 0
     for i in range(10):

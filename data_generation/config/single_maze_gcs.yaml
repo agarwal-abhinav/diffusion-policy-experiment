@@ -2,9 +2,9 @@ _target_: data_generation.maze.workspace.single_maze_gcs_workspace.SingleMazeGCS
 source:
 - 2.5
 - 2.5
-num_trajectories: 10
-data_dir: 'data_generation/test_maze_data_gcs'
-zarr_name: 'single_maze_gcs.zarr'
+num_trajectories: 50000
+data_dir: 'data_generation/maze_data_gcs'
+zarr_name: 'gcs.zarr'
 
 # GCS settings
 max_rounded_paths: 10
