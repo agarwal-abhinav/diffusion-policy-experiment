@@ -21,11 +21,24 @@ TIME=`date +"%H.%M.%S"`
 HYDRA_FULL_ERROR=1
 
 echo "[submit_maze_training.sh] Running training code..."
-python train.py --config-dir=config --config-name=train_maze_diffusion_policy_cnn.yaml \
-    training.seed=42 hydra.run.dir=data/outputs/${DATE}/${TIME}_maze_image_100k \
-    task.dataset.zarr_path=data/maze_image/maze_image_dataset_100k.zarr
+python train.py --config-dir=config --config-name=motion_planning_experiments.yaml \
+    hydra.run.dir=data/outputs/gcs/gcs_50k \
+    task.dataset.zarr_path=data/single_maze/gcs.zarr
 
-# resume training for 100k training session
-# python train.py --config-dir=config --config-name=train_maze_diffusion_policy_cnn.yaml \
-#     training.seed=42 hydra.run.dir=data/outputs/2024.01.23/15.49.15_maze_image_100k \
-#     task.dataset.zarr_path=data/maze_image/maze_image_dataset_100k.zarr
+python train.py --config-dir=config --config-name=motion_planning_experiments.yaml \
+    hydra.run.dir=data/outputs/gcs/gcs_5k \
+    task.dataset.zarr_path=data/single_maze/gcs.zarr
+    task.dataset.max_train_trajectories=5000 \
+    training.num_epochs=1000
+
+python train.py --config-dir=config --config-name=motion_planning_experiments.yaml \
+    hydra.run.dir=data/outputs/gcs/gcs_500 \
+    task.dataset.zarr_path=data/single_maze/gcs.zarr
+    task.dataset.max_train_trajectories=500 \
+    training.num_epochs=10000
+
+python train.py --config-dir=config --config-name=motion_planning_experiments.yaml \
+    hydra.run.dir=data/outputs/gcs/gcs_500 \
+    task.dataset.zarr_path=data/single_maze/gcs.zarr
+    task.dataset.max_train_trajectories=100 \
+    training.num_epochs=10000
