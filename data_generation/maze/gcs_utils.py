@@ -172,7 +172,8 @@ def save_trajectory_plot(filename,
                          regions, bounds, start, goal, waypoints, 
                          velocity_bounds=np.array([[-1,1],[-1,1]]),
                          collision_indices=[1, 4],
-                         dt=0.1):
+                         dt=0.1,
+                         gcs_regions=None):
     fig, (ax1, ax2) = plt.subplots(2, 1)
 
     # plot obstacles
@@ -181,6 +182,13 @@ def save_trajectory_plot(filename,
         v = VPolytope(region).vertices().transpose()
         hull = ConvexHull(v)
         ax1.fill(*(v[hull.vertices].transpose()), color='white')
+    if gcs_regions is not None:
+        for region in regions:
+            v = VPolytope(region).vertices().transpose()
+            hull = ConvexHull(v)
+            ax1.fill(*(v[hull.vertices].transpose()), 
+                     color='white',
+                     edgecolor='green',)
 
     # plot trajectory
     ax1.plot(*start, 'go', mfc='none')
