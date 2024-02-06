@@ -175,7 +175,8 @@ class SingleMazeGCSWorkspace:
 
 def main():
     # visualize some trajectories
-    # this should be run after collecting data with generate_maze_data.py   
+    # this should be run after collecting data with generate_maze_data.py
+    import random
     obstacles = gcs_utils.create_test_box_env()
     bounds = np.array([[0, 5], [0, 5]])
     maze = MazeEnvironment(bounds, obstacles=obstacles,
@@ -183,10 +184,12 @@ def main():
     
     # read from disk
     dataset = zarr.open(
-        'data_generation/maze_data_gcs/gcs.zarr', 
+        'data/single_maze/gcs.zarr', 
         mode='r')
-    current_start = 0
-    for i in range(dataset['meta/episode_ends'].shape[0]):
+    current_start = None
+    while True:
+        i = random.randint(0, len(dataset['meta/episode_ends'])-1)
+        current_start = 0 if i == 0 else dataset['meta/episode_ends'][i-1]
         current_end = dataset['meta/episode_ends'][i]
         trajectory = dataset['data/state'][current_start:current_end]
         source = trajectory[0]
