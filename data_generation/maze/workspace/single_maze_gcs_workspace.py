@@ -149,12 +149,18 @@ class SingleMazeGCSWorkspace:
         
         # compute states and actions
         state = np.concatenate([trajectory for _, trajectory in data])
-        action = np.concatenate([state[1:,:], trajectory[-1:,:]], axis=0)
         assert state.shape[0] == episode_ends[-1] \
             and state.shape[1] == self.maze.dim
-        assert action.shape[0] == episode_ends[-1] \
-            and action.shape[1] == self.maze.dim
-
+        
+        action = np.zeros((episode_ends[-1], self.maze.dim))
+        start_idx = 0
+        for end_idx in episode_ends:
+            trajectory = state[start_idx:end_idx, :]
+            shifted_trajectory = \
+                np.concatenate([trajectory[1:, :], trajectory[-1:, :]], axis=0)
+            action[start_idx:end_idx, :] = shifted_trajectory
+            start_idx = end_idx
+        
         # save to zarr
         zarr_path = os.path.join(self.data_dir, self.zarr_name)
         root = zarr.open(zarr_path, mode='w')

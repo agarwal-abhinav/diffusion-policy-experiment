@@ -79,7 +79,7 @@ class MazeLowdimTargetConditionedDataset(BaseLowdimDataset):
     def get_normalizer(self, mode='limits', **kwargs):
         data = {
             'action': self.replay_buffer['action'],
-            'state': self.replay_buffer['state'],
+            'obs': self.replay_buffer['state'],
             'target': self.replay_buffer['target']
         }
         normalizer = LinearNormalizer()
