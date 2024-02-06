@@ -88,16 +88,12 @@ def main(checkpoint, output_dir, device):
         maze = MazeEnvironment(bounds, obstacles, obstacle_padding=0.1)
         maze_no_padding = MazeEnvironment(bounds, obstacles, obstacle_padding=0.0)
         source = np.array([2.5, 2.5]) # TODO: read this from data generatino config
+        regions = maze_no_padding.regions
 
         for i in tqdm.tqdm(range(num_traj)):
             done = False
 
-            # Generate an environment
-            regions = maze_no_padding.regions
-            bounds = maze.bounds
-
             target = maze.sample_end_point()
-            distance = np.linalg.norm(source - target)
             waypoints = [source]
 
             # Create observation deques
@@ -106,7 +102,7 @@ def main(checkpoint, output_dir, device):
             
             while len(waypoints) <= 300:
                 obs_dict = deque_to_dict(state_deque, target)
-                action_seq = policy.predict_action(obs_dict)['action'][0]
+                action_seq = policy.predict_action(obs_dict)['action_pred'][0]
                 for action in action_seq:
                     waypoints.append(action.cpu().detach().numpy())
 

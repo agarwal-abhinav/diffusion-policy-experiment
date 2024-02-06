@@ -121,7 +121,7 @@ def main(checkpoint, output_dir, device):
                     obs_dict = deque_to_dict(obs_deque, target)
                 else:
                     obs_dict = deque_to_dict(obs_deque)
-                action_seq = policy.predict_action(obs_dict)['action'][0]
+                action_seq = policy.predict_action(obs_dict)['action_pred'][0]
                 for action in action_seq:
                     waypoints.append(action.cpu().detach().numpy())
                     obs_deque.append(action.reshape(B,1,2))
