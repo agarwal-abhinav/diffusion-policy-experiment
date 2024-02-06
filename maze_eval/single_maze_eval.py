@@ -138,14 +138,14 @@ def main(checkpoint, output_dir, device):
                 passed_all_tests.append(i)
 
             # save plots and add trajectory
-            gcs_regions = maze.regions
-            # gcs_regions = None
+            # gcs_regions = maze.regions
+            gcs_regions = None
             save_trajectory_plot(f"{output_dir}/plots/{i:0>3}.png", 
                                  regions, bounds, source, target, waypoints,
                                  velocity_bounds=np.array([[-1,1],[-1,1]]),
                                  collision_indices=collidion_indices,
                                  dt=0.1,
-                                 gcs_regions=maze.regions)
+                                 gcs_regions=gcs_regions)
             all_trajectories.append((source, target, waypoints, maze))
         
         # Compute statistics and write to logs

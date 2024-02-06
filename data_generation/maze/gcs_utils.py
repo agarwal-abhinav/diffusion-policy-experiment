@@ -183,7 +183,7 @@ def save_trajectory_plot(filename,
         hull = ConvexHull(v)
         ax1.fill(*(v[hull.vertices].transpose()), color='white')
     if gcs_regions is not None:
-        for region in regions:
+        for region in gcs_regions:
             v = VPolytope(region).vertices().transpose()
             hull = ConvexHull(v)
             ax1.fill(*(v[hull.vertices].transpose()), 
@@ -250,6 +250,14 @@ def check_velocity_bounds(waypoints, velocity_bounds, dt):
 def get_colliding_indices(regions, waypoints):
     colliding_indices = []
     for i, point in enumerate(waypoints.transpose()):
+        # Check for high acceleration
+        # if 0 < i < len(waypoints.transpose())-1:
+        #     v = (waypoints[:,i] - waypoints[:,i-1]) / 0.1
+        #     v_next = (waypoints[:,i+1] - waypoints[:,i]) / 0.1
+        #     a = abs((v_next - v) / 0.1)
+        #     if a[0] > 10 or a[1] > 10:
+        #         colliding_indices.append(i)
+        #         continue
         if in_collision(regions, point):
             colliding_indices.append(i)
     return colliding_indices
