@@ -570,8 +570,11 @@ if __name__ == '__main__':
     
     maze_env = MazeEnvironment(bounds, obstacles=obstacles, 
                                obstacle_padding=0.1)
-    binary_img = maze_env.get_binary_maze_representation(np.array([1.0, 4.0]))
+    binary_img = maze_env.get_binary_maze_representation(np.array([2.5, 2.5]))
+    
+    print()
     print_binary_img(binary_img)
+    print()
 
     maze_env.plot_convex_regions()
 
