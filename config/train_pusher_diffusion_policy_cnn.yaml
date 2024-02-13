@@ -6,7 +6,7 @@ checkpoint:
   save_last_snapshot: false
   topk:
     format_str: epoch={epoch:04d}-val_loss={val_loss:.6f}.ckpt
-    k: 5
+    k: 10
     mode: min
     monitor_key: val_loss
 dataloader:
@@ -131,7 +131,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.05 # 0.02
-    zarr_path: data/planar_pushing/push_tee_hybrid_dataset.zarr
+    zarr_path: data/planar_pushing/push_tee_hybrid_dataset_v2.zarr
   image_shape:
   - 3
   - 96
@@ -166,14 +166,13 @@ training:
   num_epochs: 500
   resume: true
   rollout_every: 5
-  # sample_every: 5
-  sample_every: 2
+  sample_every: 5
   seed: 42
   tqdm_interval_sec: 30.0
   use_ema: true
   val_every: 1
 val_dataloader:
-  batch_size: 128
+  batch_size: 512 # larger to get more accurate mse estimate
   num_workers: 8
   persistent_workers: false
   pin_memory: true
