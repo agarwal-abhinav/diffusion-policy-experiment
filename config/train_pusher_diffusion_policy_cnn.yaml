@@ -172,7 +172,7 @@ training:
   use_ema: true
   val_every: 1
 val_dataloader:
-  batch_size: 512 # larger to get more accurate mse estimate
+  batch_size: 256 # larger to get more accurate mse estimate
   num_workers: 8
   persistent_workers: false
   pin_memory: true
