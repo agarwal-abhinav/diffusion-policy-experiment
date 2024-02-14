@@ -132,3 +132,27 @@ class DrakePlanarPushingHybridDataset(BaseImageDataset):
         data = self._sample_to_data(sample)
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
+
+if __name__ == "__main__":
+    import random
+    dataset = DrakePlanarPushingHybridDataset(
+        zarr_path='data/planar_pushing/push_tee_hybrid_dataset_v2.zarr',
+        horizon = 8,
+        n_obs_steps = 4,
+        pad_before = 1,
+        pad_after = 7,
+        seed=42,
+        val_ratio=0.05,
+        max_train_episodes=None,
+        max_train_trajectories=None
+    )
+
+    for _ in range(10):
+        idx = random.randint(0, len(dataset)-1)
+        sample = dataset[idx]
+        states = sample['obs']['agent_pos']
+        actions = sample['action']
+        print(f"Sample states : {states}")
+        print(f"Sample actions: {actions}")
+        print()
+        breakpoint()

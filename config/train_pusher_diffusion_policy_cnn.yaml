@@ -154,7 +154,7 @@ task:
         type: rgb
 task_name: planar_pushing
 training:
-  checkpoint_every: 1
+  checkpoint_every: 5
   debug: false
   device: cuda
   # device: cpu # debug on CPU
