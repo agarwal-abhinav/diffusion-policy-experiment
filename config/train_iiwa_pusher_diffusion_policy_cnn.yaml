@@ -10,7 +10,7 @@ checkpoint:
     mode: min
     monitor_key: val_loss
 dataloader:
-  batch_size: 128
+  batch_size: 64
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -58,8 +58,8 @@ policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
   crop_shape:
-  - 84
-  - 84
+  - 112
+  - 112
   # debugging with a smaller model
   # diffusion_step_embed_dim: 4
   # down_dims:
@@ -102,8 +102,8 @@ policy:
       image:
         shape:
         - 3
-        - 96
-        - 96
+        - 128
+        - 128
         type: rgb
 shape_meta:
   action:
@@ -117,8 +117,8 @@ shape_meta:
     image:
       shape:
       - 3
-      - 96
-      - 96
+      - 128
+      - 128
       type: rgb
 task:
   dataset:
@@ -131,11 +131,11 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.05 # 0.02
-    zarr_path: data/planar_pushing/push_tee_hybrid_dataset_v3.zarr
+    zarr_path: data/planar_pushing/iiwa_push_tee_hybrid_dataset_v2.zarr
   image_shape:
   - 3
-  - 96
-  - 96
+  - 128
+  - 128
   name: scene_image
   shape_meta:
     action:
@@ -149,8 +149,8 @@ task:
       image:
         shape:
         - 3
-        - 96
-        - 96
+        - 128
+        - 128
         type: rgb
 task_name: planar_pushing
 training:
@@ -172,7 +172,7 @@ training:
   use_ema: true
   val_every: 1
 val_dataloader:
-  batch_size: 128 # larger to get more accurate mse estimate
+  batch_size: 64 # larger to get more accurate mse estimate
   num_workers: 8
   persistent_workers: false
   pin_memory: true
