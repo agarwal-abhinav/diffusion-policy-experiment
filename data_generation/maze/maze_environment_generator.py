@@ -107,6 +107,8 @@ class MazeEnvironmentGenerator:
 
 if __name__ == '__main__':
     """ Test MazeEnvironmentGenerator """
+    import matplotlib.pyplot as plt
+    import data_generation.maze.gcs_utils as gcs_utils
     generator = MazeEnvironmentGenerator(
         min_num_obstacles=10,
         max_num_obstacles=15,
@@ -121,3 +123,11 @@ if __name__ == '__main__':
     for i in range(10):
         env = generator.generate_maze_environment()
         env.plot_convex_regions()
+        traj = None
+        while traj is None:
+            start = env.sample_start_point()
+            end = env.sample_end_point()
+            traj = gcs_utils.run_gcs(env.regions, start, end)
+        
+        waypoints = gcs_utils.composite_trajectory_to_array(traj).transpose()
+        env.plot_trajectory(start, end, waypoints, mode='obstacles')

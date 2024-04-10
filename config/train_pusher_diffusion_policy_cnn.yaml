@@ -15,7 +15,7 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
-dataset_obs_steps: 2 # ??
+dataset_obs_steps: 8 # ??
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -42,7 +42,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 2
+n_obs_steps: 8
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -75,7 +75,7 @@ policy:
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
-  n_obs_steps: 2
+  n_obs_steps: 8
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -124,14 +124,14 @@ task:
   dataset:
     _target_: diffusion_policy.dataset.drake_planar_pushing_hybrid_dataset.DrakePlanarPushingHybridDataset
     horizon: 16
-    n_obs_steps: 2
+    n_obs_steps: 8
     max_train_trajectories: null
     max_train_episodes: null
     pad_after: 7
     pad_before: 1
     seed: 42
     val_ratio: 0.05 # 0.02
-    zarr_path: data/planar_pushing/push_tee_hybrid_dataset_v3.zarr
+    zarr_path: data/planar_pushing/push_box_hybrid_dataset_v2.zarr
   image_shape:
   - 3
   - 96
@@ -154,7 +154,7 @@ task:
         type: rgb
 task_name: planar_pushing
 training:
-  checkpoint_every: 5
+  checkpoint_every: 1
   debug: false
   device: cuda
   # device: cpu # debug on CPU

@@ -53,7 +53,8 @@ class MazeEnvironment:
             self.regions = self.get_regions_from_obstacles()
         self.regions_vpolytopes = self.convert_to_vpolytope(self.regions)
 
-        self.binary_maze = self.construct_binary_maze_representation()
+        if regions is None:
+            self.binary_maze = self.construct_binary_maze_representation()
         # print_binary_img(self.binary_maze)
 
         # Variables for image cropping (see to_img function)
@@ -567,7 +568,7 @@ if __name__ == '__main__':
     import data_generation.maze.gcs_utils as gcs_utils
     obstacles = gcs_utils.create_test_box_env()
     bounds = np.array([[0, 5], [0, 5]])
-    
+
     maze_env = MazeEnvironment(bounds, obstacles=obstacles, 
                                obstacle_padding=0.1)
     binary_img = maze_env.get_binary_maze_representation(np.array([2.5, 2.5]))
