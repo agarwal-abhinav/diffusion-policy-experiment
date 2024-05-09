@@ -5,8 +5,8 @@ checkpoint:
   save_last_ckpt: true
   save_last_snapshot: false
   topk:
-    format_str: epoch={epoch:04d}-val_loss={val_loss:.6f}.ckpt
-    k: 15
+    format_str: epoch={epoch:04d}.ckpt
+    k: 8
     mode: min
     monitor_key: val_loss
 dataloader:
@@ -15,7 +15,7 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
-dataset_obs_steps: 2 # ??
+dataset_obs_steps: 2
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -36,6 +36,7 @@ logging:
   tags:
   - train_diffusion_unet_hybrid
   - pusher
+  - hw
   - default
 multi_run:
   run_dir: data/outputs/2023.02.12/train_diffusion_unet_hybrid_pusher
@@ -58,13 +59,8 @@ policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
   crop_shape:
-  - 94
-  - 94
-  # debugging with a smaller model
-  # diffusion_step_embed_dim: 4
-  # down_dims:
-  # - 16
-  # - 32
+  - 84
+  - 84
   diffusion_step_embed_dim: 128
   down_dims:
   - 512
@@ -131,7 +127,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.05 # 0.02
-    zarr_path: data/planar_pushing/iiwa_push_tee_hybrid_dataset_v3.zarr
+    zarr_path: data/planar_pushing/hw_push_tee_dataset_v2.zarr
   image_shape:
   - 3
   - 96
@@ -154,7 +150,7 @@ task:
         type: rgb
 task_name: planar_pushing
 training:
-  checkpoint_every: 5
+  checkpoint_every: 25
   debug: false
   device: cuda
   # device: cpu # debug on CPU
@@ -163,7 +159,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 200
+  num_epochs: 1500
   resume: true
   rollout_every: 5
   sample_every: 5
@@ -177,3 +173,4 @@ val_dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
+pretrained_checkpoint: data/outputs/hw_tee_multirun/10/checkpoints/latest.ckpt

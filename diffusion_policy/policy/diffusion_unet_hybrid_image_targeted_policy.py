@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, reduce
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
@@ -200,6 +201,18 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             generator=generator)
     
         # set step values
+
+        # Override with DDIM sampler
+        # self.num_inference_steps = 10
+        # scheduler = DDIMScheduler(
+        #     num_train_timesteps=self.noise_scheduler.num_train_timesteps,
+        #     beta_start=self.noise_scheduler.beta_start,
+        #     beta_end=self.noise_scheduler.beta_end,
+        #     beta_schedule=self.noise_scheduler.beta_schedule,
+        #     clip_sample=self.noise_scheduler.clip_sample,
+        #     prediction_type=self.noise_scheduler.prediction_type,
+        # )
+
         scheduler.set_timesteps(self.num_inference_steps)
 
         for t in scheduler.timesteps:

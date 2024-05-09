@@ -18,6 +18,7 @@ import random
 import wandb
 import tqdm
 import numpy as np
+import dill
 import shutil
 import torch
 from torch.nn.parallel import DataParallel
@@ -82,11 +83,21 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             obs_encoder_group_norm=p_cfg.obs_encoder_group_norm,
             eval_fixed_crop=p_cfg.eval_fixed_crop,
         )
+
         self.model = self.model.to(torch.device("cuda:0"))
 
         num_GPU = torch.cuda.device_count()
         print(f"Running on {num_GPU} GPU(s).")
         self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
+
+        # load pretrained model if finetuning
+        if 'pretrained_checkpoint' in cfg and cfg.pretrained_checkpoint is not None:
+            print(f"Loading pretrained model from {cfg.pretrained_checkpoint}.")
+            path = pathlib.Path(cfg.pretrained_checkpoint)
+            payload = torch.load(path.open('rb'), pickle_module=dill)
+            self.model.load_state_dict(payload['state_dicts']['model'])
+        else:
+            print("Initializing model using default parameters.")
 
         self.ema_model: DiffusionUnetHybridImageTargetedPolicy = None
         if cfg.training.use_ema:
