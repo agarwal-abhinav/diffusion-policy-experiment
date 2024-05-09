@@ -5,7 +5,7 @@ checkpoint:
   save_last_ckpt: true
   save_last_snapshot: false
   topk:
-    format_str: epoch={epoch:04d}.ckpt
+    format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}.ckpt
     k: 5
     mode: min
     monitor_key: val_loss
@@ -150,7 +150,7 @@ task:
         type: rgb
 task_name: planar_pushing
 training:
-  checkpoint_every: 5
+  checkpoint_every: 2
   debug: false
   device: cuda
   # device: cpu # debug on CPU
@@ -158,7 +158,7 @@ training:
   lr_scheduler: cosine
   lr_warmup_steps: 500
   max_train_steps: null
-  max_val_steps: null
+  max_val_steps: nulls
   num_epochs: 50
   resume: true
   rollout_every: 5
