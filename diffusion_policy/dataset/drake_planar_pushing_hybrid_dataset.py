@@ -48,9 +48,8 @@ class DrakePlanarPushingHybridDataset(BaseImageDataset):
             
             root['meta']['episode_ends'] = root['meta']['episode_ends'][:max_train_trajectories]
             end_idx = root['meta']['episode_ends'][-1]
-            root['data']['state'] = root['data']['state'][:end_idx]
-            root['data']['action'] = root['data']['action'][:end_idx]
-            root['data']['target'] = root['data']['target'][:end_idx]
+            for key, value in root['data'].items():
+                root['data'][key] = value[:end_idx]
             self.replay_buffer.root= root
 
         val_mask = get_val_mask(

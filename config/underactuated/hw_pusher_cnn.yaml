@@ -173,4 +173,3 @@ val_dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
-pretrained_checkpoint: data/outputs/hw_tee_multirun/10/checkpoints/latest.ckpt

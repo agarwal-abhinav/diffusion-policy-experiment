@@ -118,7 +118,7 @@ shape_meta:
       type: rgb
 task:
   dataset:
-    _target_: diffusion_policy.dataset.drake_planar_pushing_hybrid_dataset.DrakePlanarPushingHybridDataset
+    _target_: diffusion_policy.dataset.drake_cotrain_planar_pushing_hybrid_dataset.DrakeCotrainPlanarPushingHybridDataset
     horizon: 16
     n_obs_steps: 2
     max_train_trajectories: null
@@ -127,7 +127,13 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.05 # 0.02
-    zarr_path: data/planar_pushing/underactuated_data.zarr
+    zarr_configs:
+    - path: data/planar_pushing/underactuated_data.zarr
+      max_train_trajectories: 500
+      sampling_ratio: 0.5
+    - path: data/planar_pushing/hw_push_tee_dataset_v2.zarr
+      max_train_trajectories: 50
+      sampling_ratio: 0.5
   image_shape:
   - 3
   - 96
@@ -159,7 +165,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 50
+  num_epochs: 15
   resume: true
   rollout_every: 5
   sample_every: 5
