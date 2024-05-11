@@ -25,5 +25,4 @@ echo "[submit_training.sh] Running training code..."
 #     hydra.run.dir=data/outputs/push_tee_v1_sc/ \
 #     task.dataset.zarr_path=data/planar_pushing/push_tee_hybrid_dataset.zarr
 
-python train.py --config-dir=config/underactuated --config-name=scaled_cotrain_pusher_cnn.yaml \
-    hydra.run.dir=data/outputs/sim_250_real_50
+python train.py --config-dir=config/underactuated --config-name=scaled_cotrain_pusher_cnn.yaml

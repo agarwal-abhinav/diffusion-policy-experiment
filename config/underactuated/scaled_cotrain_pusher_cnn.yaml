@@ -1,5 +1,3 @@
-# config for target conditioned experiments with image obs
-
 _target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env.TrainDiffusionUnetHybridWorkspaceNoEnv
 checkpoint:
   save_last_ckpt: true
@@ -126,14 +124,14 @@ task:
     pad_after: 7
     pad_before: 1
     seed: 42
-    val_ratio: 0.05 # 0.02
+    val_ratio: 0.05
     zarr_configs:
     - path: data/planar_pushing/underactuated_data.zarr
-      max_train_trajectories: 500
-      sampling_ratio: 0.5
+      max_train_trajectories: 250
+      sampling_ratio: 0.952381
     - path: data/planar_pushing/hw_push_tee_dataset_v2.zarr
       max_train_trajectories: 50
-      sampling_ratio: 0.5
+      sampling_ratio: 0.047619
   image_shape:
   - 3
   - 96
@@ -159,13 +157,12 @@ training:
   checkpoint_every: 2
   debug: false
   device: cuda
-  # device: cpu # debug on CPU
   gradient_accumulate_every: 1
   lr_scheduler: cosine
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 15
+  num_epochs: 14
   resume: true
   rollout_every: 5
   sample_every: 5
@@ -174,7 +171,7 @@ training:
   use_ema: true
   val_every: 1
 val_dataloader:
-  batch_size: 64 # larger to get more accurate mse estimate
+  batch_size: 64
   num_workers: 8
   persistent_workers: false
   pin_memory: true
