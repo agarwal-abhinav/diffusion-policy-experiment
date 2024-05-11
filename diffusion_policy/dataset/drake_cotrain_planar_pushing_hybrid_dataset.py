@@ -73,8 +73,9 @@ class DrakeCotrainPlanarPushingHybridDataset(BaseImageDataset):
 
 
         # Resize and combine the replay buffers
-        for i in range(len(replay_buffers)):
-            replay_buffers[i] = self._resize_replay_buffer(replay_buffers[i], resize_factors[i])
+        if not no_scaling:
+            for i in range(len(replay_buffers)):
+                replay_buffers[i] = self._resize_replay_buffer(replay_buffers[i], resize_factors[i])
         self.replay_buffer = self._combine_replay_buffers(replay_buffers)
         
         nepisodes = self.replay_buffer.n_episodes
@@ -135,8 +136,6 @@ class DrakeCotrainPlanarPushingHybridDataset(BaseImageDataset):
         # normalizer is a dict containing normalizers for the
         # 'action', 'agent_pos', 'target', and 'image' keys
 
-        normalizer_path = "scaled_sim_250_real_50_normalizer.pt"
-        torch.save(normalizer, normalizer_path)
         return normalizer
 
     def __len__(self) -> int:

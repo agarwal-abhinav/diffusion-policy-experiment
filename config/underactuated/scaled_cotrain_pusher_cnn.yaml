@@ -127,7 +127,7 @@ task:
     val_ratio: 0.05
     zarr_configs:
     - path: data/planar_pushing/underactuated_data.zarr
-      max_train_trajectories: null
+      max_train_trajectories: 2000
       sampling_ratio: null
     - path: data/planar_pushing/hw_push_tee_dataset_v2.zarr
       max_train_trajectories: null
