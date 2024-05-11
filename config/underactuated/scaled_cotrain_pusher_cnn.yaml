@@ -127,11 +127,11 @@ task:
     val_ratio: 0.05
     zarr_configs:
     - path: data/planar_pushing/underactuated_data.zarr
-      max_train_trajectories: 250
-      sampling_ratio: 0.952381
+      max_train_trajectories: null
+      sampling_ratio: null
     - path: data/planar_pushing/hw_push_tee_dataset_v2.zarr
-      max_train_trajectories: 50
-      sampling_ratio: 0.047619
+      max_train_trajectories: null
+      sampling_ratio: null
   image_shape:
   - 3
   - 96
@@ -154,7 +154,7 @@ task:
         type: rgb
 task_name: planar_pushing
 training:
-  checkpoint_every: 2
+  checkpoint_every: 1
   debug: false
   device: cuda
   gradient_accumulate_every: 1
@@ -162,7 +162,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 14
+  num_epochs: 10
   resume: true
   rollout_every: 5
   sample_every: 5

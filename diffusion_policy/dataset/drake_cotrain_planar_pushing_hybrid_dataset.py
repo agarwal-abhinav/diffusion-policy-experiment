@@ -36,6 +36,7 @@ class DrakeCotrainPlanarPushingHybridDataset(BaseImageDataset):
         }
         
         replay_buffers = []
+        no_scaling = False
         for zarr_config in zarr_configs:
             replay_buffers.append(
                 ReplayBuffer.copy_from_path(
@@ -46,12 +47,15 @@ class DrakeCotrainPlanarPushingHybridDataset(BaseImageDataset):
                 )
             )
 
+            if zarr_config['sampling_ratio'] is None:
+                no_scaling = True
+
             # Remove excess episodes. Keep last episodes
             if 'max_train_trajectories' in zarr_config:
                 max_train_trajectories = zarr_config['max_train_trajectories']
                 if max_train_trajectories is not None:
                     root = replay_buffers[-1].root
-                    assert 0 < max_train_trajectories < root['meta']['episode_ends'].shape[0]
+                    assert 0 < max_train_trajectories <= root['meta']['episode_ends'].shape[0]
                     start_idx = root['meta']['episode_ends'][-max_train_trajectories-1]
                     root['meta']['episode_ends'] = root['meta']['episode_ends'][-max_train_trajectories:] - start_idx
 
@@ -59,9 +63,12 @@ class DrakeCotrainPlanarPushingHybridDataset(BaseImageDataset):
                         root['data'][key] = value[start_idx:]
                     replay_buffers[-1].root= root
 
-        ratios = np.array([zarr_config['sampling_ratio'] for zarr_config in zarr_configs])
-        sizes = np.array([replay_buffer.n_episodes for replay_buffer in replay_buffers])
-        resize_factors = self._compute_resizing_factors(ratios, sizes)
+        if no_scaling:
+            resize_factors = np.ones(len(replay_buffers))
+        else:
+            ratios = np.array([zarr_config['sampling_ratio'] for zarr_config in zarr_configs])
+            sizes = np.array([replay_buffer.n_episodes for replay_buffer in replay_buffers])
+            resize_factors = self._compute_resizing_factors(ratios, sizes)
         print("Resize factors for the datasets: ", resize_factors)
 
 
@@ -127,6 +134,9 @@ class DrakeCotrainPlanarPushingHybridDataset(BaseImageDataset):
         normalizer['image'] = get_image_range_normalizer()
         # normalizer is a dict containing normalizers for the
         # 'action', 'agent_pos', 'target', and 'image' keys
+
+        normalizer_path = "scaled_sim_250_real_50_normalizer.pt"
+        torch.save(normalizer, normalizer_path)
         return normalizer
 
     def __len__(self) -> int:
@@ -208,8 +218,16 @@ if __name__ == "__main__":
     import random
 
     zarr_configs = [
-        {'path': 'data/planar_pushing/test_dataset.zarr', 'sampling_ratio': 0.01},
-        {'path': 'data/planar_pushing/underactuated_data.zarr', 'sampling_ratio': 0.99}
+        {
+            'path': 'data/planar_pushing/underactuated_data.zarr',
+            'max_train_trajectories': 250,
+            'sampling_ratio': 0.5
+        },
+        {
+            'path': 'data/planar_pushing/hw_push_tee_dataset_v2.zarr',
+            'max_train_trajectories': 50,
+            'sampling_ratio': 0.5
+        },
     ]
 
     dataset = DrakeCotrainPlanarPushingHybridDataset(
@@ -223,6 +241,9 @@ if __name__ == "__main__":
         max_train_episodes=None,
         max_train_trajectories=None
     )
+    dataset.get_normalizer()
+
+
 
     # for _ in range(10):
     #     idx = random.randint(0, len(dataset)-1)
