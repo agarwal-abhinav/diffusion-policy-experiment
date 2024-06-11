@@ -249,7 +249,6 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         # normalize input
         nobs = self.normalizer.normalize(obs_dict['obs'])
         ntarget = None
-        # DEBUG: ntarget is sometimes a tuple, sometimes a tensor
         if self.use_target_cond:
             ntarget = self.normalizer['target'].normalize(obs_dict['target'])
         value = next(iter(nobs.values()))

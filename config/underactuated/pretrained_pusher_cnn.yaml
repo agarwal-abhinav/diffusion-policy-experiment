@@ -55,6 +55,21 @@ optimizer:
   lr: 0.0001
   weight_decay: 1.0e-06
 past_action_visible: false
+shape_meta:
+  action:
+    shape:
+    - 2
+  obs:
+    agent_pos:
+      shape:
+      - 3
+      type: low_dim
+    image:
+      shape:
+      - 3
+      - 96
+      - 96
+      type: rgb
 policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
@@ -86,36 +101,7 @@ policy:
   obs_encoder_group_norm: true
   use_target_cond: true
   target_dim: 3
-  shape_meta:
-    action:
-      shape:
-      - 2
-    obs:
-      agent_pos:
-        shape:
-        - 3
-        type: low_dim
-      image:
-        shape:
-        - 3
-        - 96
-        - 96
-        type: rgb
-shape_meta:
-  action:
-    shape:
-    - 2
-  obs:
-    agent_pos:
-      shape:
-      - 3
-      type: low_dim
-    image:
-      shape:
-      - 3
-      - 96
-      - 96
-      type: rgb
+  shape_meta: ${shape_meta}
 task:
   dataset:
     _target_: diffusion_policy.dataset.drake_planar_pushing_hybrid_dataset.DrakePlanarPushingHybridDataset
@@ -128,38 +114,20 @@ task:
     seed: 42
     val_ratio: 0.05 # 0.02
     zarr_path: data/planar_pushing/underactuated_data.zarr
-  image_shape:
-  - 3
-  - 96
-  - 96
   name: scene_image
-  shape_meta:
-    action:
-      shape:
-      - 2
-    obs:
-      agent_pos:
-        shape:
-        - 3
-        type: low_dim
-      image:
-        shape:
-        - 3
-        - 96
-        - 96
-        type: rgb
+  shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing
 training:
   checkpoint_every: 2
   debug: false
-  device: cuda
-  # device: cpu # debug on CPU
+  # device: cuda
+  device: cpu # debug on CPU
   gradient_accumulate_every: 1
   lr_scheduler: cosine
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 50
+  num_epochs: 100
   resume: true
   rollout_every: 5
   sample_every: 5

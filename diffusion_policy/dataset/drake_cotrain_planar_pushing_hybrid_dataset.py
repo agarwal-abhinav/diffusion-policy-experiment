@@ -71,7 +71,6 @@ class DrakeCotrainPlanarPushingHybridDataset(BaseImageDataset):
             resize_factors = self._compute_resizing_factors(ratios, sizes)
         print("Resize factors for the datasets: ", resize_factors)
 
-
         # Resize and combine the replay buffers
         if not no_scaling:
             for i in range(len(replay_buffers)):
@@ -215,23 +214,43 @@ class DrakeCotrainPlanarPushingHybridDataset(BaseImageDataset):
 
 if __name__ == "__main__":
     import random
+    import time
+
+    num_sim = 3
+    num_real = 1
+    sim_ratio = 1
+    hw_ratio = 1
+
+    # zarr_configs = [
+    #     {
+    #         'path': 'data/planar_pushing/underactuated_data.zarr',
+    #         'max_train_trajectories': num_sim,
+    #         'sampling_ratio': 1.0*sim_ratio / (sim_ratio + hw_ratio)
+    #     },
+    #     {
+    #         'path': 'data/planar_pushing/hw_push_tee_dataset_v2.zarr',
+    #         'max_train_trajectories': num_real,
+    #         'sampling_ratio': 1.0*hw_ratio / (sim_ratio + hw_ratio)
+    #     },
+    # ]
 
     zarr_configs = [
         {
             'path': 'data/planar_pushing/underactuated_data.zarr',
-            'max_train_trajectories': 250,
-            'sampling_ratio': 0.5
+            'max_train_trajectories': num_sim,
+            'sampling_ratio': 1.0*sim_ratio / (sim_ratio + hw_ratio)
         },
         {
-            'path': 'data/planar_pushing/hw_push_tee_dataset_v2.zarr',
-            'max_train_trajectories': 50,
-            'sampling_ratio': 0.5
+            'path': 'data/planar_pushing/test_dataset.zarr',
+            'max_train_trajectories': num_real,
+            'sampling_ratio': 1.0*hw_ratio / (sim_ratio + hw_ratio)
         },
     ]
 
+    start_time = time.time()
     dataset = DrakeCotrainPlanarPushingHybridDataset(
         zarr_configs=zarr_configs,
-        horizon = 8,
+        horizon = 16,
         n_obs_steps = 2,
         pad_before = 1,
         pad_after = 7,
@@ -240,7 +259,11 @@ if __name__ == "__main__":
         max_train_episodes=None,
         max_train_trajectories=None
     )
-    dataset.get_normalizer()
+    normalizer = dataset.get_normalizer()
+    normalizer_path = f"scaled_sim_{num_sim}_real_{num_real}_{sim_ratio}:{hw_ratio}_normalizer.pt"
+    torch.save(normalizer.state_dict(), normalizer_path)
+    print(normalizer_path)
+    print(f"finished in {time.time()-start_time:.2f}s")
 
 
 

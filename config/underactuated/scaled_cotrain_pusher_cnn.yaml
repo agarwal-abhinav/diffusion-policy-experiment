@@ -128,10 +128,10 @@ task:
     zarr_configs:
     - path: data/planar_pushing/underactuated_data.zarr
       max_train_trajectories: 2000
-      sampling_ratio: null
+      sampling_ratio: 0.75
     - path: data/planar_pushing/hw_push_tee_dataset_v2.zarr
-      max_train_trajectories: null
-      sampling_ratio: null
+      max_train_trajectories: 50
+      sampling_ratio: 0.25
   image_shape:
   - 3
   - 96
@@ -162,7 +162,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 10
+  num_epochs: 6
   resume: true
   rollout_every: 5
   sample_every: 5
@@ -176,3 +176,4 @@ val_dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
+# pretrained_checkpoint: /home/adam/workspace/gcs-diffusion/data/outputs/sim_2000_real_150/checkpoints/latest.ckpt
