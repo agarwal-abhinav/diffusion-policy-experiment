@@ -166,6 +166,7 @@ if __name__ == "__main__":
         actions = sample['action']
         print(f"Sample states : {states}")
         print(f"Sample actions: {actions}")
+        print(f"Sample target : {sample['target']}")
         print()
         print("Press any key to continue. Ctrl+\\ to exit.\n")
 
