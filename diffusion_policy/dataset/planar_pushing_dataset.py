@@ -123,6 +123,7 @@ class PlanarPushingDataset(BaseImageDataset):
         # Add images to data
         for key in self.rgb_keys:
             data['obs'][key] = np.moveaxis(sample[key],-1,1)/255.0
+            del sample[key]
 
         return data
     
@@ -135,13 +136,16 @@ class PlanarPushingDataset(BaseImageDataset):
 if __name__ == "__main__":
     import random
     import cv2
+    import tqdm
+    from torch.utils.data import DataLoader
+
 
     shape_meta = {
         'action': {'shape': [2]},
         'obs': {
             'agent_pos': {'type': 'low_dim', 'shape': [3]},
-            'overhead_camera': {'type': 'rgb', 'shape': [3, 96, 96]},
-            'overhead_camera_2': {'type': 'rgb', 'shape': [3, 96, 96]},
+            'overhead_camera': {'type': 'rgb', 'shape': [3, 240, 320]},
+            'wrist_camera': {'type': 'rgb', 'shape': [3, 240, 320]},
         },
     }
 
@@ -159,31 +163,47 @@ if __name__ == "__main__":
         max_train_episodes=None,
     )
 
-    for _ in range(10):
-        idx = random.randint(0, len(dataset)-1)
-        sample = dataset[idx]
-        states = sample['obs']['agent_pos']
-        actions = sample['action']
-        print(f"Sample states : {states}")
-        print(f"Sample actions: {actions}")
-        print(f"Sample target : {sample['target']}")
-        print()
-        print("Press any key to continue. Ctrl+\\ to exit.\n")
+    # for _ in range(10):
+    #     idx = random.randint(0, len(dataset)-1)
+    #     sample = dataset[idx]
+    #     states = sample['obs']['agent_pos']
+    #     actions = sample['action']
+    #     print(f"Sample states : {states}")
+    #     print(f"Sample actions: {actions}")
+    #     print(f"Sample target : {sample['target']}")
+    #     print()
+    #     print("Press any key to continue. Ctrl+\\ to exit.\n")
 
-        for key, attr in sample['obs'].items():
-            if key == 'agent_pos':
-                continue
+    #     for key, attr in sample['obs'].items():
+    #         if key == 'agent_pos':
+    #             continue
 
-            for i in range(len(attr)):
-                image_array = attr[i].detach().numpy().transpose(1, 2, 0)
+    #         for i in range(len(attr)):
+    #             image_array = attr[i].detach().numpy().transpose(1, 2, 0)
 
-                # Convert the RGB array to BGR
-                image_array[:,:,0], image_array[:,:,2] = image_array[:,:,2], image_array[:,:,0].copy()
-                # image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+    #             # Convert the RGB array to BGR
+    #             image_array[:,:,0], image_array[:,:,2] = image_array[:,:,2], image_array[:,:,0].copy()
+    #             # image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
 
-                # Display the image using OpenCV
-                cv2.imshow(f'{key}_{i}', image_array)
-                cv2.waitKey(0)  # Wait for a key press to close the image window
-                cv2.destroyAllWindows()
+    #             # Display the image using OpenCV
+    #             cv2.imshow(f'{key}_{i}', image_array)
+    #             cv2.waitKey(0)  # Wait for a key press to close the image window
+    #             cv2.destroyAllWindows()
+    
+    train_dataloader = DataLoader(
+        dataset,
+        batch_size=64,
+        num_workers=1,
+        persistent_workers=False,
+        pin_memory=True,
+        shuffle=True
+    )
 
-        breakpoint()
+    for local_epoch_idx in range(50):
+        with tqdm.tqdm(train_dataloader) as tepoch:
+            for batch_idx, batch in enumerate(tepoch):
+                print(local_epoch_idx, batch_idx)
+
+    # while True:
+    #     idx = random.randint(0, len(dataset)-1)
+    #     sample = dataset[idx]

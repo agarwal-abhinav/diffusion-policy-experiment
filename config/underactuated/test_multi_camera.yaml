@@ -11,7 +11,7 @@ checkpoint:
     monitor_key: val_loss
 dataloader:
   batch_size: 64
-  num_workers: 8
+  num_workers: 4
   persistent_workers: false
   pin_memory: true
   shuffle: true
@@ -67,26 +67,26 @@ shape_meta:
     overhead_camera:
       shape:
       - 3
-      - 96
-      - 96
+      - 240
+      - 320
       type: rgb
-    overhead_camera_2:
+    wrist_camera:
       shape:
       - 3
-      - 96
-      - 96
+      - 240
+      - 320
       type: rgb
 policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
   crop_shape:
-  - 84
-  - 84
+  - 216
+  - 288
   diffusion_step_embed_dim: 128
   down_dims:
+  - 256
   - 512
   - 1024
-  - 2048
   eval_fixed_crop: true
   horizon: 16
   kernel_size: 5
@@ -127,7 +127,6 @@ training:
   checkpoint_every: 2
   debug: false
   device: cuda
-  # device: cpu # debug on CPU
   gradient_accumulate_every: 1
   lr_scheduler: cosine
   lr_warmup_steps: 500
@@ -143,7 +142,7 @@ training:
   val_every: 1
 val_dataloader:
   batch_size: 64 # larger to get more accurate mse estimate
-  num_workers: 8
+  num_workers: 2
   persistent_workers: false
   pin_memory: true
   shuffle: true

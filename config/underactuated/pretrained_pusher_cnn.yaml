@@ -11,7 +11,7 @@ checkpoint:
     monitor_key: val_loss
 dataloader:
   batch_size: 64
-  num_workers: 8
+  num_workers: 1
   persistent_workers: false
   pin_memory: true
   shuffle: true
@@ -120,8 +120,8 @@ task_name: planar_pushing
 training:
   checkpoint_every: 2
   debug: false
-  # device: cuda
-  device: cpu # debug on CPU
+  device: cuda
+  # device: cpu # debug on CPU
   gradient_accumulate_every: 1
   lr_scheduler: cosine
   lr_warmup_steps: 500

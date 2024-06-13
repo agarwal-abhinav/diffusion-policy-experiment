@@ -270,6 +270,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         if (cfg.training.max_train_steps is not None) \
                             and batch_idx >= (cfg.training.max_train_steps-1):
                             break
+                    # End of batch
+                # End of epoch
                         
 
                 # at the end of each epoch
