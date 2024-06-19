@@ -2,6 +2,7 @@ from typing import Dict
 import zarr
 import torch
 import numpy as np
+import os
 import copy
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.common.replay_buffer import ReplayBuffer
@@ -16,22 +17,25 @@ class PlanarPushingDataset(BaseImageDataset):
     Dataset for planar pushing that supports:
     - hybrid observations (images + end effector state)
     - multi cameras
-    - TODO: cotraining with multiple datasets and loss scaling
+    - cotraining with multiple datasets (datasets must share input output space)
+    - dataset/loss scaling
     """
-    def __init__(self,
-            zarr_path,
-            shape_meta,  
-            horizon=1,
-            n_obs_steps=None,
-            pad_before=0,
-            pad_after=0,
-            seed=42,
-            val_ratio=0.0,
-            max_train_episodes=None,
-            ):
+    def __init__(
+        self,
+        zarr_configs,
+        shape_meta,  
+        horizon=1,
+        n_obs_steps=None,
+        pad_before=0,
+        pad_after=0,
+        seed=42,
+        val_ratio=0.0,
+    ):
         
         super().__init__()
+        self._validate_zarr_configs(zarr_configs)
 
+        # Set up dataset keys
         self.rgb_keys = []
         obs_shape_meta = shape_meta['obs']
         for key, attr in obs_shape_meta.items():
@@ -41,21 +45,7 @@ class PlanarPushingDataset(BaseImageDataset):
             
         keys = self.rgb_keys + ['state', 'action', 'target']
 
-        self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path=zarr_path, 
-            store=zarr.MemoryStore(),
-            keys=keys)
-
-        val_mask = get_val_mask(
-            n_episodes=self.replay_buffer.n_episodes, 
-            val_ratio=val_ratio,
-            seed=seed)
-        train_mask = ~val_mask
-        train_mask = downsample_mask(
-            mask=train_mask, 
-            max_n=max_train_episodes, 
-            seed=seed)
-
+        # trick for saving ram
         key_first_k = dict()
         if n_obs_steps is not None:
             # only take first k obs from images
@@ -63,50 +53,141 @@ class PlanarPushingDataset(BaseImageDataset):
                 key_first_k[key] = n_obs_steps
         key_first_k['action'] = horizon
 
-        self.sampler = SequenceSampler(
-            replay_buffer=self.replay_buffer, 
-            sequence_length=horizon,
-            pad_before=pad_before, 
-            pad_after=pad_after,
-            episode_mask=train_mask,
-            key_first_k=key_first_k)
+        # Load in all the zarr datasets
+        self.num_datasets = len(zarr_configs)
+        self.replay_buffers = []
+        self.train_masks = []
+        self.val_masks = []
+        self.samplers = []
+        self.sample_probabilities = np.zeros(len(zarr_configs))
+        self.zarr_paths = []
+
+        for i, zarr_config in enumerate(zarr_configs):
+            # Extract config info
+            zarr_path = zarr_config['path']
+            max_train_episodes = zarr_config.get('max_train_episodes', None)
+            sampling_weight = zarr_config.get('sampling_weight', None)
+            
+            # Set up replay buffer
+            self.replay_buffers.append(ReplayBuffer.copy_from_path(
+                    zarr_path=zarr_path, 
+                    store=zarr.MemoryStore(),
+                    keys=keys
+                )
+            )
+
+            # Set up masks
+            val_mask = get_val_mask(
+                n_episodes=self.replay_buffers[-1].n_episodes, 
+                val_ratio=val_ratio,
+                seed=seed)
+            train_mask = ~val_mask
+            train_mask = downsample_mask(
+                mask=train_mask, 
+                max_n=max_train_episodes, 
+                seed=seed)
+            
+            self.train_masks.append(train_mask)
+            self.val_masks.append(val_mask)
+            
+            # Set up sampler
+            self.samplers.append(
+                SequenceSampler(
+                    replay_buffer=self.replay_buffers[-1], 
+                    sequence_length=horizon,
+                    pad_before=pad_before, 
+                    pad_after=pad_after,
+                    episode_mask=train_mask,
+                    key_first_k=key_first_k
+                )
+            )
+            
+            # Set up sample probabilities and zarr paths
+            if sampling_weight is not None:
+                self.sample_probabilities[i] = sampling_weight
+            else:
+                self.sample_probabilities[i] = 1.0
+            self.zarr_paths.append(zarr_path)
         
-        self.train_mask = train_mask
+        # Normalize sample_probabilities
+        self.sample_probabilities = self._normalize_sample_probabilities(self.sample_probabilities)
+
+        # Load other variables
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
         self.n_obs_steps = n_obs_steps
+        self.shape_meta = shape_meta
 
-    def get_validation_dataset(self):
+    def get_validation_dataset(self, index=None):
+        if index == None:
+            assert self.num_datasets == 1, "Must specify validation dataset index if multiple datasets"
+            index = 0
+        
         val_set = copy.copy(self)
         val_set.sampler = SequenceSampler(
-            replay_buffer=self.replay_buffer, 
+            replay_buffer=self.replay_buffers[index], 
             sequence_length=self.horizon,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
-            episode_mask=~self.train_mask
+            episode_mask=~self.train_masks[index]
             )
-        val_set.train_mask = ~self.train_mask
+        val_set.train_mask = self.val_masks[index]
         return val_set
-
+    
     def get_normalizer(self, mode='limits', **kwargs):
-        data = {
-            'action': self.replay_buffer['action'],
-            'agent_pos': self.replay_buffer['state'],
-            'target': self.replay_buffer['target']
-        }
-        normalizer = LinearNormalizer()
-        normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
+        # compute mins and maxes
+        assert mode == 'limits', "Only supports limits mode"
+        low_dim_keys = ['action', 'agent_pos', 'target']
+        input_stats = {}
+        for replay_buffer in self.replay_buffers:
+            data = {
+                'action': replay_buffer['action'],
+                'agent_pos': replay_buffer['state'],
+                'target': replay_buffer['target']
+            }
+            normalizer = LinearNormalizer()
+            normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
 
-        # image normalizer
+            # Update mins and maxes
+            for key in low_dim_keys:
+                _max = normalizer[key].params_dict.input_stats.max
+                _min = normalizer[key].params_dict.input_stats.min
+
+                if key not in input_stats:
+                    input_stats[key] = {'max': _max, 'min': _min}
+                else:
+                    input_stats[key]['max'] = torch.maximum(input_stats[key]['max'], _max)
+                    input_stats[key]['min'] = torch.minimum(input_stats[key]['min'], _min)
+
+        # Create normalizer
+        # Normalizer is a PyTorch parameter dict containing normalizers for all the keys
+        normalizer = LinearNormalizer()
+        normalizer.fit_from_input_stats(input_stats_dict=input_stats)
         for key in self.rgb_keys:
             normalizer[key] = get_image_range_normalizer()
-        
-        # normalizer is a dict containing normalizers for all the keys
         return normalizer
 
+    def get_sample_probabilities(self):
+        return self.sample_probabilities
+    
+    def get_num_datasets(self):
+        return self.num_datasets
+    
+    def get_num_episodes(self, index=None):
+        if index == None:
+            num_episodes = 0
+            for i in range(self.num_datasets):
+                num_episodes += self.replay_buffers[i].n_episodes
+            return num_episodes
+        else:
+            return self.replay_buffers[index].n_episodes
+
     def __len__(self) -> int:
-        return len(self.sampler)
+        length = 0
+        for sampler in self.samplers:
+            length += len(sampler)
+        return length
 
     def _sample_to_data(self, sample):
         target = sample['target'][0].astype(np.float32)
@@ -127,8 +208,49 @@ class PlanarPushingDataset(BaseImageDataset):
 
         return data
     
+    def _validate_zarr_configs(self, zarr_configs):
+        num_null_sampling_weights = 0
+        N = len(zarr_configs)
+
+        for zarr_config in zarr_configs:
+            zarr_path = zarr_config['path']
+            if not os.path.exists(zarr_path):
+                raise ValueError(f"path {zarr_path} does not exist")
+            
+            max_train_episodes = zarr_config.get('max_train_episodes', None)
+            if max_train_episodes is not None and max_train_episodes <= 0:
+                raise ValueError(f"max_train_episodes must be greater than 0, got {max_train_episodes}")
+            
+            sampling_weight = zarr_config.get('sampling_weight', None)
+            if sampling_weight is None:
+                num_null_sampling_weights += 1
+            elif sampling_weight < 0:
+                raise ValueError(f"sampling_weight must be greater than or equal to 0, got {sampling_weight}")
+        
+        if num_null_sampling_weights not in [0, N]:
+            raise ValueError("Either all or none of the zarr_configs must have a sampling_weight")
+    
+    def _normalize_sample_probabilities(self, sample_probabilities):
+        total = np.sum(sample_probabilities)
+        assert total > 0, "Sum of sampling weights must be greater than 0"
+        return sample_probabilities / total
+    
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        sample = self.sampler.sample_sequence(idx)
+        # To sample a sequence, first sample a dataset,
+        # then sample a sequence from that dataset
+        # Note that this implementation does not guarantee that each unique
+        # sequence is sampled on every epoch!
+        
+        # Get sample
+        if self.num_datasets == 1:
+            sampler = self.samplers[0]
+            sample = sampler.sample_sequence(idx)
+        else:
+            sampler_idx = np.random.choice(self.num_datasets, p=self.sample_probabilities)
+            sampler = self.samplers[sampler_idx]
+            sample = sampler.sample_sequence(idx % len(sampler))
+        
+        # Process sample
         data = self._sample_to_data(sample)
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
@@ -140,19 +262,45 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
 
 
+    # shape_meta = {
+    #     'action': {'shape': [2]},
+    #     'obs': {
+    #         'agent_pos': {'type': 'low_dim', 'shape': [3]},
+    #         'overhead_camera': {'type': 'rgb', 'shape': [3, 240, 320]},
+    #         'wrist_camera': {'type': 'rgb', 'shape': [3, 240, 320]},
+    #     },
+    # }
+    # zarr_configs = [
+    #     {
+    #         'path': 'data/planar_pushing/test_multi_camera.zarr',
+    #         'max_train_episodes': 2,
+    #         'sampling_weight': 1.0
+    #     }
+    # ]
+
     shape_meta = {
         'action': {'shape': [2]},
         'obs': {
             'agent_pos': {'type': 'low_dim', 'shape': [3]},
-            'overhead_camera': {'type': 'rgb', 'shape': [3, 240, 320]},
-            'wrist_camera': {'type': 'rgb', 'shape': [3, 240, 320]},
+            'img': {'type': 'rgb', 'shape': [3, 96, 96]},
         },
     }
-
+    zarr_configs = [
+        {
+            'path': 'data/planar_pushing/underactuated_data.zarr',
+            'max_train_episodes': None,
+            'sampling_weight': 1.0
+        },
+        {
+            'path': 'data/planar_pushing/test_dataset.zarr',
+            'max_train_episodes': None,
+            'sampling_weight': 10
+        }
+    ]
     n_obs_steps = 4
 
     dataset = PlanarPushingDataset(
-        zarr_path='data/planar_pushing/test_multi_camera.zarr',
+        zarr_configs=zarr_configs,
         shape_meta=shape_meta,
         horizon = 8,
         n_obs_steps = n_obs_steps,
@@ -160,49 +308,59 @@ if __name__ == "__main__":
         pad_after = 7,
         seed=42,
         val_ratio=0.05,
-        max_train_episodes=None,
     )
+    print("Initialized dataset")
+    print("Total episodes (train + val):", dataset.get_num_episodes())
+    print("Training dataset length:", len(dataset))
 
-    # for _ in range(10):
-    #     idx = random.randint(0, len(dataset)-1)
-    #     sample = dataset[idx]
-    #     states = sample['obs']['agent_pos']
-    #     actions = sample['action']
-    #     print(f"Sample states : {states}")
-    #     print(f"Sample actions: {actions}")
-    #     print(f"Sample target : {sample['target']}")
-    #     print()
-    #     print("Press any key to continue. Ctrl+\\ to exit.\n")
+    # Test get validation dataset
+    for i in range(dataset.get_num_datasets()):
+        val_dataset = dataset.get_validation_dataset(index=i)
+        print(f"Got validation dataset {i}")
 
-    #     for key, attr in sample['obs'].items():
-    #         if key == 'agent_pos':
-    #             continue
+    # Test normalizer
+    normalizer = dataset.get_normalizer()
 
-    #         for i in range(len(attr)):
-    #             image_array = attr[i].detach().numpy().transpose(1, 2, 0)
+    for _ in range(10):
+        idx = random.randint(0, len(dataset)-1)
+        sample = dataset[idx]
+        states = sample['obs']['agent_pos']
+        actions = sample['action']
+        print(f"Sample states : {states}")
+        print(f"Sample actions: {actions}")
+        print(f"Sample target : {sample['target']}")
+        print()
+        print("Press any key to continue. Ctrl+\\ to exit.\n")
 
-    #             # Convert the RGB array to BGR
-    #             image_array[:,:,0], image_array[:,:,2] = image_array[:,:,2], image_array[:,:,0].copy()
-    #             # image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+        for key, attr in sample['obs'].items():
+            if key == 'agent_pos':
+                continue
 
-    #             # Display the image using OpenCV
-    #             cv2.imshow(f'{key}_{i}', image_array)
-    #             cv2.waitKey(0)  # Wait for a key press to close the image window
-    #             cv2.destroyAllWindows()
+            for i in range(len(attr)):
+                image_array = attr[i].detach().numpy().transpose(1, 2, 0)
+
+                # Convert the RGB array to BGR
+                image_array[:,:,0], image_array[:,:,2] = image_array[:,:,2], image_array[:,:,0].copy()
+                # image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+
+                # Display the image using OpenCV
+                cv2.imshow(f'{key}_{i}', image_array)
+                cv2.waitKey(0)  # Wait for a key press to close the image window
+                cv2.destroyAllWindows()
     
-    train_dataloader = DataLoader(
-        dataset,
-        batch_size=64,
-        num_workers=1,
-        persistent_workers=False,
-        pin_memory=True,
-        shuffle=True
-    )
+    # train_dataloader = DataLoader(
+    #     dataset,
+    #     batch_size=64,
+    #     num_workers=1,
+    #     persistent_workers=False,
+    #     pin_memory=True,
+    #     shuffle=True
+    # )
 
-    for local_epoch_idx in range(50):
-        with tqdm.tqdm(train_dataloader) as tepoch:
-            for batch_idx, batch in enumerate(tepoch):
-                print(local_epoch_idx, batch_idx)
+    # for local_epoch_idx in range(50):
+    #     with tqdm.tqdm(train_dataloader) as tepoch:
+    #         for batch_idx, batch in enumerate(tepoch):
+    #             print(local_epoch_idx, batch_idx)
 
     # while True:
     #     idx = random.randint(0, len(dataset)-1)

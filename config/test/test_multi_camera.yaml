@@ -55,6 +55,27 @@ optimizer:
   lr: 0.0001
   weight_decay: 1.0e-06
 past_action_visible: false
+# shape_meta:
+#   action:
+#     shape:
+#     - 2
+#   obs:
+#     agent_pos:
+#       shape:
+#       - 3
+#       type: low_dim
+#     overhead_camera:
+#       shape:
+#       - 3
+#       - 240
+#       - 320
+#       type: rgb
+#     wrist_camera:
+#       shape:
+#       - 3
+#       - 240
+#       - 320
+#       type: rgb
 shape_meta:
   action:
     shape:
@@ -64,24 +85,21 @@ shape_meta:
       shape:
       - 3
       type: low_dim
-    overhead_camera:
+    img:
       shape:
       - 3
-      - 240
-      - 320
-      type: rgb
-    wrist_camera:
-      shape:
-      - 3
-      - 240
-      - 320
+      - 96
+      - 96
       type: rgb
 policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
+  # crop_shape:
+  # - 216
+  # - 288
   crop_shape:
-  - 216
-  - 288
+  - 84
+  - 84
   diffusion_step_embed_dim: 128
   down_dims:
   - 256
@@ -114,12 +132,17 @@ task:
     shape_meta: ${shape_meta}
     horizon: 16
     n_obs_steps: 2
-    max_train_episodes: null
     pad_after: 7
     pad_before: 1
     seed: 42
     val_ratio: 0.05 # 0.02
-    zarr_path: data/planar_pushing/test_multi_camera.zarr
+    zarr_configs:
+    - path: data/planar_pushing/underactuated_data.zarr
+      max_train_episodes: 10
+      sampling_weight: 0.5
+    - path: data/planar_pushing/test_dataset.zarr
+      max_train_episodes: null
+      sampling_weight: 0.5
   name: scene_image
   shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing
@@ -141,8 +164,9 @@ training:
   use_ema: true
   val_every: 1
 val_dataloader:
-  batch_size: 64 # larger to get more accurate mse estimate
+  batch_size: 32
   num_workers: 2
   persistent_workers: false
   pin_memory: true
+  drop_last: true
   shuffle: true

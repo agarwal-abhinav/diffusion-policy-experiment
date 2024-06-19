@@ -128,9 +128,13 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
 
-        # configure validation dataset
-        val_dataset = dataset.get_validation_dataset()
-        val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+        # configure validation datasets
+        self.num_datasets = dataset.get_num_datasets()
+        self.sample_probabilities = dataset.get_sample_probabilities()
+        val_dataloaders = []
+        for i in range(self.num_datasets):
+            val_dataset = dataset.get_validation_dataset(i)
+            val_dataloaders.append(DataLoader(val_dataset, **cfg.val_dataloader))
 
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
@@ -294,23 +298,35 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 # run validation
                 if (self.epoch % cfg.training.val_every) == 0:
                     with torch.no_grad():
-                        val_losses = list()
-                        with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
-                                leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
-                            for batch_idx, batch in enumerate(tepoch):
-                                batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                                if val_sampling_batch is None:
-                                    val_sampling_batch = batch
-                                loss = self.model.compute_loss(batch)
-                                val_losses.append(loss)
-                                if (cfg.training.max_val_steps is not None) \
-                                    and batch_idx >= (cfg.training.max_val_steps-1):
-                                    break
+                        val_loss_per_dataset = []
+                        for dataset_idx in range(self.num_datasets):
+                            val_dataloader = val_dataloaders[dataset_idx]
+                            val_losses = list()
+                            with tqdm.tqdm(val_dataloader, desc=f"Dataset {dataset_idx} validation, epoch {self.epoch}", 
+                                    leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                                for batch_idx, batch in enumerate(tepoch):
+                                    batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                                    if val_sampling_batch is None:
+                                        val_sampling_batch = batch
+                                    loss = self.model.compute_loss(batch)
+                                    val_losses.append(loss)
+                                    if (cfg.training.max_val_steps is not None) \
+                                        and batch_idx >= (cfg.training.max_val_steps-1):
+                                        break
+                            # End of validation loss computation loop
 
-                        if len(val_losses) > 0:
-                            val_loss = torch.mean(torch.tensor(val_losses)).item()
-                            # log epoch average validation loss
-                            step_log['val_loss'] = val_loss
+                            if len(val_losses) > 0:
+                                val_loss = torch.mean(torch.tensor(val_losses)).item()
+                                val_loss_per_dataset.append(val_loss)
+                                # log epoch average validation loss
+                                step_log[f'val_loss_{dataset_idx}'] = val_loss
+                        # End val_dataloader loop
+
+                        # Compute overall_val_loss
+                        overall_val_loss = 0
+                        for i in range(self.num_datasets):
+                            overall_val_loss += self.sample_probabilities[i] * val_loss_per_dataset[i]
+                        step_log['val_loss'] = overall_val_loss
 
                 # run diffusion sampling on a training and validation batch
                 if (self.epoch % cfg.training.sample_every) == 0:
