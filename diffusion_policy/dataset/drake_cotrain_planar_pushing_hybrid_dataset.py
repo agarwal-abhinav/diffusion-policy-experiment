@@ -216,23 +216,10 @@ if __name__ == "__main__":
     import random
     import time
 
-    num_sim = 3
-    num_real = 1
+    num_sim = 2000
+    num_real = 50
     sim_ratio = 1
     hw_ratio = 1
-
-    # zarr_configs = [
-    #     {
-    #         'path': 'data/planar_pushing/underactuated_data.zarr',
-    #         'max_train_trajectories': num_sim,
-    #         'sampling_ratio': 1.0*sim_ratio / (sim_ratio + hw_ratio)
-    #     },
-    #     {
-    #         'path': 'data/planar_pushing/hw_push_tee_dataset_v2.zarr',
-    #         'max_train_trajectories': num_real,
-    #         'sampling_ratio': 1.0*hw_ratio / (sim_ratio + hw_ratio)
-    #     },
-    # ]
 
     zarr_configs = [
         {
@@ -241,12 +228,11 @@ if __name__ == "__main__":
             'sampling_ratio': 1.0*sim_ratio / (sim_ratio + hw_ratio)
         },
         {
-            'path': 'data/planar_pushing/test_dataset.zarr',
+            'path': 'data/planar_pushing/hw_push_tee_dataset_v2.zarr',
             'max_train_trajectories': num_real,
             'sampling_ratio': 1.0*hw_ratio / (sim_ratio + hw_ratio)
         },
     ]
-
     start_time = time.time()
     dataset = DrakeCotrainPlanarPushingHybridDataset(
         zarr_configs=zarr_configs,
