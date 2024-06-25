@@ -120,19 +120,28 @@ class PlanarPushingDataset(BaseImageDataset):
         self.shape_meta = shape_meta
 
     def get_validation_dataset(self, index=None):
+        # Create validation dataset
+        val_set = copy.copy(self)
+
         if index == None:
             assert self.num_datasets == 1, "Must specify validation dataset index if multiple datasets"
             index = 0
-        
-        val_set = copy.copy(self)
-        val_set.sampler = SequenceSampler(
+        else:
+            val_set.replay_buffers = [self.replay_buffers[index]]
+            val_set.train_masks = [self.train_masks[index]]
+            val_set.val_masks = [self.val_masks[index]]
+            val_set.zarr_paths = [self.zarr_paths[index]]
+        val_set.num_datasets = 1
+        val_set.sample_probabilities = np.array([1.0])
+
+        val_set.samplers = [SequenceSampler(
             replay_buffer=self.replay_buffers[index], 
             sequence_length=self.horizon,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
             episode_mask=~self.train_masks[index]
-            )
-        val_set.train_mask = self.val_masks[index]
+        )]
+        
         return val_set
     
     def get_normalizer(self, mode='limits', **kwargs):
