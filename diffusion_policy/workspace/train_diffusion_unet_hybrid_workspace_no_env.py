@@ -121,12 +121,14 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
 
-        # configure dataset
+        # configure dataset and save normalizer
         dataset: BaseImageDataset
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
+        os.makedirs(os.path.join(self.output_dir, "normalizer"), exist_ok=True)
+        torch.save(normalizer, os.path.join(self.output_dir, 'normalizer/normalizer.pt'))
 
         # configure validation datasets
         self.num_datasets = dataset.get_num_datasets()
