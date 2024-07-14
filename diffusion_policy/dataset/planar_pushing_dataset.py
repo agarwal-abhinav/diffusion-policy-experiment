@@ -75,13 +75,16 @@ class PlanarPushingDataset(BaseImageDataset):
                     keys=keys
                 )
             )
+            n_episodes = self.replay_buffers[-1].n_episodes
 
             # Set up masks
             val_mask = get_val_mask(
-                n_episodes=self.replay_buffers[-1].n_episodes, 
+                n_episodes=n_episodes, 
                 val_ratio=val_ratio,
                 seed=seed)
             train_mask = ~val_mask
+            # Note max_train_episodes is the max number of training episodes
+            # not the total number of train and val episodes!
             train_mask = downsample_mask(
                 mask=train_mask, 
                 max_n=max_train_episodes, 
@@ -139,7 +142,7 @@ class PlanarPushingDataset(BaseImageDataset):
             sequence_length=self.horizon,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
-            episode_mask=~self.train_masks[index]
+            episode_mask=self.val_masks[index]
         )]
         
         return val_set
