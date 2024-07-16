@@ -127,8 +127,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         assert isinstance(dataset, BaseImageDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
-        os.makedirs(os.path.join(self.output_dir, "normalizer"), exist_ok=True)
-        torch.save(normalizer, os.path.join(self.output_dir, 'normalizer/normalizer.pt'))
+        torch.save(normalizer, os.path.join(self.output_dir, 'normalizer.pt'))
 
         # configure validation datasets
         self.num_datasets = dataset.get_num_datasets()
