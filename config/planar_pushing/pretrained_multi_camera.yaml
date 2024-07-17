@@ -142,6 +142,9 @@ training:
   tqdm_interval_sec: 30.0
   use_ema: true
   val_every: 1
+  log_val_mse: true
+  eval_mse_DDPM: true
+  eval_mse_DDIM: true
 # val_dataloader smaller than train_dataloader
 # since some datasets are very small
 val_dataloader:

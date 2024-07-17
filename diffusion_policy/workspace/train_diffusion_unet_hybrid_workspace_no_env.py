@@ -161,12 +161,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 cfg.ema,
                 model=self.ema_model)
 
-        # configure env
-        # env_runner: BaseImageRunner
-        # env_runner = hydra.utils.instantiate(
-        #     cfg.task.env_runner,
-        #     output_dir=self.output_dir)
-        # assert isinstance(env_runner, BaseImageRunner)
 
         # configure logging
         wandb_run = wandb.init(
@@ -194,8 +188,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         optimizer_to(self.optimizer, device)
 
         # save batch for sampling
-        train_sampling_batch = None
-        val_sampling_batch = None
+        val_sampling_batches = [None] * self.num_datasets
 
         if cfg.training.debug:
             cfg.training.num_epochs = 2
@@ -218,8 +211,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                        if train_sampling_batch is None:
-                            train_sampling_batch = batch
                         batch_size = batch['action'].shape[0]
                         # print(f"Outside batch size: {batch_size}")
                         
@@ -307,8 +298,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                                     leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                                 for batch_idx, batch in enumerate(tepoch):
                                     batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                                    if val_sampling_batch is None:
-                                        val_sampling_batch = batch
+                                    if val_sampling_batches[dataset_idx] is None:
+                                        val_sampling_batches[dataset_idx] = batch
                                     loss = self.model.compute_loss(batch)
                                     val_losses.append(loss)
                                     if (cfg.training.max_val_steps is not None) \
@@ -329,32 +320,50 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             overall_val_loss += self.sample_probabilities[i] * val_loss_per_dataset[i]
                         step_log['val_loss'] = overall_val_loss
 
-                # run diffusion sampling on a training and validation batch
-                if (self.epoch % cfg.training.sample_every) == 0:
+                # run diffusion sampling on a _single_ validation batch from each dataset
+                if (self.epoch % cfg.training.sample_every) == 0 and cfg.training.log_val_mse:
                     with torch.no_grad():
-                        # sample trajectory from training set, and evaluate difference
-                        batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                        obs_dict = {'obs': batch['obs'], 'target': batch['target']}
-                        gt_action = batch['action']
+                        val_ddpm_action_mses = []
+                        val_ddim_action_mses = []
+                        for dataset_idx in range(self.num_datasets):
+                            # Get the validation batch for this dataset
+                            val_sampling_batch = val_sampling_batches[dataset_idx]
+                            val_batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
+                            val_obs_dict = {'obs': batch['obs'], 'target': batch['target']}
+                            val_gt_action = batch['action']
+                            
+                            # Evaluate MSE when diffusing with DDPM
+                            if cfg.training.eval_mse_DDPM:
+                                result = policy.predict_action(val_obs_dict, use_DDIM=False)
+                                pred_action = result['action_pred']
+                                mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
+                                step_log[f'val_ddpm_action_mse_error_{dataset_idx}'] = mse.item()
+                                val_ddpm_action_mses.append(mse.item())
+                            
+                            # Evaluate MSE when diffusing with DDPM
+                            if cfg.training.eval_mse_DDIM:
+                                result = policy.predict_action(val_obs_dict, use_DDIM=True)
+                                pred_action = result['action_pred']
+                                mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
+                                step_log[f'val_ddim_action_mse_error_{dataset_idx}'] = mse.item()
+                                val_ddim_action_mses.append(mse.item())
                         
-                        result = policy.predict_action(obs_dict)
-                        pred_action = result['action_pred']
-                        mse = torch.nn.functional.mse_loss(pred_action, gt_action)
-                        step_log['train_action_mse_error'] = mse.item()
+                        # Compute weighted val action MSEs
+                        if cfg.training.eval_mse_DDPM:
+                            val_ = 0
+                            for i in range(self.num_datasets):
+                                val_ += self.sample_probabilities[i] * val_ddpm_action_mses[i]
+                            step_log['val_ddpm_action_mse_error'] = val_
+                        if cfg.training.eval_mse_DDIM:
+                            val_ = 0
+                            for i in range(self.num_datasets):
+                                val_ += self.sample_probabilities[i] * val_ddim_action_mses[i]
+                            step_log['val_ddim_action_mse_error'] = val_
 
-                        # sample trajectory from training set, and evaluate difference
-                        batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                        obs_dict = {'obs': batch['obs'], 'target': batch['target']}
-                        gt_action = batch['action']
-                        
-                        result = policy.predict_action(obs_dict)
-                        pred_action = result['action_pred']
-                        mse = torch.nn.functional.mse_loss(pred_action, gt_action)
-                        step_log['val_action_mse_error'] = mse.item()
 
-                        del batch
-                        del obs_dict
-                        del gt_action
+                        del val_batch
+                        del val_obs_dict
+                        del val_gt_action
                         del result
                         del pred_action
                         del mse
