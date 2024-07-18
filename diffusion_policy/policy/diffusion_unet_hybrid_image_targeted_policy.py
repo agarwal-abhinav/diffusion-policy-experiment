@@ -16,6 +16,7 @@ from robomimic.algo import algo_factory
 from robomimic.algo.algo import PolicyAlgo
 import robomimic.utils.obs_utils as ObsUtils
 import robomimic.models.base_nets as rmbn
+import robomimic.models.obs_core as rmobsc
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
@@ -40,6 +41,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             obs_encoder_group_norm=False,
             eval_fixed_crop=False,
             num_DDIM_inference_steps=10,
+            pretrained_encoder=False, 
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -79,8 +81,9 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             algo_name='bc_rnn',
             hdf5_type='image',
             task_name='square',
-            dataset_type='ph')
-        
+            dataset_type='ph', 
+            add_r3m = pretrained_encoder)
+                
         with config.unlocked():
             # set config with shape_meta
             config.observation.modalities.obs = obs_config
@@ -127,7 +130,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if eval_fixed_crop:
             replace_submodules(
                 root_module=obs_encoder,
-                predicate=lambda x: isinstance(x, rmbn.CropRandomizer),
+                predicate=lambda x: isinstance(x, rmobsc.CropRandomizer),
                 func=lambda x: dmvc.CropRandomizer(
                     input_shape=x.input_shape,
                     crop_height=x.crop_height,

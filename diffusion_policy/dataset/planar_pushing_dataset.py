@@ -78,9 +78,13 @@ class PlanarPushingDataset(BaseImageDataset):
             n_episodes = self.replay_buffers[-1].n_episodes
 
             # Set up masks
+            if 'val_ratio' in zarr_config and zarr_config['val_ratio'] is not None:
+                dataset_val_ratio = zarr_config['val_ratio']
+            else:
+                dataset_val_ratio = val_ratio
             val_mask = get_val_mask(
                 n_episodes=n_episodes, 
-                val_ratio=val_ratio,
+                val_ratio=dataset_val_ratio,
                 seed=seed)
             train_mask = ~val_mask
             # Note max_train_episodes is the max number of training episodes

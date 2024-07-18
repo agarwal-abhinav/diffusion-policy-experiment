@@ -19,7 +19,19 @@ class TopKCheckpointManager:
         self.format_str = format_str
         self.path_value_map = dict()
     
-    def get_ckpt_path(self, data: Dict[str, float]) -> Optional[str]:
+    def get_ckpt_path(
+            self, 
+            data: Dict[str, float], 
+            protected_ckpts: set=set()
+        ) -> Optional[str]:
+        """
+        Args:
+            data: a dictionary containing the monitoring values
+            protected_ckpts: a list of paths that should not be deleted
+                These paths are usually ckpts being tracked by other TopKCheckpointManagers
+        Returns:
+            ckpt_path: the path to the checkpoint to save, or None if no checkpoint should be saved
+        """
         if self.k == 0:
             return None
 
@@ -54,6 +66,9 @@ class TopKCheckpointManager:
             if not os.path.exists(self.save_dir):
                 os.mkdir(self.save_dir)
 
-            if os.path.exists(delete_path):
+            if os.path.exists(delete_path) and delete_path not in protected_ckpts:
                 os.remove(delete_path)
             return ckpt_path
+    
+    def get_path_value_map(self):
+        return self.path_value_map

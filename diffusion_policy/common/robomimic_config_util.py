@@ -11,7 +11,8 @@ def get_robomimic_config(
         algo_name='bc_rnn', 
         hdf5_type='low_dim', 
         task_name='square', 
-        dataset_type='ph'
+        dataset_type='ph', 
+        add_r3m = False
     ):
     base_dataset_dir = '/tmp/null'
     filter_key = None
@@ -23,8 +24,10 @@ def get_robomimic_config(
 
     algo_config_name = "bc" if algo_name == "bc_rnn" else algo_name
     config = config_factory(algo_name=algo_config_name)
+    
     # turn into default config for observation modalities (e.g.: low-dim or rgb)
     config = modifier_for_obs(config)
+
     # add in config based on the dataset
     config = modify_config_for_dataset(
         config=config, 
@@ -34,6 +37,13 @@ def get_robomimic_config(
         base_dataset_dir=base_dataset_dir,
         filter_key=filter_key,
     )
+    if add_r3m: 
+        config.observation.encoder.rgb.core_kwargs.backbone_class = 'R3MConv'                         # R3M backbone for image observations (unused if no image observations)
+        config.observation.encoder.rgb.core_kwargs.backbone_kwargs.r3m_model_class = 'resnet18'       # R3M model class (resnet18, resnet34, resnet50)
+        config.observation.encoder.rgb.core_kwargs.backbone_kwargs.freeze = True                      # whether to freeze network during training or allow finetuning
+        config.observation.encoder.rgb.core_kwargs.backbone_kwargs.pretrained=True
+        config.observation.encoder.rgb.core_kwargs.pool_class = None 
+
     # add in algo hypers based on dataset
     algo_config_modifier = getattr(gpc, f'modify_{algo_name}_config_for_dataset')
     config = algo_config_modifier(
