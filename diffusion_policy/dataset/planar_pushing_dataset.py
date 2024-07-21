@@ -113,9 +113,8 @@ class PlanarPushingDataset(BaseImageDataset):
             if sampling_weight is not None:
                 self.sample_probabilities[i] = sampling_weight
             else:
-                self.sample_probabilities[i] = 1.0
+                self.sample_probabilities[i] = np.sum(train_mask)
             self.zarr_paths.append(zarr_path)
-        
         # Normalize sample_probabilities
         self.sample_probabilities = self._normalize_sample_probabilities(self.sample_probabilities)
 
