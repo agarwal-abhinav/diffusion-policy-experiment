@@ -10,7 +10,7 @@ if __name__ == "__main__":
 import os
 import hydra
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, ListConfig
 import pathlib
 from torch.utils.data import DataLoader
 import copy
@@ -175,10 +175,27 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         )
 
         # configure checkpoint
-        topk_manager = TopKCheckpointManager(
-            save_dir=os.path.join(self.output_dir, 'checkpoints'),
-            **cfg.checkpoint.topk
-        )
+        if not isinstance(cfg.checkpoint, ListConfig):
+            # configure single checkpoint manager
+            topk_managers = [TopKCheckpointManager(
+                save_dir=os.path.join(self.output_dir, 'checkpoints'),
+                **cfg.checkpoint.topk
+            )]
+            save_last_ckpt = cfg.checkpoint.save_last_ckpt
+            save_last_snapshot = cfg.checkpoint.save_last_snapshot
+        else:
+            # configure multiple checkpoint managers
+            topk_managers = []
+            save_last_ckpt = False
+            save_last_snapshot = False
+            for ckpt_cfg in cfg.checkpoint:
+                topk_managers.append(TopKCheckpointManager(
+                    save_dir=os.path.join(self.output_dir, 'checkpoints'),
+                    **ckpt_cfg.topk
+                ))
+                save_last_ckpt = save_last_ckpt or ckpt_cfg.save_last_ckpt
+                save_last_snapshot = save_last_snapshot or ckpt_cfg.save_last_snapshot
+
 
         # device transfer
         device = torch.device(cfg.training.device)
@@ -337,7 +354,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                                 result = policy.predict_action(val_obs_dict, use_DDIM=False)
                                 pred_action = result['action_pred']
                                 mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
-                                step_log[f'val_ddpm_action_mse_error_{dataset_idx}'] = mse.item()
+                                step_log[f'val_ddpm_mse_{dataset_idx}'] = mse.item()
                                 val_ddpm_action_mses.append(mse.item())
                             
                             # Evaluate MSE when diffusing with DDPM
@@ -345,7 +362,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                                 result = policy.predict_action(val_obs_dict, use_DDIM=True)
                                 pred_action = result['action_pred']
                                 mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
-                                step_log[f'val_ddim_action_mse_error_{dataset_idx}'] = mse.item()
+                                step_log[f'val_ddim_mse_{dataset_idx}'] = mse.item()
                                 val_ddim_action_mses.append(mse.item())
                         
                         # Compute weighted val action MSEs
@@ -353,12 +370,12 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             val_ = 0
                             for i in range(self.num_datasets):
                                 val_ += self.sample_probabilities[i] * val_ddpm_action_mses[i]
-                            step_log['val_ddpm_action_mse_error'] = val_
+                            step_log['val_ddpm_mse'] = val_
                         if cfg.training.eval_mse_DDIM:
                             val_ = 0
                             for i in range(self.num_datasets):
                                 val_ += self.sample_probabilities[i] * val_ddim_action_mses[i]
-                            step_log['val_ddim_action_mse_error'] = val_
+                            step_log['val_ddim_mse'] = val_
 
 
                         del val_batch
@@ -371,9 +388,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 # checkpoint
                 if (self.epoch % cfg.training.checkpoint_every) == 0:
                     # checkpointing
-                    if cfg.checkpoint.save_last_ckpt:
+                    if save_last_ckpt:
                         self.save_checkpoint()
-                    if cfg.checkpoint.save_last_snapshot:
+                    if save_last_snapshot:
                         self.save_snapshot()
 
                     # sanitize metric names
@@ -385,10 +402,16 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                     # We can't copy the last checkpoint here
                     # since save_checkpoint uses threads.
                     # therefore at this point the file might have been empty!
-                    topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
+                    topk_ckpt_paths = []
+                    for i, topk_manager in enumerate(topk_managers):
+                        protected_ckpts = self._get_protected_paths(i, topk_managers)
+                        ckpt_path = topk_manager.get_ckpt_path(metric_dict, protected_ckpts)
+                        topk_ckpt_paths.append(ckpt_path)
 
-                    if topk_ckpt_path is not None:
-                        self.save_checkpoint(path=topk_ckpt_path)
+                    for i, topk_ckpt_path in enumerate(topk_ckpt_paths):
+                        if topk_ckpt_path is not None:
+                            self.save_checkpoint(path=topk_ckpt_path)
+                            break
                 # ========= eval end for this epoch ==========
                 policy.train()
 
@@ -412,6 +435,34 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         loss = reduce(loss, 'b ... -> b (...)', 'mean')
         loss = loss.mean()
         return loss
+
+    def _get_protected_paths(self, topk_manager_idx, topk_managers):
+        """
+        Returns the paths that should not be deleted by topk_manager
+        """
+        if len(topk_managers) == 1:
+            return set()
+        
+        topk_manager = topk_managers[topk_manager_idx]
+
+        protected_paths = set()
+        for manager in topk_managers:
+            protected_paths.update(manager.get_path_value_map().keys())
+        
+        # Remove the paths that can be deleted
+        # If a ckpt is ONLY being tracked by topk_manager, it can be deleted
+        for path in topk_manager.get_path_value_map().keys():
+            protected = False
+            for i, manager in enumerate(topk_managers):
+                if i == topk_manager_idx:
+                    continue
+                if path in manager.get_path_value_map().keys():
+                    protected = True
+                    break
+            if not protected:
+                protected_paths.remove(path)
+        
+        return protected_paths
                 
 
 @hydra.main(
