@@ -82,6 +82,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             cond_predict_scale=p_cfg.cond_predict_scale,
             obs_encoder_group_norm=p_cfg.obs_encoder_group_norm,
             eval_fixed_crop=p_cfg.eval_fixed_crop,
+            pretrained_encoder=p_cfg.pretrained_encoder,
         )
 
         self.model = self.model.to(torch.device("cuda:0"))
@@ -94,8 +95,10 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         if 'pretrained_checkpoint' in cfg and cfg.pretrained_checkpoint is not None:
             print(f"Loading pretrained model from {cfg.pretrained_checkpoint}.")
             path = pathlib.Path(cfg.pretrained_checkpoint)
+            breakpoint()
             payload = torch.load(path.open('rb'), pickle_module=dill)
             self.model.load_state_dict(payload['state_dicts']['model'])
+            breakpoint()
         else:
             print("Initializing model using default parameters.")
 
