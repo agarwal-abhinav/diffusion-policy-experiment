@@ -136,7 +136,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         for i in range(self.num_datasets):
             val_dataset = dataset.get_validation_dataset(i)
             val_dataloaders.append(DataLoader(val_dataset, **cfg.val_dataloader))
-
+        self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloaders)
+        breakpoint()
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
@@ -435,6 +436,31 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         loss = reduce(loss, 'b ... -> b (...)', 'mean')
         loss = loss.mean()
         return loss
+    
+    def _print_dataset_diagnostics(self, cfg, dataset, train_dataloader, val_dataloaders):
+        print()
+        print("============= Dataset Diagnostics =============")
+        print(f"Number of datasets: {self.num_datasets}")
+        print(f"Sample probabilities: {self.sample_probabilities}")
+        print(f"[Training] Number of batches: {len(train_dataloader)}")
+        for i in range(self.num_datasets):
+            print(f"[Val {i}] Number of batches: {len(val_dataloaders[i])}")
+        print()
+
+        for i in range(self.num_datasets):
+            val_dataset = dataset.get_validation_dataset(i)
+            print(f"Dataset {i}: {dataset.zarr_paths[i]}")
+            print("------------------------------------------------")
+            print(f"Number of training demonstrations: {np.sum(dataset.train_masks[i])}")
+            print(f"Number of validation demonstrations: {np.sum(dataset.val_masks[i])}")
+            print(f"Number of training samples: {len(dataset.samplers[i])}")
+            print(f"Number of validation samples: {len(val_dataset)}")
+            print(f"Approx. number of training batches: {len(dataset.samplers[i]) // cfg.dataloader.batch_size}")
+            print(f"Approx. number of validation batches: {len(val_dataset) // cfg.val_dataloader.batch_size}")
+            print(f"Sample probability: {self.sample_probabilities[i]}")
+            print()
+        print("================================================")
+
 
     def _get_protected_paths(self, topk_manager_idx, topk_managers):
         """
