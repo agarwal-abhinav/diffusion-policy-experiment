@@ -137,7 +137,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             val_dataset = dataset.get_validation_dataset(i)
             val_dataloaders.append(DataLoader(val_dataset, **cfg.val_dataloader))
         self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloaders)
-        breakpoint()
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
@@ -460,7 +459,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             print(f"Sample probability: {self.sample_probabilities[i]}")
             print()
         print("================================================")
-
 
     def _get_protected_paths(self, topk_manager_idx, topk_managers):
         """
