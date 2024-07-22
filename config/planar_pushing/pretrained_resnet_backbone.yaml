@@ -126,13 +126,9 @@ task:
     pad_before: 1
     seed: 42
     zarr_configs:
-    - path: data/planar_pushing_cotrain/real_world_tee_data.zarr
-      max_train_episodes: 50
-      sampling_weight: null
-      val_ratio: 0.0625 # 10 / 160 trajectories
     - path: data/planar_pushing_cotrain/sim_tee_data.zarr
-      max_train_episodes: 100
-      sampling_weight: null
+      max_train_episodes: 2000
+      sampling_weight: 1.0
       val_ratio: 0.0101 # 30 / 2970 trajectories
   name: scene_image
   shape_meta: ${shape_meta} # not used?
@@ -146,7 +142,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 300
+  num_epochs: 60
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
@@ -155,7 +151,7 @@ training:
   use_ema: true
   val_every: 1
   log_val_mse: true
-  eval_mse_DDPM: true
+  eval_mse_DDPM: false
   eval_mse_DDIM: true
 # val_dataloader smaller than train_dataloader
 # since some datasets are very small
