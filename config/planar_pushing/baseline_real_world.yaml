@@ -114,6 +114,7 @@ policy:
   obs_encoder_group_norm: true
   use_target_cond: true
   target_dim: 3
+  pretrained_encoder: false
   shape_meta: ${shape_meta}
 task:
   dataset:
