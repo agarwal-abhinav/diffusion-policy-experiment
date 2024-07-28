@@ -114,8 +114,6 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
 
         # extract the image encoder
         obs_encoder = policy.nets['policy'].nets['encoder'].nets['obs']
-
-        breakpoint()
         
         if obs_encoder_group_norm:
             # replace batch norm with group norm
