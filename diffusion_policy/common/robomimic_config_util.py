@@ -37,7 +37,6 @@ def get_robomimic_config(
         base_dataset_dir=base_dataset_dir,
         filter_key=filter_key,
     )
-    breakpoint()
 
     if add_r3m: 
         # config.observation.encoder.rgb.core_kwargs.backbone_class = 'R3MConv'                         # R3M backbone for image observations (unused if no image observations)
