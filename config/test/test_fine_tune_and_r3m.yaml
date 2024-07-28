@@ -109,6 +109,7 @@ policy:
   target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: true
+  freeze_pretrained_encoder: true
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset

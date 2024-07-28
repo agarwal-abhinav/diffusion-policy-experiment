@@ -12,7 +12,8 @@ def get_robomimic_config(
         hdf5_type='low_dim', 
         task_name='square', 
         dataset_type='ph', 
-        add_r3m = False
+        pretrained_encoder = False, 
+        freeze_pretrained_encoder = False
     ):
     base_dataset_dir = '/tmp/null'
     filter_key = None
@@ -38,11 +39,15 @@ def get_robomimic_config(
         filter_key=filter_key,
     )
 
-    if add_r3m: 
+    if pretrained_encoder: 
         # config.observation.encoder.rgb.core_kwargs.backbone_class = 'R3MConv'                         # R3M backbone for image observations (unused if no image observations)
         # config.observation.encoder.rgb.core_kwargs.backbone_kwargs.r3m_model_class = 'resnet18'       # R3M model class (resnet18, resnet34, resnet50)
-        # config.observation.encoder.rgb.core_kwargs.backbone_kwargs.freeze = True                      # whether to freeze network during training or allow finetuning
         config.observation.encoder.rgb.core_kwargs.backbone_kwargs.pretrained=True
+
+        if freeze_pretrained_encoder: 
+            config.observation.encoder.rgb.core_kwargs.backbone_kwargs.freeze = True                      # whether to freeze network during training or allow finetuning
+        else: 
+            config.observation.encoder.rgb.core_kwargs.backbone_kwargs.freeze = False
         # config.observation.encoder.rgb.core_kwargs.pool_class = None 
 
     # add in algo hypers based on dataset

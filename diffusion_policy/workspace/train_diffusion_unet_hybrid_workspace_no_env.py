@@ -64,6 +64,11 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         # manual model configuration
         p_cfg = cfg.policy
         noise_scheduler = hydra.utils.instantiate(p_cfg.noise_scheduler)
+        try: 
+            freeze_pretrained_encoder = p_cfg.freeze_pretrained_encoder
+        except:
+            freeze_pretrained_encoder = False
+
         self.model = DiffusionUnetHybridImageTargetedPolicy(
             shape_meta=p_cfg.shape_meta,
             noise_scheduler=noise_scheduler,
@@ -83,6 +88,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             obs_encoder_group_norm=p_cfg.obs_encoder_group_norm,
             eval_fixed_crop=p_cfg.eval_fixed_crop,
             pretrained_encoder=p_cfg.pretrained_encoder,
+            freeze_pretrained_encoder=freeze_pretrained_encoder,
         )
 
         self.model = self.model.to(torch.device("cuda:0"))
