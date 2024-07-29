@@ -42,6 +42,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             eval_fixed_crop=False,
             num_DDIM_inference_steps=10,
             pretrained_encoder=False, 
+            freeze_pretrained_encoder=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -82,7 +83,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             hdf5_type='image',
             task_name='square',
             dataset_type='ph', 
-            add_r3m = pretrained_encoder)
+            pretrained_encoder=pretrained_encoder,
+            freeze_pretrained_encoder=freeze_pretrained_encoder)
                 
         with config.unlocked():
             # set config with shape_meta
