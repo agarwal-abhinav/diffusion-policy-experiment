@@ -5,17 +5,17 @@ checkpoint:
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
-      format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
+      format_str: epoch={epoch:04d}-val_loss_0={val_loss_0:.4f}-val_ddim_mse_0={val_ddim_mse_0:.4f}.ckpt
       k: 5
       mode: min
-      monitor_key: val_loss
+      monitor_key: val_loss_0
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
-      format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
+      format_str: epoch={epoch:04d}-val_loss_0={val_loss_0:.4f}-val_ddim_mse_0={val_ddim_mse_0:.4f}.ckpt
       k: 5
       mode: min
-      monitor_key: val_ddim_mse
+      monitor_key: val_ddim_mse_0
 dataloader:
   batch_size: 64
   num_workers: 8
