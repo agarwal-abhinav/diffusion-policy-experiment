@@ -64,9 +64,14 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         # manual model configuration
         p_cfg = cfg.policy
         noise_scheduler = hydra.utils.instantiate(p_cfg.noise_scheduler)
-        try: 
+        
+        if 'pretrained_encoder' in p_cfg:
+            pretrained_encoder = p_cfg.pretrained_encoder
+        else:
+            pretrained_encoder = False
+        if 'freeze_pretrained_encoder' in p_cfg:
             freeze_pretrained_encoder = p_cfg.freeze_pretrained_encoder
-        except:
+        else:
             freeze_pretrained_encoder = False
 
         self.model = DiffusionUnetHybridImageTargetedPolicy(
@@ -87,7 +92,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             cond_predict_scale=p_cfg.cond_predict_scale,
             obs_encoder_group_norm=p_cfg.obs_encoder_group_norm,
             eval_fixed_crop=p_cfg.eval_fixed_crop,
-            pretrained_encoder=p_cfg.pretrained_encoder,
+            pretrained_encoder=pretrained_encoder,
             freeze_pretrained_encoder=freeze_pretrained_encoder,
         )
 
