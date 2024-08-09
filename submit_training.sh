@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Usage
-# LLsub ./submit_training.sh -s 20 -g volta:2
+# LLsub ./submit_training.sh -s 40 -g volta:2
+# LLsub ./submit_training.sh -s 20 -g volta:1
 
 # Initialize and Load Modules
 echo "[submit_training.sh] Loading modules and virtual environment"
@@ -25,4 +26,5 @@ echo "[submit_training.sh] Running training code..."
 #     hydra.run.dir=data/outputs/push_tee_v1_sc/ \
 #     task.dataset.zarr_path=data/planar_pushing/push_tee_hybrid_dataset.zarr
 
-python train.py --config-dir=config/underactuated --config-name=sim_750_real_50.yaml
+python train.py --config-dir=config/planar_pushing/adam --config-name=goal_shift_1_50_500.yaml \
+    hydra.run.dir=data/outputs/cotrain/goal_shift/level_1_50_500/
