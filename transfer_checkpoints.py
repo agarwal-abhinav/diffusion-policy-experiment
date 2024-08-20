@@ -40,7 +40,7 @@ def main():
     src_path = args.src_path
     dst_path = args.dst_path
     monitor_keys = args.keys
-    top_ks = [1] * len(monitor_keys) if args.top_ks is None else args.top_ks
+    top_ks = [0] * len(monitor_keys) if args.top_ks is None else args.top_ks
     modes = ['min'] * len(monitor_keys) if args.modes is None else args.modes
     transfer_latest = args.transfer_latest
     plot_only = args.plot_only
@@ -50,7 +50,7 @@ def main():
     for mode in modes:
         assert mode in ['min', 'max'], f"Mode {mode} not supported"
     for top_k in top_ks:
-        assert top_k > 0, "Top K must be greater than 0"
+        assert top_k >= 0, "Top K must be greater than 0"
 
     if not os.path.exists(dst_path):
         # Create directories
