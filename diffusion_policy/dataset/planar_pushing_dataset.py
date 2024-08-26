@@ -1,6 +1,7 @@
 from typing import Dict
 import zarr
 import torch
+from torchvision import transforms
 import numpy as np
 import os
 import copy
@@ -30,6 +31,7 @@ class PlanarPushingDataset(BaseImageDataset):
         pad_after=0,
         seed=42,
         val_ratio=0.0,
+        color_jitter = None,
     ):
         
         super().__init__()
@@ -117,6 +119,16 @@ class PlanarPushingDataset(BaseImageDataset):
             self.zarr_paths.append(zarr_path)
         # Normalize sample_probabilities
         self.sample_probabilities = self._normalize_sample_probabilities(self.sample_probabilities)
+
+        # Set up color jitter
+        self.color_jitter = color_jitter
+        if color_jitter is not None:
+            self.transforms = transforms.ColorJitter(
+                brightness=self.color_jitter.get('brightness', 0),
+                contrast=self.color_jitter.get('contrast', 0),
+                saturation=self.color_jitter.get('saturation', 0),
+                hue=self.color_jitter.get('hue', 0)
+            )
 
         # Load other variables
         self.horizon = horizon
@@ -217,9 +229,26 @@ class PlanarPushingDataset(BaseImageDataset):
         }
 
         # Add images to data
-        for key in self.rgb_keys:
-            data['obs'][key] = np.moveaxis(sample[key],-1,1)/255.0
-            del sample[key]
+        if self.color_jitter is None:
+            for key in self.rgb_keys:
+                data['obs'][key] = np.moveaxis(sample[key],-1,1)/255.0
+                del sample[key]
+        else:
+            # Stack images an apply color jitter to ensure
+            # all cameras have consistent color jitter
+            keys = self.rgb_keys
+            length = sample[keys[0]].shape[0]
+            
+            imgs = np.moveaxis(np.vstack([sample[key] for key in keys]),-1,1)/255.0
+            for i in range(3):
+                scale = np.random.uniform(0.75, 1.25) # TODO: these are hardcoded
+                imgs[:,i,:,:] = np.clip(scale*imgs[:,i,:,:], 0, 1)
+            
+            # imgs = np.vstack([sample[key] for key in keys])
+            imgs = self.transforms(torch.from_numpy(imgs)).numpy()
+            for i, key in enumerate(keys):
+                data['obs'][key] = imgs[i*length:(i+1)*length]
+                del sample[key]
 
         return data
     
@@ -276,43 +305,33 @@ if __name__ == "__main__":
     import tqdm
     from torch.utils.data import DataLoader
 
-
-    # shape_meta = {
-    #     'action': {'shape': [2]},
-    #     'obs': {
-    #         'agent_pos': {'type': 'low_dim', 'shape': [3]},
-    #         'overhead_camera': {'type': 'rgb', 'shape': [3, 240, 320]},
-    #         'wrist_camera': {'type': 'rgb', 'shape': [3, 240, 320]},
-    #     },
-    # }
-    # zarr_configs = [
-    #     {
-    #         'path': 'data/planar_pushing/test_multi_camera.zarr',
-    #         'max_train_episodes': 2,
-    #         'sampling_weight': 1.0
-    #     }
-    # ]
-
     shape_meta = {
         'action': {'shape': [2]},
         'obs': {
             'agent_pos': {'type': 'low_dim', 'shape': [3]},
-            'img': {'type': 'rgb', 'shape': [3, 96, 96]},
+            'overhead_camera': {'type': 'rgb', 'shape': [3, 128, 128]},
+            'wrist_camera': {'type': 'rgb', 'shape': [3, 128, 128]},
         },
     }
     zarr_configs = [
+        # {
+        #     'path': 'data/planar_pushing/underactuated_data.zarr',
+        #     'max_train_episodes': None,
+        #     'sampling_weight': 1.0
+        # },
         {
-            'path': 'data/planar_pushing/underactuated_data.zarr',
+            'path': 'data/planar_pushing_cotrain/real_world_tee_data.zarr',
             'max_train_episodes': None,
             'sampling_weight': 1.0
-        },
-        {
-            'path': 'data/planar_pushing/test_dataset.zarr',
-            'max_train_episodes': None,
-            'sampling_weight': 10
         }
     ]
-    n_obs_steps = 4
+    n_obs_steps = 2
+    color_jitter = {
+        'brightness': 0.15,
+        # 'contrast': 0.5,
+        'saturation': 0.15,
+        'hue': 0.15,
+    }
 
     dataset = PlanarPushingDataset(
         zarr_configs=zarr_configs,
@@ -323,6 +342,7 @@ if __name__ == "__main__":
         pad_after = 7,
         seed=42,
         val_ratio=0.05,
+        # color_jitter=color_jitter
     )
     print("Initialized dataset")
     print("Total episodes (train + val):", dataset.get_num_episodes())
@@ -336,8 +356,9 @@ if __name__ == "__main__":
     # Test normalizer
     normalizer = dataset.get_normalizer()
 
-    for _ in range(10):
-        idx = random.randint(0, len(dataset)-1)
+    for i in range(10):
+        # idx = random.randint(0, len(dataset)-1)
+        idx = i % len(dataset)
         sample = dataset[idx]
         states = sample['obs']['agent_pos']
         actions = sample['action']
@@ -351,7 +372,7 @@ if __name__ == "__main__":
             if key == 'agent_pos':
                 continue
 
-            for i in range(len(attr)):
+            for i in range(n_obs_steps):
                 image_array = attr[i].detach().numpy().transpose(1, 2, 0)
 
                 # Convert the RGB array to BGR
