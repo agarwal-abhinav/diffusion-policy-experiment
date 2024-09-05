@@ -127,7 +127,7 @@ task:
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_tee_data.zarr
-      max_train_episodes: 2000
+      max_train_episodes: 500 # 2000
       sampling_weight: 1.0
       val_ratio: 0.0101 # 30 / 2970 trajectories
   name: scene_image
@@ -142,7 +142,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 250
+  num_epochs: 500
   resume: true
   rollout_every: ${training.checkpoint_every}
   sample_every: ${training.checkpoint_every}
