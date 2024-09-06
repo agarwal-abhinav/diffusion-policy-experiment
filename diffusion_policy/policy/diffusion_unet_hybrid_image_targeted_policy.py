@@ -150,6 +150,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if obs_as_global_cond:
             input_dim = action_dim
             global_cond_dim = obs_feature_dim * n_obs_steps
+        print(f"Input dim: {input_dim}, Global cond dim: {global_cond_dim}")
 
         model = ConditionalUnet1D(
             input_dim=input_dim,
@@ -326,6 +327,35 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             'action_pred': action_pred
         }
         return result
+
+    def compute_obs_embedding(self, batch):
+        assert 'valid_mask' not in batch
+        nobs = self.normalizer.normalize(batch['obs'])
+        nactions = self.normalizer['action'].normalize(batch['action'])
+        batch_size = nactions.shape[0]
+        horizon = nactions.shape[1]
+        # print(f"Inside batch size: {batch_size}")
+
+        # handle different ways of passing observation
+        trajectory = nactions
+        cond_data = trajectory
+        if self.obs_as_global_cond:
+            # reshape B, T, ... to B*T
+            this_nobs = dict_apply(nobs, 
+                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
+            nobs_features = self.obs_encoder(this_nobs)
+            # reshape back to B, Do
+            global_cond = nobs_features.reshape(batch_size, -1)
+        else:
+            # reshape B, T, ... to B*T
+            this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
+            nobs_features = self.obs_encoder(this_nobs)
+            # reshape back to B, T, Do
+            nobs_features = nobs_features.reshape(batch_size, horizon, -1)
+            cond_data = torch.cat([nactions, nobs_features], dim=-1)
+            trajectory = cond_data.detach()
+
+        return global_cond
 
     # ========= training  ============
     def set_normalizer(self, normalizer: LinearNormalizer):
