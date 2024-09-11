@@ -331,14 +331,10 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def compute_obs_embedding(self, batch):
         assert 'valid_mask' not in batch
         nobs = self.normalizer.normalize(batch['obs'])
-        nactions = self.normalizer['action'].normalize(batch['action'])
-        batch_size = nactions.shape[0]
-        horizon = nactions.shape[1]
-        # print(f"Inside batch size: {batch_size}")
+        key = next(iter(nobs.keys()))
+        batch_size = nobs[key].shape[0]
 
         # handle different ways of passing observation
-        trajectory = nactions
-        cond_data = trajectory
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
@@ -347,6 +343,10 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
         else:
+            nactions = self.normalizer['action'].normalize(batch['action'])
+            horizon = nactions.shape[1]
+            trajectory = nactions
+            cond_data = trajectory
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
