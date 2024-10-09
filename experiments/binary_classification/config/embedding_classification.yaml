@@ -9,4 +9,5 @@ experiment:
   data_0_path: "/home/adam/workspace/gcs-diffusion/data/experiments/cotrain/scaled_mixing/10_2000/real_embeddings.npy"
   data_1_path: "/home/adam/workspace/gcs-diffusion/data/experiments/cotrain/scaled_mixing/10_2000/sim_embeddings.npy"
   val_split: 0.2
+  simple_model: false
   name: "binary_classification_embeddings_10_2000"

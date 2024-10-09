@@ -9,4 +9,5 @@ experiment:
   data_0_path: "/home/adam/workspace/gcs-diffusion/data/experiments/cotrain/scaled_mixing/10_2000/real_actions.npy"
   data_1_path: "/home/adam/workspace/gcs-diffusion/data/experiments/cotrain/scaled_mixing/10_2000/sim_actions.npy"
   val_split: 0.2
+  simple_model: false
   name: "binary_classification_actions_10_2000"

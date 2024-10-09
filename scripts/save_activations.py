@@ -65,6 +65,8 @@ def save_activations(checkpoint_dir: str, save_dir: str):
         if 'real_world_tee_data.zarr' in zarr_config['path']:
             datasets['real'] = hydra.utils.instantiate(dataset_config)
         else:
+            # NOTE: to save RAM, only load 500 trajectories
+            dataset_config['zarr_configs'][0]['max_train_episodes'] = 200
             datasets['sim'] = hydra.utils.instantiate(dataset_config)
     
     # Get dataloaders
@@ -96,8 +98,9 @@ def save_activations(checkpoint_dir: str, save_dir: str):
                 assert len(ACTIVATIONS) % len(timesteps) == 0
     ACTIVATIONS = np.vstack(ACTIVATIONS)
     np.save(f"{save_dir}/real_activations.npy", ACTIVATIONS)
-    
+    split_array_and_save(ACTIVATIONS, timesteps, f'{save_dir}/activations_per_noise_level', 'real_activations')
     ACTIVATIONS = []
+
     with torch.no_grad():        
         with tqdm(sim_dataloader, desc=f"Sim data") as tepoch:
             for batch_idx, batch in enumerate(tepoch):
@@ -106,13 +109,26 @@ def save_activations(checkpoint_dir: str, save_dir: str):
                 assert len(ACTIVATIONS) % len(timesteps) == 0
     ACTIVATIONS = np.vstack(ACTIVATIONS)
     np.save(f"{save_dir}/sim_activations.npy", ACTIVATIONS)
+    split_array_and_save(ACTIVATIONS, timesteps, f'{save_dir}/activations_per_noise_level', 'sim_activations')
+    ACTIVATIONS = []
+
+def split_array_and_save(input_array, timestamps, save_dir, root_filename):
+    # Ensure the save directory exists
+    os.makedirs(save_dir, exist_ok=True)
+
+    num_timesteps = len(timestamps)
+    for i in range(num_timesteps):
+        small_array = input_array[i::num_timesteps]
+        save_path = os.path.join(save_dir, f'{root_filename}_{int(timestamps[i])}.npy')
+        np.save(save_path, small_array)
+        print(f"Saved: {save_path}")
 
 def main():
     experiments = [
-        "scaled_mixing/50_500_3_1",
-        "scaled_mixing/50_2000_3_1",
-        "scaled_mixing/10_500_3_1",
-        "scaled_mixing/10_2000",
+        # "scaled_mixing/50_500_3_1",
+        # "scaled_mixing/50_2000_3_1",
+        "scaled_mixing/10_2000_3_1",
+        # "scaled_mixing/10_2000",
     ]
     for experiment in experiments:
         print("Saving activations for", experiment)

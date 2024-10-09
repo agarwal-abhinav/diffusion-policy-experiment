@@ -5,6 +5,7 @@ from tqdm import tqdm
 from omegaconf import OmegaConf
 from experiments.binary_classification.dataset import get_dataloaders
 from experiments.binary_classification.classifier import MLP
+from experiments.binary_classification.dataset import BinaryClassificationDataset
 
 class BinaryClassificationWorkspace:
     def __init__(self, cfg):
@@ -13,17 +14,22 @@ class BinaryClassificationWorkspace:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Dataloaders
+        dataset = BinaryClassificationDataset(
+            cfg.experiment.data_0_path, 
+            cfg.experiment.data_1_path
+        )
         self.train_loader, self.val_loader = get_dataloaders(
-            cfg.experiment.data_0_path,
-            cfg.experiment.data_1_path,
+            dataset,
             cfg.experiment.batch_size,
             cfg.experiment.val_split,
         )
 
         # Model, optimizer, loss
-        self.model = MLP(cfg.experiment.input_dim).to(self.device)
+        simple_model = cfg.experiment.simple_model
+        self.model = MLP(cfg.experiment.input_dim, simple_model).to(self.device)
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=cfg.experiment.lr)
-        self.loss_fn = torch.nn.BCELoss()
+        pos_weight = dataset.get_num_zeros() / dataset.get_num_ones()
+        self.loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]).to(self.device))
 
     
     def run(self):
@@ -48,11 +54,15 @@ class BinaryClassificationWorkspace:
                 self.optimizer.step()
                 epoch_train_loss += loss.item()
 
-            # Validation loss
+            # Validation loss and metrics
             self.model.eval()
             epoch_val_loss = 0
             validation_accuracy = 0
             total_val_datapoints = 0
+            true_positives = 0
+            false_positives = 0
+            true_negatives = 0
+            false_negatives = 0
             with torch.no_grad():
                 for inputs, labels in self.val_loader:
                     # loss
@@ -61,14 +71,28 @@ class BinaryClassificationWorkspace:
                     loss = self.loss_fn(outputs, labels.unsqueeze(1).float())
                     epoch_val_loss += loss.item()
 
-                    # accuracy
-                    predictions = (outputs >= 0.5).float()
+                    # accuracy and confusion matrix
+                    predictions = (torch.sigmoid(outputs) >= 0.5).float()
                     validation_accuracy += (predictions == labels.unsqueeze(1)).sum().item()
                     total_val_datapoints += len(labels)
+
+                    true_positives += ((predictions == 1) & (labels.unsqueeze(1) == 1)).sum().item()
+                    false_positives += ((predictions == 1) & (labels.unsqueeze(1) == 0)).sum().item()
+                    true_negatives += ((predictions == 0) & (labels.unsqueeze(1) == 0)).sum().item()
+                    false_negatives += ((predictions == 0) & (labels.unsqueeze(1) == 1)).sum().item()
 
             epoch_train_loss /= len(self.train_loader)
             epoch_val_loss /= len(self.val_loader)
             validation_accuracy /= total_val_datapoints
+
+            # Calculate percentages for true/false positives/negatives
+            predicted_positives = true_positives + false_positives
+            predicted_negatives = true_negatives + false_negatives
+
+            true_positive_percentage = true_positives / predicted_positives if predicted_positives > 0 else 0
+            false_positive_percentage = false_positives / predicted_positives if predicted_positives > 0 else 0
+            true_negative_percentage = true_negatives / predicted_negatives if predicted_negatives > 0 else 0
+            false_negative_percentage = false_negatives / predicted_negatives if predicted_negatives > 0 else 0
 
             # Save best model
             if epoch_val_loss < best_val_loss:
@@ -81,7 +105,11 @@ class BinaryClassificationWorkspace:
                 {
                     "train_loss": epoch_train_loss, 
                     "val_loss": epoch_val_loss,
-                    "val_accuracy": validation_accuracy
+                    "val_accuracy": validation_accuracy,
+                    "true_positive_percentage": true_positive_percentage,
+                    # "false_positive_percentage": false_positive_percentage,
+                    "true_negative_percentage": true_negative_percentage,
+                    # "false_negative_percentage": false_negative_percentage
                 },
             )
         
@@ -100,7 +128,7 @@ class BinaryClassificationWorkspace:
         with torch.no_grad():
             inputs = torch.tensor(inputs, dtype=torch.float32).to(self.device)
             outputs = self.model(inputs)
-            predicted_labels = (outputs >= 0.5)
+            predicted_labels = (torch.sigmoid(outputs) >= 0.5)
             return outputs.cpu().numpy(), predicted_labels.cpu().numpy()
 
     def save_model(self, path):
