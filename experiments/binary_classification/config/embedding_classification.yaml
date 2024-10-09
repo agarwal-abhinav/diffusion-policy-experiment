@@ -1,0 +1,12 @@
+defaults:
+  - override hydra/job_logging: default
+
+experiment:
+  input_dim: 262  # Input dimension for the MLP
+  batch_size: 256  # Batch size for training
+  lr: 0.001  # Learning rate
+  num_epochs: 20  # Number of epochs to train
+  data_0_path: "/home/adam/workspace/gcs-diffusion/data/experiments/cotrain/scaled_mixing/10_2000/real_embeddings.npy"
+  data_1_path: "/home/adam/workspace/gcs-diffusion/data/experiments/cotrain/scaled_mixing/10_2000/sim_embeddings.npy"
+  val_split: 0.2
+  name: "binary_classification_embeddings_10_2000"

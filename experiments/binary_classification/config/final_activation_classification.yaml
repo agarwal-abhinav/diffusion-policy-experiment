@@ -1,0 +1,12 @@
+defaults:
+  - override hydra/job_logging: default
+
+experiment:
+  input_dim: 4096  # 256 * 16
+  batch_size: 256  # Batch size for training
+  lr: 0.001  # Learning rate
+  num_epochs: 20  # Number of epochs to train
+  data_0_path: "/home/adam/workspace/gcs-diffusion/data/experiments/cotrain/scaled_mixing/50_500_3_1/real_activations.npy"
+  data_1_path: "/home/adam/workspace/gcs-diffusion/data/experiments/cotrain/scaled_mixing/50_500_3_1/sim_activations.npy"
+  val_split: 0.2
+  name: "binary_classification_activations"
