@@ -127,8 +127,9 @@ def main():
     experiments = [
         # "scaled_mixing/50_500_3_1",
         # "scaled_mixing/50_2000_3_1",
-        "scaled_mixing/10_2000_3_1",
+        # "scaled_mixing/10_2000_3_1",
         # "scaled_mixing/10_2000",
+        "scaled_mixing/10_500",
     ]
     for experiment in experiments:
         print("Saving activations for", experiment)
