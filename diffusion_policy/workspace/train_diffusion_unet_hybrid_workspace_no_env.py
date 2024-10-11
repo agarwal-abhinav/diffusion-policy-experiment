@@ -101,10 +101,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         if 'pretrained_checkpoint' in cfg and cfg.pretrained_checkpoint is not None:
             print(f"Loading pretrained model from {cfg.pretrained_checkpoint}.")
             path = pathlib.Path(cfg.pretrained_checkpoint)
-            breakpoint()
             payload = torch.load(path.open('rb'), pickle_module=dill)
             self.model.load_state_dict(payload['state_dicts']['model'])
-            breakpoint()
         else:
             print("Initializing model using default parameters.")
 
