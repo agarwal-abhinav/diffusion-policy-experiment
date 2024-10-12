@@ -49,3 +49,10 @@ class BaseImageDataset(torch.utils.data.Dataset):
             action: T, Da
         """
         raise NotImplementedError()
+    
+class BaseDataset(torch.utils.data.Dataset):
+    def __len__(self) -> int:
+        return 0
+    
+    def __getitem__(self, idx: int):
+        raise NotImplementedError()

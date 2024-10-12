@@ -1,8 +1,8 @@
 import torch
-from torch.utils.data import Dataset, DataLoader, random_split, Subset
 import numpy as np
+from diffusion_policy.dataset.base_dataset import BaseDataset
 
-class BinaryClassificationDataset(Dataset):
+class BinaryClassificationDataset(BaseDataset):
     def __init__(self, data_0_path, data_1_path):
         # Load data from npy files
         self.data_0 = np.load(data_0_path)
@@ -31,22 +31,3 @@ class BinaryClassificationDataset(Dataset):
 
     def get_num_zeros(self):
         return self.num_zeros
-
-def get_dataloaders(dataset, batch_size, val_split=0.2):    
-    # Split dataset into training and validation
-    val_size = int(len(dataset) * val_split)
-    train_size = len(dataset) - val_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-
-    # Balance the validation dataset
-    val_indices_0 = [i for i in val_dataset.indices if dataset[i][1] == 0]
-    val_indices_1 = [i for i in val_dataset.indices if dataset[i][1] == 1]
-    balanced_val_size = min(len(val_indices_0), len(val_indices_1))
-    balanced_val_indices = val_indices_0[:balanced_val_size] + val_indices_1[:balanced_val_size]
-    balanced_val_dataset = Subset(dataset, balanced_val_indices)
-
-    # Create data loaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(balanced_val_dataset, batch_size=batch_size, shuffle=False)
-
-    return train_loader, val_loader

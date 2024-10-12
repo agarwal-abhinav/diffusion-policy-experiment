@@ -1,43 +1,36 @@
 import torch
+from torch.utils.data import DataLoader, random_split, Subset
 import wandb
-import os
+import hydra
 from tqdm import tqdm
 from omegaconf import OmegaConf
-from experiments.binary_classification.dataset import get_dataloaders
-from experiments.binary_classification.classifier import MLP
-from experiments.binary_classification.dataset import BinaryClassificationDataset
+from diffusion_policy.workspace.base_workspace import BaseWorkspace
 
-class BinaryClassificationWorkspace:
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self.experiment_name = cfg.experiment.name
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class TrainBinaryClassifierWorkspace(BaseWorkspace):
+    def __init__(self, cfg: OmegaConf, output_dir=None):
+        super().__init__(cfg, output_dir=output_dir)
+
+        self.device = cfg.training.device
 
         # Dataloaders
-        dataset = BinaryClassificationDataset(
-            cfg.experiment.data_0_path, 
-            cfg.experiment.data_1_path
-        )
-        self.train_loader, self.val_loader = get_dataloaders(
-            dataset,
-            cfg.experiment.batch_size,
-            cfg.experiment.val_split,
-        )
+        dataset = hydra.utils.instantiate(cfg.dataset)
+        self.train_loader, self.val_loader = self.get_dataloaders(dataset)
 
         # Model, optimizer, loss
-        simple_model = cfg.experiment.simple_model
-        self.model = MLP(cfg.experiment.input_dim, simple_model).to(self.device)
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=cfg.experiment.lr)
+        self.model = hydra.utils.instantiate(cfg.model).to(self.device)
+        self.optimizer = self.optimizer = hydra.utils.instantiate(
+            cfg.optimizer, params=self.model.parameters()
+        )
         pos_weight = dataset.get_num_zeros() / dataset.get_num_ones()
-        self.loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight]).to(self.device))
+        self.loss_fn = torch.nn.BCEWithLogitsLoss(
+            pos_weight=torch.tensor([pos_weight]
+        ).to(self.device))
 
     
     def run(self):
-        wandb.init(project=self.experiment_name, config=self.cfg)
+        wandb.init(project=self.cfg.name, config=self.cfg)
 
-        best_val_loss = float("inf")
-        best_val_loss_epoch = -1
-        for epoch in tqdm(range(self.cfg.experiment.num_epochs), desc="Epochs"):
+        for epoch in tqdm(range(self.cfg.training.num_epochs), desc="Epochs"):
             self.model.train()
 
             # Training
@@ -94,12 +87,6 @@ class BinaryClassificationWorkspace:
             true_negative_percentage = true_negatives / predicted_negatives if predicted_negatives > 0 else 0
             false_negative_percentage = false_negatives / predicted_negatives if predicted_negatives > 0 else 0
 
-            # Save best model
-            if epoch_val_loss < best_val_loss:
-                best_val_loss = epoch_val_loss
-                best_val_loss_epoch = epoch
-                # self.save_model("best_val_loss.pth")
-
             # Log metrics
             wandb.log(
                 {
@@ -113,10 +100,27 @@ class BinaryClassificationWorkspace:
                 },
             )
         
-        # Save models
-        # self.save_model("final_model.pth")
-        # os.rename("best_val_loss.pth", f"best_val_loss_epoch={best_val_loss_epoch}.pth")
         wandb.finish()
+
+    def get_dataloaders(self, dataset):
+        # Split dataset into training and validation
+        val_size = int(len(dataset) * self.cfg.val_split)
+        train_size = len(dataset) - val_size
+        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+        # Balance the validation dataset
+        val_indices_0 = [i for i in val_dataset.indices if dataset[i][1] == 0]
+        val_indices_1 = [i for i in val_dataset.indices if dataset[i][1] == 1]
+        balanced_val_size = min(len(val_indices_0), len(val_indices_1))
+        balanced_val_indices = val_indices_0[:balanced_val_size] + val_indices_1[:balanced_val_size]
+        balanced_val_dataset = Subset(dataset, balanced_val_indices)
+
+        # Create data loaders
+        train_loader = DataLoader(train_dataset, shuffle=True, **self.cfg.dataloader)
+        val_loader = DataLoader(balanced_val_dataset, shuffle=False, **self.cfg.dataloader)
+
+        return train_loader, val_loader
+
 
     def load_model(self, path):
         self.model.load_state_dict(torch.load(path))
