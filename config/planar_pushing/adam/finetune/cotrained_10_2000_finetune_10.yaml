@@ -59,7 +59,7 @@ optimizer:
   - 0.95
   - 0.999
   eps: 1.0e-08
-  lr: 0.0001
+  lr: 0.00001
   weight_decay: 1.0e-06
 past_action_visible: false
 shape_meta:
@@ -127,7 +127,7 @@ task:
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/real_world_tee_data.zarr
-      max_train_episodes: 50
+      max_train_episodes: 10
       sampling_weight: 1.0
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
@@ -142,7 +142,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: # ?
+  num_epochs: 750 # 200 for 50 demos, 750 for 10 demos
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}

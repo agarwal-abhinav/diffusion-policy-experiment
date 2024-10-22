@@ -6,9 +6,9 @@ checkpoint:
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 3
-      mode: min
-      monitor_key: val_loss_0
+      k: 10
+      mode: max
+      monitor_key: epoch
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
@@ -59,7 +59,7 @@ optimizer:
   - 0.95
   - 0.999
   eps: 1.0e-08
-  lr: 0.0001
+  lr: 0.00001
   weight_decay: 1.0e-06
 past_action_visible: false
 shape_meta:
@@ -142,7 +142,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 100 # 100 for 50 demos, 500 for 10 demos
+  num_epochs: 200 # 200 for 50 demos, 750 for 10 demos
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
@@ -162,4 +162,4 @@ val_dataloader:
   pin_memory: true
   drop_last: true
   shuffle: true
-pretrained_checkpoint: 'data/outputs/finetune/pretrained/pretrained_2000_epochs_250/checkpoints/latest.ckpt'
+pretrained_checkpoint: 'data/outputs/finetune/pretrained/pretrained_500_epochs_500/checkpoints/latest.ckpt'
