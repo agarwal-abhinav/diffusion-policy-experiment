@@ -9,6 +9,7 @@ from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
+from diffusion_policy.model.mlp.mlp import MLP
 from diffusion_policy.model.diffusion.conditional_unet1d import ConditionalUnet1D
 from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
 from diffusion_policy.common.robomimic_config_util import get_robomimic_config
@@ -38,6 +39,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             kernel_size=5,
             n_groups=8,
             cond_predict_scale=True,
+            obs_embedding_dim=None,
             obs_encoder_group_norm=False,
             eval_fixed_crop=False,
             num_DDIM_inference_steps=10,
@@ -143,8 +145,17 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 )
             )
 
+        if obs_embedding_dim is not None:
+            obs_feature_dim = obs_embedding_dim
+            self.obs_embedding_projector = MLP(obs_encoder.output_shape()[0], [], obs_feature_dim)
+            self.obs_embedding_projector.to('cuda' if torch.cuda.is_available() else 'cpu')
+            project_obs_embedding = True
+        else:
+            obs_feature_dim = obs_encoder.output_shape()[0]
+            project_obs_embedding = False
+
         # create diffusion model
-        obs_feature_dim = obs_encoder.output_shape()[0]
+        # obs_feature_dim = obs_encoder.output_shape()[0]
         input_dim = action_dim + obs_feature_dim
         global_cond_dim = None
         if obs_as_global_cond:
@@ -191,6 +202,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         self.normalizer = LinearNormalizer()
         self.horizon = horizon
         self.obs_feature_dim = obs_feature_dim
+        self.project_obs_embedding = project_obs_embedding
         self.action_dim = action_dim
         self.n_action_steps = n_action_steps
         self.n_obs_steps = n_obs_steps
@@ -204,6 +216,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
 
         print("Diffusion params: %e" % sum(p.numel() for p in self.model.parameters()))
         print("Vision params: %e" % sum(p.numel() for p in self.obs_encoder.parameters()))
+        if project_obs_embedding:
+            print("Vision projector params: %e" % sum(p.numel() for p in self.obs_embedding_projector.parameters()))
     
     # ========= inference  ============
     def conditional_sample(self, 
@@ -282,6 +296,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # condition through global feature
             this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(B, -1)
             # empty data for action
@@ -291,6 +307,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # condition through impainting
             this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, To, Do
             nobs_features = nobs_features.reshape(B, To, -1)
             cond_data = torch.zeros(size=(B, T, Da+Do), device=device, dtype=dtype)
@@ -340,6 +358,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
         else:
@@ -350,6 +370,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, T, Do
             nobs_features = nobs_features.reshape(batch_size, horizon, -1)
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
@@ -382,12 +404,16 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, T, Do
             nobs_features = nobs_features.reshape(batch_size, horizon, -1)
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
@@ -424,12 +450,16 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, T, Do
             nobs_features = nobs_features.reshape(batch_size, horizon, -1)
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
