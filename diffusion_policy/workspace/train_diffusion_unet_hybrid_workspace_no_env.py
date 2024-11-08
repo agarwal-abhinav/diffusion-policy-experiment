@@ -58,39 +58,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         random.seed(seed)
 
         # configure model
-        # TODO: Figure out why this line throws an assertion error
-        # self.model: DiffusionUnetHybridImageTargetedPolicy = hydra.utils.instantiate(cfg.policy)
-
-        # manual model configuration
-        p_cfg = cfg.policy
-        noise_scheduler = hydra.utils.instantiate(p_cfg.noise_scheduler)
-        try: 
-            freeze_pretrained_encoder = p_cfg.freeze_pretrained_encoder
-        except:
-            freeze_pretrained_encoder = False
-
-        self.model = DiffusionUnetHybridImageTargetedPolicy(
-            shape_meta=p_cfg.shape_meta,
-            noise_scheduler=noise_scheduler,
-            horizon=p_cfg.horizon,
-            n_action_steps=p_cfg.n_action_steps,
-            n_obs_steps=p_cfg.n_obs_steps,
-            num_inference_steps=p_cfg.num_inference_steps,
-            obs_as_global_cond=p_cfg.obs_as_global_cond,
-            use_target_cond=p_cfg.use_target_cond,
-            target_dim=p_cfg.target_dim,
-            crop_shape=p_cfg.crop_shape,
-            diffusion_step_embed_dim=p_cfg.diffusion_step_embed_dim,
-            down_dims=p_cfg.down_dims,
-            kernel_size=p_cfg.kernel_size,
-            n_groups=p_cfg.n_groups,
-            cond_predict_scale=p_cfg.cond_predict_scale,
-            obs_encoder_group_norm=p_cfg.obs_encoder_group_norm,
-            eval_fixed_crop=p_cfg.eval_fixed_crop,
-            pretrained_encoder=p_cfg.pretrained_encoder,
-            freeze_pretrained_encoder=freeze_pretrained_encoder,
-        )
-
+        self.model = hydra.utils.instantiate(cfg.policy)
         self.model = self.model.to(torch.device("cuda:0"))
 
         num_GPU = torch.cuda.device_count()
