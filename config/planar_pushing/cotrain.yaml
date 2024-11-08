@@ -110,6 +110,7 @@ policy:
     prediction_type: epsilon
     variance_type: fixed_small
   num_inference_steps: 100
+  obs_embedding_dim: 5
   obs_as_global_cond: true
   obs_encoder_group_norm: true
   use_target_cond: true
