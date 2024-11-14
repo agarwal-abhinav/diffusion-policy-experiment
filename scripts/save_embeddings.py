@@ -14,8 +14,10 @@ from diffusion_policy.dataset.base_dataset import BaseImageDataset
 
 MISSING_CHECKPOINTS = []
 
-def save_actions_and_embeddings(checkpoint_dir: str, save_dir: str):
+def save_actions_and_embeddings(checkpoint_dir: str, save_dir: str, seed=None):
     # Create save_dir
+    if seed is not None:
+        save_dir = f"{save_dir}_seed_{seed}"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     else:
@@ -52,6 +54,8 @@ def save_actions_and_embeddings(checkpoint_dir: str, save_dir: str):
     policy.eval()
 
     # Get datasets
+    if seed is not None:
+        cfg.task.dataset.seed = seed
     zarr_configs = cfg.task.dataset.zarr_configs
     dataset_config = cfg.task.dataset
     datasets = {}
@@ -81,10 +85,19 @@ def save_actions_and_embeddings(checkpoint_dir: str, save_dir: str):
         shuffle=False
     )
 
+    # Parse dimensions
+    embedding_dim = 131
+    if 'obs_embedding_dim' in cfg.policy:
+        if cfg.policy.obs_embedding_dim is not None:
+            embedding_dim = cfg.policy.obs_embedding_dim
+    n_obs_steps = cfg.n_obs_steps
+    horizon = cfg.horizon
+    action_dim = cfg.shape_meta.action.shape[0]
+
     # Compute embeddings
     num_real = len(datasets['real'])
-    real_actions = torch.zeros((num_real, 16, 2))
-    real_embeddings = torch.zeros((num_real, 262))
+    real_actions = torch.zeros((num_real, horizon, action_dim))
+    real_embeddings = torch.zeros((num_real, n_obs_steps*embedding_dim))
     with torch.no_grad():
         with tqdm(real_dataloader, desc=f"Real data") as tepoch:
             for batch_idx, batch in enumerate(tepoch):
@@ -106,8 +119,8 @@ def save_actions_and_embeddings(checkpoint_dir: str, save_dir: str):
     del real_embeddings
 
     num_sim = len(datasets['sim'])
-    sim_actions = torch.zeros((num_sim, 16, 2))
-    sim_embeddings = torch.zeros((num_sim, 262))
+    sim_actions = torch.zeros((num_sim, horizon, action_dim))
+    sim_embeddings = torch.zeros((num_sim, n_obs_steps*embedding_dim))
     with torch.no_grad():
         with tqdm(sim_dataloader, desc=f"Sim data") as tepoch:
             for batch_idx, batch in enumerate(tepoch):
@@ -141,7 +154,8 @@ def main():
                     print(f"Saving actions and embeddings for {policy_dir}")
                     save_actions_and_embeddings(
                         f"data/outputs/cotrain/{experiment}/{policy}",
-                        f"data/experiments/cotrain/{experiment}/{policy}"
+                        f"data/experiments/cotrain/{experiment}/{policy}",
+                        # seed=0
                     )
     print(f"Missing checkpoints: {MISSING_CHECKPOINTS}")
 
