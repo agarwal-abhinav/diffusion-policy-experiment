@@ -94,6 +94,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             if lastest_ckpt_path.is_file():
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
+                # self.epoch is loaded with the last completed epoch
+                # the current epoch is the next epoch (hence += 1)
+                self.epoch += 1
 
         # configure dataset and save normalizer
         dataset: BaseImageDataset
@@ -192,8 +195,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
 
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
+        resume_epoch = self.epoch
         with JsonLogger(log_path) as json_logger:
-            for local_epoch_idx in range(cfg.training.num_epochs):
+            for local_epoch_idx in range(resume_epoch, cfg.training.num_epochs):
                 step_log = dict()
                 # ========= train for this epoch ==========
                 train_losses = list()
@@ -386,6 +390,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         if topk_ckpt_path is not None:
                             self.save_checkpoint(path=topk_ckpt_path)
                             break
+                # last epoch => save last checkpoint
+                if self.epoch == cfg.training.num_epochs-1:
+                    self.save_checkpoint()
                 # ========= eval end for this epoch ==========
                 policy.train()
 

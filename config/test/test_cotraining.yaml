@@ -167,7 +167,7 @@ training:
   rollout_every: 5
   sample_every: 5
   seed: 42
-  tqdm_interval_sec: 30.0
+  tqdm_interval_sec: 1.0
   use_ema: true
   val_every: 1
   log_val_mse: true
