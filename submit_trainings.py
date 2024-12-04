@@ -9,7 +9,7 @@ python submit_trainings.py --config_dir <path_to_configs> --hydra_run_dir <path 
 """
 
 
-def main(config_dir, hydra_run_dir):
+def main(config_dir, hydra_run_dir, num_cores, num_GPUs):
     # Loop through each config file in the config directory
     yaml_files = [f for f in os.listdir(config_dir) if f.endswith('.yaml')]
     yaml_files.sort()  # Sort the files for consistent processing
@@ -31,7 +31,7 @@ def main(config_dir, hydra_run_dir):
                     print(line, end='')
         
         # LLsub command to launch the modified training script
-        command = ["LLsub", "./submit_training.sh", "-s", "40", "-g", "volta:2"]
+        command = ["LLsub", "./submit_training.sh", "-s", f"{num_cores}", "-g", f"volta:{num_GPUs}"]
         print("-------------------------------------------")
         print(f"Config Directory: {config_dir}")
         print(f"Config Name: {config_name}")
@@ -46,6 +46,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Launch LLsub for each config YAML in the specified directory.")
     parser.add_argument("--config_dir", type=str, help="Path to the config directory")
     parser.add_argument("--hydra_run_dir", type=str, help="Base Hydra run directory")
+    parser.add_argument("--s", type=int, help="Number of cores to use", default=40)
+    parser.add_argument("--g", type=int, help="Number of GPUs to use", default=2)
     args = parser.parse_args()
     
-    main(args.config_dir, args.hydra_run_dir)
+    main(args.config_dir, args.hydra_run_dir, args.s, args.g)
