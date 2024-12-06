@@ -24,9 +24,9 @@ echo "[submit_training.sh] Running training code..."
 echo "[submit_training.sh] Date: $DATE"
 echo "[submit_training.sh] Time: $TIME"
 
-CONFIG_DIR=config/planar_pushing/adversarial/gan_emb_dim/10_2000
-CONFIG_NAME=10_2000_3_1.yaml
-HYDRA_RUN_DIR=data/outputs/adversarial/gan_emb_dim/10_2000_3_1
+CONFIG_DIR=config/planar_pushing/adam/cotrain/emb_dim/10_2000
+CONFIG_NAME=cotrain_10_2000_emb_10.yaml
+HYDRA_RUN_DIR=data/outputs/cotrain/embedding_dim/cotrain_10_2000_emb_10
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
