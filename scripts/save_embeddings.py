@@ -157,7 +157,7 @@ def save_actions_and_embeddings(
     del sim_embeddings    
 
 def main():
-    seed = 1 # None
+    seed = 0 # None
     # seed = 42
     exclude_keywords = ["bugged", "test", "real_only", "misc"]
     for experiment in os.listdir("data/outputs/cotrain"):
