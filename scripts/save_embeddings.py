@@ -14,10 +14,14 @@ from diffusion_policy.dataset.base_dataset import BaseImageDataset
 
 MISSING_CHECKPOINTS = []
 
-def save_actions_and_embeddings(checkpoint_dir: str, save_dir: str, seed=None):
+def save_actions_and_embeddings(
+    checkpoint_dir: str, 
+    save_dir: str, 
+    seed=None, 
+    min_num_traj=50, 
+    max_num_traj=500
+):
     # Create save_dir
-    if seed is not None:
-        save_dir = f"{save_dir}_seed_{seed}"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     else:
@@ -54,13 +58,24 @@ def save_actions_and_embeddings(checkpoint_dir: str, save_dir: str, seed=None):
     policy.eval()
 
     # Get datasets
-    if seed is not None:
-        cfg.task.dataset.seed = seed
     zarr_configs = cfg.task.dataset.zarr_configs
     dataset_config = cfg.task.dataset
     datasets = {}
     for zarr_config in zarr_configs:
+        # update number of embeddings and actions
+        zarr_config.max_train_episodes = min(
+            max_num_traj, zarr_config.max_train_episodes
+        )
+        zarr_config.max_train_episodes = max(
+            min_num_traj, zarr_config.max_train_episodes
+        )
         dataset_config['zarr_configs'] = [zarr_config]
+        
+        # update seed
+        if seed is not None:
+            dataset_config['seed'] = seed
+
+        # create datasets
         if 'real_world_tee_data.zarr' in zarr_config['path']:
             datasets['real'] = hydra.utils.instantiate(dataset_config)
         else:
@@ -142,6 +157,8 @@ def save_actions_and_embeddings(checkpoint_dir: str, save_dir: str, seed=None):
     del sim_embeddings    
 
 def main():
+    seed = 1 # None
+    # seed = 42
     exclude_keywords = ["bugged", "test", "real_only", "misc"]
     for experiment in os.listdir("data/outputs/cotrain"):
         if any(keyword in experiment for keyword in exclude_keywords):
@@ -154,8 +171,10 @@ def main():
                     print(f"Saving actions and embeddings for {policy_dir}")
                     save_actions_and_embeddings(
                         f"data/outputs/cotrain/{experiment}/{policy}",
-                        f"data/experiments/cotrain/{experiment}/{policy}",
-                        # seed=0
+                        f"data/experiments/cotrain/{experiment}/{policy}/seed_{seed}"
+                        if seed is not None
+                        else f"data/experiments/cotrain/{experiment}/{policy}",
+                        seed=seed
                     )
     print(f"Missing checkpoints: {MISSING_CHECKPOINTS}")
 

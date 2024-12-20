@@ -57,6 +57,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         np.random.seed(seed)
         random.seed(seed)
 
+        # configure model
         self.model = hydra.utils.instantiate(cfg.policy)
         self.model = self.model.to(torch.device("cuda:0"))
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Usage
-# LLsub ./submit_training.sh -s 20 -g volta:2
+# LLsub ./submit_training.sh -s 20 -g volta:1
 
 # Initialize and Load Modules
 echo "[submit_training.sh] Loading modules and virtual environment"
@@ -21,8 +21,12 @@ TIME=`date +"%H.%M.%S"`
 HYDRA_FULL_ERROR=1
 
 echo "[submit_training.sh] Running training code..."
-# python train.py --config-dir=config --config-name=train_pusher_diffusion_policy_cnn.yaml \
-#     hydra.run.dir=data/outputs/push_tee_v1_sc/ \
-#     task.dataset.zarr_path=data/planar_pushing/push_tee_hybrid_dataset.zarr
+echo "[submit_training.sh] Date: $DATE"
+echo "[submit_training.sh] Time: $TIME"
 
-python train.py --config-dir=config/underactuated --config-name=sim_750_real_50.yaml
+CONFIG_DIR=config/planar_pushing/adam/cotrain/emb_dim/10_2000
+CONFIG_NAME=cotrain_10_2000_emb_10.yaml
+HYDRA_RUN_DIR=data/outputs/cotrain/embedding_dim/cotrain_10_2000_emb_10
+
+python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
+	hydra.run.dir=$HYDRA_RUN_DIR

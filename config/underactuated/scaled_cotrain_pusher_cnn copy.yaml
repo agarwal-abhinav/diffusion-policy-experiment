@@ -1,21 +1,12 @@
-# config for target conditioned experiments with image obs
-
 _target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env.TrainDiffusionUnetHybridWorkspaceNoEnv
 checkpoint:
-  - save_last_ckpt: true
-    save_last_snapshot: false
-    topk:
-      format_str: epoch={epoch:04d}-val_loss_0={val_loss_0:.4f}-val_ddim_mse_0={val_ddim_mse_0:.4f}.ckpt
-      k: 5
-      mode: min
-      monitor_key: val_loss_0
-  - save_last_ckpt: true
-    save_last_snapshot: false
-    topk:
-      format_str: epoch={epoch:04d}-val_loss_0={val_loss_0:.4f}-val_ddim_mse_0={val_ddim_mse_0:.4f}.ckpt
-      k: 5
-      mode: min
-      monitor_key: val_ddim_mse_0
+  save_last_ckpt: true
+  save_last_snapshot: false
+  topk:
+    format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}.ckpt
+    k: 5
+    mode: min
+    monitor_key: val_loss
 dataloader:
   batch_size: 64
   num_workers: 8
@@ -62,38 +53,17 @@ optimizer:
   lr: 0.0001
   weight_decay: 1.0e-06
 past_action_visible: false
-shape_meta:
-  action:
-    shape:
-    - 2
-  obs:
-    agent_pos:
-      shape:
-      - 3
-      type: low_dim
-    overhead_camera:
-      shape:
-      - 3
-      - 128
-      - 128
-      type: rgb
-    wrist_camera:
-      shape:
-      - 3
-      - 128
-      - 128
-      type: rgb
 policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
   crop_shape:
-  - 112
-  - 112
+  - 84
+  - 84
   diffusion_step_embed_dim: 128
   down_dims:
-  - 256
   - 512
   - 1024
+  - 2048
   eval_fixed_crop: true
   horizon: 16
   kernel_size: 5
@@ -114,27 +84,77 @@ policy:
   obs_encoder_group_norm: true
   use_target_cond: true
   target_dim: 3
-  pretrained_encoder: false
-  shape_meta: ${shape_meta}
+  shape_meta:
+    action:
+      shape:
+      - 2
+    obs:
+      agent_pos:
+        shape:
+        - 3
+        type: low_dim
+      image:
+        shape:
+        - 3
+        - 96
+        - 96
+        type: rgb
+shape_meta:
+  action:
+    shape:
+    - 2
+  obs:
+    agent_pos:
+      shape:
+      - 3
+      type: low_dim
+    image:
+      shape:
+      - 3
+      - 96
+      - 96
+      type: rgb
 task:
   dataset:
-    _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
-    shape_meta: ${shape_meta}
+    _target_: diffusion_policy.dataset.drake_cotrain_planar_pushing_hybrid_dataset.DrakeCotrainPlanarPushingHybridDataset
     horizon: 16
     n_obs_steps: 2
+    max_train_trajectories: null
+    max_train_episodes: null
     pad_after: 7
     pad_before: 1
     seed: 42
-    val_ratio: 0.0625 # 10 / 160 trajectories
+    val_ratio: 0.05
     zarr_configs:
-    - path: data/planar_pushing_cotrain/real_world_tee_data.zarr
-      max_train_episodes: 25
-      sampling_weight: 1.0
+    - path: data/planar_pushing/underactuated_data.zarr
+      max_train_trajectories: 2000
+      sampling_ratio: null
+    - path: data/planar_pushing/hw_push_tee_dataset_v2.zarr
+      max_train_trajectories: null
+      sampling_ratio: null
+  image_shape:
+  - 3
+  - 96
+  - 96
   name: scene_image
-  shape_meta: ${shape_meta} # not used?
+  shape_meta:
+    action:
+      shape:
+      - 2
+    obs:
+      agent_pos:
+        shape:
+        - 3
+        type: low_dim
+      image:
+        shape:
+        - 3
+        - 96
+        - 96
+        type: rgb
 task_name: planar_pushing
 training:
-  checkpoint_every: 5
+  checkpoint_every: 1
   debug: false
   device: cuda
   gradient_accumulate_every: 1
@@ -142,23 +162,17 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 300
+  num_epochs: 10
   resume: true
   rollout_every: 5
-  sample_every: ${training.checkpoint_every}
+  sample_every: 5
   seed: 42
   tqdm_interval_sec: 30.0
   use_ema: true
   val_every: 1
-  log_val_mse: true
-  eval_mse_DDPM: true
-  eval_mse_DDIM: true
-# val_dataloader smaller than train_dataloader
-# since some datasets are very small
 val_dataloader:
   batch_size: 64
   num_workers: 8
   persistent_workers: false
   pin_memory: true
-  drop_last: true
   shuffle: true
