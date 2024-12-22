@@ -70,7 +70,7 @@ policy:
     - 128
     - 256
     global_cond_dim: 8 # 4*2 dim for obs history
-    target_cond_dim: 2 # 2 dim for target
+    target_dim: 2 # 2 dim for target
     input_dim: 2
     kernel_size: 3
     local_cond_dim: null
