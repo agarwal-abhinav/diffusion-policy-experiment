@@ -7,6 +7,7 @@ data_local
 .vscode
 _wandb
 plots
+config/planar_pushing/submit_trainings
 
 **/.DS_Store
 
