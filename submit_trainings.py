@@ -5,11 +5,11 @@ import argparse
 """
 Example usage:
 
-python submit_trainings.py --config_dir <path_to_configs> --hydra_run_dir <path to run dir parent>
+python submit_trainings.py --config_dir <path_to_configs> --hydra_run_dir <path_to_run_dir_parent> --s-param 20 --g-param volta:1
 """
 
 
-def main(config_dir, hydra_run_dir, num_cores, num_GPUs):
+def main(config_dir, hydra_run_dir, s_param, g_param):
     # Loop through each config file in the config directory
     yaml_files = [f for f in os.listdir(config_dir) if f.endswith('.yaml')]
     yaml_files.sort()  # Sort the files for consistent processing
@@ -31,23 +31,25 @@ def main(config_dir, hydra_run_dir, num_cores, num_GPUs):
                     print(line, end='')
         
         # LLsub command to launch the modified training script
-        command = ["LLsub", "./submit_training.sh", "-s", f"{num_cores}", "-g", f"volta:{num_GPUs}"]
+        command = ["LLsub", "./submit_training.sh", "-s", str(s_param), "-g", g_param]
         print("-------------------------------------------")
         print(f"Config Directory: {config_dir}")
         print(f"Config Name: {config_name}")
         print(f"Hydra Run Directory: {run_dir}")
-        print(command)
+        print(f"LLsub Command: {' '.join(command)}")
+        print("-------------------------------------------")
 
         # Print and run the command
         os.system(' '.join(command))
         print("-------------------------------------------\n")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Launch LLsub for each config YAML in the specified directory.")
-    parser.add_argument("--config_dir", type=str, help="Path to the config directory")
-    parser.add_argument("--hydra_run_dir", type=str, help="Base Hydra run directory")
-    parser.add_argument("--s", type=int, help="Number of cores to use", default=40)
-    parser.add_argument("--g", type=int, help="Number of GPUs to use", default=2)
+    parser.add_argument("--config_dir", type=str, required=True, help="Path to the config directory")
+    parser.add_argument("--hydra_run_dir", type=str, required=True, help="Base Hydra run directory")
+    parser.add_argument("--s-param", type=int, default=20, help="Value for the -s parameter (default: 20)")
+    parser.add_argument("--g-param", type=str, default="volta:1", help="Value for the -g parameter (default: volta:1)")
     args = parser.parse_args()
     
-    main(args.config_dir, args.hydra_run_dir, args.s, args.g)
+    main(args.config_dir, args.hydra_run_dir, args.s_param, args.g_param)
