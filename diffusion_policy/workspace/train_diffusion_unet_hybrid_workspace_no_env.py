@@ -58,10 +58,13 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         random.seed(seed)
 
         # configure model
-        self.model = hydra.utils.instantiate(cfg.policy)
-        self.model = self.model.to(torch.device("cuda:0"))
-
         num_GPU = torch.cuda.device_count()
+        self.model = hydra.utils.instantiate(cfg.policy)
+        if num_GPU > 0:
+            self.model = self.model.to(torch.device("cuda:0"))
+        else:
+            self.model = self.model.to(torch.device("cpu"))
+
         print(f"Running on {num_GPU} GPU(s).")
         self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
 

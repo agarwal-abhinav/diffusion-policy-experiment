@@ -131,14 +131,14 @@ task:
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data.zarr
-      max_train_episodes: 150
+      max_train_episodes: 25
       sampling_weight: 3.0
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
   shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing
 training:
-  checkpoint_every: 30
+  checkpoint_every: 100
   debug: false
   device: cuda
   gradient_accumulate_every: 1
@@ -146,7 +146,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 151 # 70 for 50, 2000; 200 for 50, 500
+  num_epochs: 501 # 70 for 50, 2000; 200 for 50, 500
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
