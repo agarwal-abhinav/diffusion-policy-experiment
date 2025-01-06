@@ -5,6 +5,7 @@ of numpy arrays and torch tensors.
 import collections
 import numpy as np
 import torch
+from typing import Dict
 
 
 def recursive_dict_list_tuple_apply(x, type_func_dict):
@@ -958,3 +959,54 @@ def time_distributed(inputs, op, activation=None, inputs_as_kwargs=False, inputs
         outputs = map_tensor(outputs, activation)
     outputs = reshape_dimensions(outputs, begin_axis=0, end_axis=0, target_dims=(batch_size, seq_len))
     return outputs
+
+
+def make_uncond_batch(batch, mask_flags):
+    """
+    Zero out observations in batch based on mask flags. Used for unconditional training and 
+    sampling in classifier-free guidance.
+
+    Args:
+        batch (dict): Batch of data (nested dictionary with torch tensors as leaf nodes).
+        mask_flags (dict): Mask flags (nested dictionary with bools as leaf nodes).
+
+    Returns:
+        dict: Unconditional batch with zeroed-out tensors based on mask flags.
+    """
+    for key, value in mask_flags.items():
+        if key not in batch:
+            continue  # Skip if the key is not present in batch
+        
+        if isinstance(value, dict):
+            # Recurse if the value in mask_flags is a dictionary
+            make_uncond_batch(batch[key], value)
+        elif isinstance(value, bool) and value is True:
+            # Zero out the tensor in batch if mask flag is True
+            if isinstance(batch[key], torch.Tensor):
+                batch[key] = torch.zeros_like(batch[key])
+    
+    return batch
+
+def make_mask_flags(obs_shape, mask_images=False, mask_past_actions=False, mask_target=False):
+    """
+    Create mask flags based on shape metadata. Used for unconditional training and 
+    sampling in classifier-free guidance.
+
+    Args:
+        shape_meta (dict): Shape metadata (nested dictionary with ints as leaf nodes).
+        target_dim (int): Target dimension for mask flags.
+
+    Returns:
+        dict: Mask flags (nested dictionary with bools as leaf nodes).
+    """
+    mask_flags = {'obs': {}}
+    if mask_target:
+        mask_flags['target'] = True
+    for key, value in obs_shape.items():
+        type = value['type']
+        if type == 'low_dim':
+            mask_flags['obs'][key] = mask_past_actions
+        elif type == 'rgb':
+            mask_flags['obs'][key] = mask_images
+    return mask_flags
+        
