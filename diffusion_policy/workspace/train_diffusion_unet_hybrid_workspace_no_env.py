@@ -156,6 +156,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         )
 
         # configure checkpoint
+        assert cfg.training.checkpoint_every % cfg.training.val_every == 0
         if not isinstance(cfg.checkpoint, ListConfig):
             # configure single checkpoint manager
             topk_managers = [TopKCheckpointManager(
