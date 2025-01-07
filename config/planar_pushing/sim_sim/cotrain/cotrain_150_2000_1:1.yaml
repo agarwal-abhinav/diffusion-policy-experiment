@@ -5,19 +5,12 @@ checkpoint:
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
-      format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
+      format_str: epoch={epoch:04d}-val_loss_0={val_loss_0:.4f}-val_ddim_mse_0={val_ddim_mse_0:.4f}.ckpt
       k: 5
-      mode: min
-      monitor_key: val_loss_0
-  - save_last_ckpt: true
-    save_last_snapshot: false
-    topk:
-      format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 5
-      mode: min
-      monitor_key: val_ddim_mse_0
+      mode: max
+      monitor_key: epoch
 dataloader:
-  batch_size: 64
+  batch_size: 128
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -59,7 +52,7 @@ optimizer:
   - 0.95
   - 0.999
   eps: 1.0e-08
-  lr: 0.0001
+  lr: 0.0002
   weight_decay: 1.0e-06
 past_action_visible: false
 shape_meta:
@@ -126,19 +119,19 @@ task:
     pad_before: 1
     seed: 42
     zarr_configs:
-    - path: data/planar_pushing_cotrain/sim_sim_tee_data.zarr
+    - path: data/planar_pushing_cotrain/sim_sim_tee_data_halogen.zarr
       max_train_episodes: 150
       sampling_weight: 1.0
       val_ratio: 0.0625 # 10 / 160 trajectories
-    - path: data/planar_pushing_cotrain/sim_tee_data.zarr
+    - path: data/planar_pushing_cotrain/sim_tee_data_large.zarr
       max_train_episodes: 2000
       sampling_weight: 1.0
-      val_ratio: 0.0101 # 30 / 2970 trajectories
+      val_ratio: 0.00562 # ~50 / 8897 trajectories
   name: scene_image
   shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing
 training:
-  checkpoint_every: 5
+  checkpoint_every: 7
   debug: false
   device: cuda
   gradient_accumulate_every: 1
@@ -146,12 +139,12 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 55 # 70 for 50, 2000; 200 for 50, 500
+  num_epochs: 36
   resume: true
   rollout_every: ${training.checkpoint_every}
   sample_every: ${training.checkpoint_every}
   seed: 42
-  tqdm_interval_sec: 30.0
+  tqdm_interval_sec: 60.0
   use_ema: true
   val_every: 1
   log_val_mse: true
@@ -160,7 +153,7 @@ training:
 # val_dataloader smaller than train_dataloader
 # since some datasets are very small
 val_dataloader:
-  batch_size: 64
+  batch_size: 128
   num_workers: 8
   persistent_workers: false
   pin_memory: true
