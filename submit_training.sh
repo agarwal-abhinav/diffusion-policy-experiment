@@ -9,7 +9,7 @@ source /etc/profile
 module load anaconda/2023b
 
 # Assume current directory is gcs-diffusion
-source .robodiff/bin/activate
+source .robodiff/bin/activate || echo "Training with anaconda/2023b module instead of venv"
 
 # Set wandb to offline since Supercloud has no internet access
 echo "[submit_training.sh] Setting wandb to offline"
