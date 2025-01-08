@@ -119,7 +119,7 @@ task:
     pad_before: 1
     seed: 42
     zarr_configs:
-    - path: data/planar_pushing_cotrain/sim_sim_tee_data_halogen.zarr
+    - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon.zarr
       max_train_episodes: 50
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
@@ -139,7 +139,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 46
+  num_epochs: 45
   resume: true
   rollout_every: ${training.checkpoint_every}
   sample_every: ${training.checkpoint_every}
