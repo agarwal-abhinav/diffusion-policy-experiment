@@ -24,14 +24,15 @@ class PlanarPushingDataset(BaseImageDataset):
     def __init__(
         self,
         zarr_configs,
-        shape_meta,  
+        shape_meta,
+        use_one_hot_encoding=False,
         horizon=1,
         n_obs_steps=None,
         pad_before=0,
         pad_after=0,
         seed=42,
         val_ratio=0.0,
-        color_jitter = None,
+        color_jitter=None,
     ):
         
         super().__init__()
@@ -136,6 +137,9 @@ class PlanarPushingDataset(BaseImageDataset):
         self.pad_after = pad_after
         self.n_obs_steps = n_obs_steps
         self.shape_meta = shape_meta
+        self.use_one_hot_encoding = use_one_hot_encoding
+        self.one_hot_encoding = None # if val dataset, this will not be None
+
 
     def get_validation_dataset(self, index=None):
         # Create validation dataset
@@ -151,6 +155,10 @@ class PlanarPushingDataset(BaseImageDataset):
             val_set.zarr_paths = [self.zarr_paths[index]]
         val_set.num_datasets = 1
         val_set.sample_probabilities = np.array([1.0])
+
+        # Set one hot encoding
+        val_set.one_hot_encoding = np.zeros(self.num_datasets).astype(np.float32)
+        val_set.one_hot_encoding[index] = 1
 
         val_set.samplers = [SequenceSampler(
             replay_buffer=self.replay_buffers[index], 
@@ -216,7 +224,7 @@ class PlanarPushingDataset(BaseImageDataset):
             length += len(sampler)
         return length
 
-    def _sample_to_data(self, sample):
+    def _sample_to_data(self, sample, sampler_idx):
         target = sample['target'][0].astype(np.float32)
         agent_pos = sample['state'].astype(np.float32)
 
@@ -228,13 +236,20 @@ class PlanarPushingDataset(BaseImageDataset):
             'action': sample['action'].astype(np.float32) # T, 2
         }
 
+        if self.use_one_hot_encoding:
+            if self.one_hot_encoding is None:
+                data['one_hot_encoding'] = np.zeros(self.num_datasets).astype(np.float32)
+                data['one_hot_encoding'][sampler_idx] = 1
+            else:
+                data['one_hot_encoding'] = self.one_hot_encoding
+
         # Add images to data
         if self.color_jitter is None:
             for key in self.rgb_keys:
                 data['obs'][key] = np.moveaxis(sample[key],-1,1)/255.0
                 del sample[key]
         else:
-            # Stack images an apply color jitter to ensure
+            # Stack images and apply color jitter to ensure
             # all cameras have consistent color jitter
             keys = self.rgb_keys
             length = sample[keys[0]].shape[0]
@@ -287,7 +302,8 @@ class PlanarPushingDataset(BaseImageDataset):
         
         # Get sample
         if self.num_datasets == 1:
-            sampler = self.samplers[0]
+            sampler_idx = 0
+            sampler = self.samplers[sampler_idx]
             sample = sampler.sample_sequence(idx)
         else:
             sampler_idx = np.random.choice(self.num_datasets, p=self.sample_probabilities)
@@ -295,7 +311,7 @@ class PlanarPushingDataset(BaseImageDataset):
             sample = sampler.sample_sequence(idx % len(sampler))
         
         # Process sample
-        data = self._sample_to_data(sample)
+        data = self._sample_to_data(sample, sampler_idx)
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 
