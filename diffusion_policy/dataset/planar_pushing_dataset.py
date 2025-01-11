@@ -336,7 +336,8 @@ if __name__ == "__main__":
         #     'sampling_weight': 1.0
         # },
         {
-            'path': 'data/planar_pushing_cotrain/real_world_tee_data.zarr',
+            # 'path': 'data/planar_pushing_cotrain/visual_mean_shift/visual_mean_shift_level_2.zarr',
+            'path': 'data/planar_pushing_cotrain/visual_mean_shift/visual_mean_shift_level_2.zarr',
             'max_train_episodes': None,
             'sampling_weight': 1.0
         }
@@ -373,8 +374,8 @@ if __name__ == "__main__":
     normalizer = dataset.get_normalizer()
 
     for i in range(10):
-        # idx = random.randint(0, len(dataset)-1)
-        idx = i % len(dataset)
+        idx = random.randint(0, len(dataset)-1)
+        # idx = i % len(dataset)
         sample = dataset[idx]
         states = sample['obs']['agent_pos']
         actions = sample['action']
