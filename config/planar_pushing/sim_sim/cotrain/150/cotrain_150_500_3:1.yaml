@@ -139,7 +139,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 110
+  num_epochs: 100
   resume: true
   rollout_every: ${training.checkpoint_every}
   sample_every: ${training.checkpoint_every}
