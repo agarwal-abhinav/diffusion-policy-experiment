@@ -102,7 +102,7 @@ policy:
     num_train_timesteps: 100
     prediction_type: epsilon
     variance_type: fixed_small
-    one_hot_encoding_dim: 2
+  one_hot_encoding_dim: 2
   num_inference_steps: 100
   obs_as_global_cond: true
   obs_encoder_group_norm: true
