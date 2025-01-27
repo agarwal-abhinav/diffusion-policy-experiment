@@ -61,7 +61,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         num_GPU = torch.cuda.device_count()
         self.model = hydra.utils.instantiate(cfg.policy)
         if num_GPU > 0:
-            self.model = self.model.to(torch.device("cuda:0"))
+            self.model = self.model.to(torch.device("cuda"))
         else:
             self.model = self.model.to(torch.device("cpu"))
 
