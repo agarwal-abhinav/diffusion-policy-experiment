@@ -17,8 +17,6 @@ def override_targets(zarr_path, new_value):
 
     # Access the 'target' field
     targets = dataset["data"]["target"]
-    print(targets[0])
-    breakpoint()
 
     # Ensure the new value is a 3D vector
     if len(new_value) != 3:
