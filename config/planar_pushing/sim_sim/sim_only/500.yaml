@@ -140,7 +140,7 @@ training:
   rollout_every: ${training.checkpoint_every}
   sample_every: ${training.checkpoint_every}
   seed: 42
-  tqdm_interval_sec: 30.0
+  tqdm_interval_sec: 120.0
   use_ema: true
   val_every: 10
   log_val_mse: true
