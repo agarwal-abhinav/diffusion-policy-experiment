@@ -155,4 +155,4 @@ val_dataloader:
   pin_memory: true
   drop_last: true
   shuffle: true
-pretrained_checkpoint: 'data/outputs/data/outputs/sim_sim/sim_only/2000/checkpoints/latest.ckpt'
+pretrained_checkpoint: 'data/outputs/sim_sim/sim_only/2000/checkpoints/latest.ckpt'
