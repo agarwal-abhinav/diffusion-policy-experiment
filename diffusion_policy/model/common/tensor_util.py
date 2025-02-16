@@ -987,7 +987,13 @@ def make_uncond_batch(batch, mask_flags):
     
     return batch
 
-def make_mask_flags(obs_shape, mask_images=False, mask_past_actions=False, mask_target=False):
+def make_mask_flags(
+    obs_shape, 
+    mask_images=False, 
+    mask_past_actions=False, 
+    mask_target=False,
+    mask_one_hot_encoding=False,
+):
     """
     Create mask flags based on shape metadata. Used for unconditional training and 
     sampling in classifier-free guidance.
@@ -1002,6 +1008,8 @@ def make_mask_flags(obs_shape, mask_images=False, mask_past_actions=False, mask_
     mask_flags = {'obs': {}}
     if mask_target:
         mask_flags['target'] = True
+    if mask_one_hot_encoding:
+        mask_flags['one_hot_encoding'] = True
     for key, value in obs_shape.items():
         type = value['type']
         if type == 'low_dim':

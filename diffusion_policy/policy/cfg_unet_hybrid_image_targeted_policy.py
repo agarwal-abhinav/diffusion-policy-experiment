@@ -35,6 +35,7 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
             horizon, 
             n_action_steps, 
             n_obs_steps,
+            one_hot_encoding_dim=0,
             num_inference_steps=None,
             obs_as_global_cond=True,
             use_target_cond=False,
@@ -56,6 +57,7 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
             mask_images=True,
             mask_past_actions=True,
             mask_target=True,
+            mask_one_hot_encoding=True,
             w: float = 1.0,
             # parameters passed to step
             **kwargs):
@@ -63,6 +65,8 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
 
         if use_target_cond:
             assert target_dim is not None
+        assert one_hot_encoding_dim >= 0
+        assert obs_as_global_cond
 
         # parse shape_meta
         action_shape = shape_meta['action']['shape']
@@ -171,7 +175,7 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
         global_cond_dim = None
         if obs_as_global_cond:
             input_dim = action_dim
-            global_cond_dim = obs_feature_dim * n_obs_steps
+            global_cond_dim = obs_feature_dim * n_obs_steps + one_hot_encoding_dim
         print(f"Input dim: {input_dim}, Global cond dim: {global_cond_dim}")
 
         model = ConditionalUnet1D(
@@ -224,8 +228,10 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
             obs_shape_meta,
             mask_images=mask_images,
             mask_past_actions=mask_past_actions,
-            mask_target=mask_target
+            mask_target=mask_target,
+            mask_one_hot_encoding=mask_one_hot_encoding
         )
+        self.one_hot_encoding_dim = one_hot_encoding_dim
         self.w = w
         self.kwargs = kwargs
 
@@ -358,6 +364,13 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
             cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
             cond_data[:,:To,Da:] = nobs_features
             cond_mask[:,:To,Da:] = True
+        
+        # append one hot encoding
+        if self.one_hot_encoding_dim > 0:
+            # currently only supporting global conditioning
+            assert self.obs_as_global_cond
+            one_hot_encoding = obs_dict['one_hot_encoding']
+            global_cond = torch.cat([global_cond, one_hot_encoding], dim=-1)
 
         # handle target conditioning
         target_cond = None
@@ -439,6 +452,9 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
         batch_copy = copy.deepcopy(batch)
         uncond_batch = make_uncond_batch(batch_copy, self.mask_flags)
         global_cond = self.compute_obs_embedding(uncond_batch)
+        if self.one_hot_encoding_dim > 0:
+            one_hot_encoding = uncond_batch['one_hot_encoding']
+            global_cond = torch.cat([global_cond, one_hot_encoding], dim=-1)
 
         # Compute target cond
         batch_size = global_cond.shape[0]
@@ -488,6 +504,13 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
             trajectory = cond_data.detach()
         
+        # append one hot encoding
+        if self.one_hot_encoding_dim > 0:
+            # currently only supporting global conditioning
+            assert self.obs_as_global_cond
+            one_hot_encoding = batch['one_hot_encoding']
+            global_cond = torch.cat([global_cond, one_hot_encoding], dim=-1)
+        
         # handle target conditioning
         target_cond = None
         if self.use_target_cond:
@@ -533,6 +556,13 @@ class CfgUnetHybridImageTargetedPolicy(BaseImagePolicy):
             nobs_features = nobs_features.reshape(batch_size, horizon, -1)
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
             trajectory = cond_data.detach()
+
+        # append one hot encoding
+        if self.one_hot_encoding_dim > 0:
+            # currently only supporting global conditioning
+            assert self.obs_as_global_cond
+            one_hot_encoding = batch['one_hot_encoding']
+            global_cond = torch.cat([global_cond, one_hot_encoding], dim=-1)
         
         # handle target conditioning
         target_cond = None

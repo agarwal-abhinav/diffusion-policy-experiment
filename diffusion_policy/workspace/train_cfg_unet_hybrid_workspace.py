@@ -88,7 +88,8 @@ class TrainCfgUnetHybridWorkspace(BaseWorkspace):
             obs_shape=cfg.shape_meta['obs'],
             mask_images=cfg.training.mask_images,
             mask_past_actions=cfg.training.mask_past_actions,
-            mask_target=cfg.training.mask_target
+            mask_target=cfg.training.mask_target,
+            mask_one_hot_encoding=cfg.training.mask_one_hot_encoding
         )
 
         # configure training state
@@ -341,8 +342,8 @@ class TrainCfgUnetHybridWorkspace(BaseWorkspace):
                             # Get the validation batch for this dataset
                             val_sampling_batch = val_sampling_batches[dataset_idx]
                             val_batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                            val_obs_dict = {'obs': batch['obs'], 'target': batch['target']}
-                            val_gt_action = batch['action']
+                            val_obs_dict = {key: val_batch[key] for key in val_batch.keys() if key != 'action'}
+                            val_gt_action = val_sampling_batch['action']
                             
                             # Evaluate MSE when diffusing with DDPM
                             if cfg.training.eval_mse_DDPM:
