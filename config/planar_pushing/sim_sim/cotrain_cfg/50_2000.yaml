@@ -145,7 +145,7 @@ task:
   shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing
 training:
-  checkpoint_every: 100
+  checkpoint_every: 5
   debug: false
   device: cuda
   gradient_accumulate_every: 1
@@ -153,7 +153,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 501 # 70 for 50, 2000; 200 for 50, 500
+  num_epochs: 45
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
