@@ -24,9 +24,9 @@ echo "[submit_training.sh] Running training code..."
 echo "[submit_training.sh] Date: $DATE"
 echo "[submit_training.sh] Time: $TIME"
 
-CONFIG_DIR=config/submit_trainings
-CONFIG_NAME=limit_rotations.yaml
-HYDRA_RUN_DIR=data/outputs/symmetries_project/limit_rotations
+CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data
+CONFIG_NAME=12_obs_320.yaml
+HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data/12_obs_320
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
