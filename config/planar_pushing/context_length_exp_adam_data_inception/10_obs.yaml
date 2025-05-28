@@ -31,7 +31,7 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 16
+horizon: 24
 keypoint_visible_rate: 1.0
 logging:
   group: null
@@ -95,7 +95,7 @@ policy:
   - 512
   - 1024
   eval_fixed_crop: true
-  horizon: 16
+  horizon: 24
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
@@ -120,7 +120,7 @@ task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
     shape_meta: ${shape_meta}
-    horizon: 16
+    horizon: 24
     n_obs_steps: 10
     pad_after: 7
     pad_before: 9

@@ -344,6 +344,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(B, -1)
+            global_cond = global_cond.view(B, self.n_obs_steps, 131)  #TODO: remove this hard coding 
+            global_cond_prop = self.action_encoder(global_cond[:, :, :3])
+            global_cond_image_1 = self.image_1_encoder(global_cond[:, :, 3:67])
+            global_cond_image_2 = self.image_2_encoder(global_cond[:, :, 67:131])
+
+            global_cond = torch.cat([global_cond_prop, global_cond_image_1, global_cond_image_2], dim=-1)
+            global_cond = global_cond.reshape(B, -1)  # B, Do
             # empty data for action
             cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
             cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
@@ -527,6 +534,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
+            global_cond = global_cond.view(batch_size, self.n_obs_steps, 131)  #TODO: remove this hard coding 
+            global_cond_prop = self.action_encoder(global_cond[:, :, :3])
+            global_cond_image_1 = self.image_1_encoder(global_cond[:, :, 3:67])
+            global_cond_image_2 = self.image_2_encoder(global_cond[:, :, 67:131])
+
+            global_cond = torch.cat([global_cond_prop, global_cond_image_1, global_cond_image_2], dim=-1)
+            global_cond = global_cond.reshape(batch_size, -1)  # B, Do
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
