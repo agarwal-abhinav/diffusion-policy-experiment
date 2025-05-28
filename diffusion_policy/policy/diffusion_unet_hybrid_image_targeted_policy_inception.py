@@ -21,6 +21,34 @@ import robomimic.models.obs_core as rmobsc
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
+from tsai.models.InceptionTime import InceptionTime
+
+class CausalTCNSeq2Seq(nn.Module): 
+    def __init__(self, seq_len, input_channels=64, output_channels=128, rnn_out=64): 
+        super().__init__()
+
+        self.inception = InceptionTime(
+            c_in=input_channels, 
+            c_out=output_channels, 
+            seq_len=seq_len
+        ).inceptionblock
+
+        self.rnn = nn.GRU(
+            input_size=128,
+            hidden_size=rnn_out,
+            num_layers=3, 
+            batch_first=True
+        )
+
+    def forward(self, x): 
+        # x is of the shape (B, T, C)
+        z = x.transpose(1, 2)
+        z = self.inception(z)
+        z = z.transpose(1, 2)
+
+        out, _ = self.rnn(z)
+
+        return out
 
 class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def __init__(self, 
@@ -161,6 +189,19 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         input_dim = action_dim + obs_feature_dim
         global_cond_dim = None
         if obs_as_global_cond:
+            # TODO: remove this hard coding 
+            self.action_encoder = CausalTCNSeq2Seq(
+                seq_len=n_obs_steps, 
+                input_channels=3, 
+                output_channels=64, 
+                rnn_out=3
+            )
+            self.image_1_encoder = CausalTCNSeq2Seq(
+                seq_len=n_obs_steps,
+            )
+            self.image_2_encoder = CausalTCNSeq2Seq(
+                seq_len=n_obs_steps,
+            )
             input_dim = action_dim
             global_cond_dim = obs_feature_dim * n_obs_steps + one_hot_encoding_dim
         print(f"Input dim: {input_dim}, Global cond dim: {global_cond_dim}")
@@ -425,6 +466,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
+            global_cond = global_cond.view(batch_size, self.n_obs_steps, 131)  #TODO: remove this hard coding 
+            global_cond_prop = self.action_encoder(global_cond[:, :, :3])
+            global_cond_image_1 = self.image_1_encoder(global_cond[:, :, 3:67])
+            global_cond_image_2 = self.image_2_encoder(global_cond[:, :, 67:131])
+
+            global_cond = torch.cat([global_cond_prop, global_cond_image_1, global_cond_image_2], dim=-1)
+            global_cond = global_cond.reshape(batch_size, -1)  # B, Do
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
@@ -447,6 +495,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         target_cond = None
         if self.use_target_cond:
             target_cond = ntarget.reshape(batch_size, -1) # B, D_t
+
 
         # Predict the noise residual
         return self.model(noisy_trajectory, timesteps, 
