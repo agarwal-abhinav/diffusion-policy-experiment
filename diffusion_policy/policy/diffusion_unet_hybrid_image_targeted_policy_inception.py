@@ -27,14 +27,14 @@ class CausalTCNSeq2Seq(nn.Module):
     def __init__(self, seq_len, input_channels=64, output_channels=128, rnn_out=64): 
         super().__init__()
 
-        self.inception = InceptionTime(
-            c_in=input_channels, 
-            c_out=output_channels, 
-            seq_len=seq_len
-        ).inceptionblock
+        # self.inception = InceptionTime(
+        #     c_in=input_channels, 
+        #     c_out=output_channels, 
+        #     seq_len=seq_len
+        # ).inceptionblock
 
         self.rnn = nn.GRU(
-            input_size=128,
+            input_size=rnn_out,
             hidden_size=rnn_out,
             num_layers=3, 
             batch_first=True
@@ -42,11 +42,11 @@ class CausalTCNSeq2Seq(nn.Module):
 
     def forward(self, x): 
         # x is of the shape (B, T, C)
-        z = x.transpose(1, 2)
-        z = self.inception(z)
-        z = z.transpose(1, 2)
+        # z = x.transpose(1, 2)
+        # z = self.inception(z)
+        # z = z.transpose(1, 2)
 
-        out, _ = self.rnn(z)
+        out, _ = self.rnn(x)
 
         return out
 
