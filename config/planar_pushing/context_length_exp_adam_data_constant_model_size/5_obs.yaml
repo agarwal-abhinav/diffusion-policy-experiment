@@ -38,7 +38,7 @@ logging:
   id: null
   mode: online
   name: 5_initial
-  project: t_pushing_cl_ablation
+  project: t_pushing_cl_ablation_constant_model_size
   resume: true
   tags:
   - train_diffusion_unet_hybrid

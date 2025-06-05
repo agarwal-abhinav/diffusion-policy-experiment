@@ -306,7 +306,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(B, -1)
-            additional_zeros = torch.zeros(batch_size, self.global_cond_dim - global_cond.shape[1],
+            additional_zeros = torch.zeros(B, self.global_cond_dim - global_cond.shape[1],
                 device=global_cond.device, dtype=global_cond.dtype)
             global_cond = torch.cat([global_cond, additional_zeros], dim=-1)
             # empty data for action
