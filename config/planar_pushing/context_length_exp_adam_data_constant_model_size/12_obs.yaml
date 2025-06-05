@@ -127,7 +127,7 @@ task:
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
-      max_train_episodes: 160
+      max_train_episodes: 162
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image

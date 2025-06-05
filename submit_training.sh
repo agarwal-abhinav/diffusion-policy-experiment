@@ -26,7 +26,7 @@ echo "[submit_training.sh] Time: $TIME"
 
 CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size
 CONFIG_NAME=1_obs.yaml
-HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_constant_model_size/1_obs
+HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_constant_model_size/1_obs_d_170
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
