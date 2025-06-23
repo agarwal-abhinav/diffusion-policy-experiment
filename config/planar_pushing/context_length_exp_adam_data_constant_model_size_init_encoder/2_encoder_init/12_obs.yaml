@@ -37,8 +37,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: 10_initial
-  project: t_pushing_cl_ablation_constant_model_size
+  name: 12_initial
+  project: t_pushing_2_encoder_init
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -50,7 +50,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 10
+n_obs_steps: 12
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -99,7 +99,7 @@ policy:
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
-  n_obs_steps: 10
+  n_obs_steps: 12
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -117,15 +117,15 @@ policy:
   shape_meta: ${shape_meta}
   pretrained_encoder: false
   initialize_obs_encoder: 'data/outputs/context_length_exp_adam_data_constant_model_size/2_obs/best_ckpt_encoder.pth'
-  freeze_self_trained_obs_encoder: true
+  freeze_self_trained_obs_encoder: false
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
     shape_meta: ${shape_meta}
     horizon: 24
-    n_obs_steps: 10
+    n_obs_steps: 12
     pad_after: 7
-    pad_before: 9
+    pad_before: 11
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
