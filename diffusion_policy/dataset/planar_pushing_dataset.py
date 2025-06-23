@@ -13,6 +13,24 @@ from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 from diffusion_policy.common.normalize_util import get_image_range_normalizer
 
+import torch.nn.functional as F
+
+def gaussian_kernel(kernel_size=9, sigma=3, channels=3):
+    """Create a Gaussian kernel for convolution."""
+    # Create 1D Gaussian
+    coords = torch.arange(kernel_size).float() - (kernel_size - 1) / 2.
+    g = torch.exp(-(coords**2) / (2 * sigma**2))
+    g = g / g.sum()
+    # Create 2D Gaussian
+    g2 = g[:, None] * g[None, :]
+    kernel = g2.expand(channels, 1, kernel_size, kernel_size)
+    return kernel
+
+def low_pass_filter(x, kernel):
+    """Apply low-pass (Gaussian blur) filter to input tensor x."""
+    padding = kernel.shape[-1] // 2
+    return F.conv2d(x, kernel, padding=padding, groups=x.shape[1])
+
 class PlanarPushingDataset(BaseImageDataset):
     """
     Dataset for planar pushing that supports:
@@ -33,10 +51,27 @@ class PlanarPushingDataset(BaseImageDataset):
         seed=42,
         val_ratio=0.0,
         color_jitter=None,
+        low_pass_on_wrist=False, 
+        low_pass_on_overhead=False
     ):
         
         super().__init__()
         self._validate_zarr_configs(zarr_configs)
+
+        self.low_pass_on_wrist = low_pass_on_wrist
+        if low_pass_on_wrist: 
+            self.wrist_kernel = gaussian_kernel(
+                kernel_size=9, 
+                sigma=3, 
+                channels=3
+            )
+        self.low_pass_on_overhead = low_pass_on_overhead
+        if low_pass_on_overhead:
+            self.overhead_kernel = gaussian_kernel(
+                kernel_size=9, 
+                sigma=3, 
+                channels=3
+            )
 
         # Set up dataset keys
         self.rgb_keys = []
@@ -247,6 +282,11 @@ class PlanarPushingDataset(BaseImageDataset):
         if self.color_jitter is None:
             for key in self.rgb_keys:
                 data['obs'][key] = np.moveaxis(sample[key],-1,1)/255.0
+                if self.low_pass_on_wrist and key == 'wrist_camera':
+                    data['obs'][key] = low_pass_filter(
+                        torch.from_numpy(data['obs'][key]),
+                        self.wrist_kernel.to(dtype=torch.float64)
+                    ).numpy()
                 del sample[key]
         else:
             # Stack images and apply color jitter to ensure
@@ -359,6 +399,7 @@ if __name__ == "__main__":
         pad_after = 7,
         seed=42,
         val_ratio=0.05,
+        low_pass_on_wrist=True
         # color_jitter=color_jitter
     )
     
