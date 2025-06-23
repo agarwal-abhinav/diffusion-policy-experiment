@@ -147,3 +147,5 @@ LL*
 
 # virtual envirnonment
 .robodiff
+
+*.pkl

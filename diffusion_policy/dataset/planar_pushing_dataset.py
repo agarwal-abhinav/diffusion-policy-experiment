@@ -337,7 +337,7 @@ if __name__ == "__main__":
         # },
         {
             # 'path': 'data/planar_pushing_cotrain/visual_mean_shift/visual_mean_shift_level_2.zarr',
-            'path': 'data/planar_pushing_cotrain/visual_mean_shift/visual_mean_shift_level_2.zarr',
+            'path': 'data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr',
             'max_train_episodes': None,
             'sampling_weight': 1.0
         }
@@ -361,6 +361,8 @@ if __name__ == "__main__":
         val_ratio=0.05,
         # color_jitter=color_jitter
     )
+    
+    dataset.__getitem__(0)
     print("Initialized dataset")
     print("Total episodes (train + val):", dataset.get_num_episodes())
     print("Training dataset length:", len(dataset))

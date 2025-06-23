@@ -400,6 +400,34 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def set_normalizer(self, normalizer: LinearNormalizer):
         self.normalizer.load_state_dict(normalizer.state_dict())
 
+    def get_encoder_output(self, batch): 
+        assert 'valid_mask' not in batch
+        nobs = self.normalizer.normalize(batch['obs'])
+        ntarget = None
+        if self.use_target_cond:
+            ntarget = self.normalizer['target'].normalize(batch['target'])
+        nactions = self.normalizer['action'].normalize(batch['action'])
+        batch_size = nactions.shape[0]
+        horizon = nactions.shape[1]
+        # print(f"Inside batch size: {batch_size}")
+
+        # handle different ways of passing observation
+        local_cond = None
+        global_cond = None
+        trajectory = nactions
+        cond_data = trajectory
+        if self.obs_as_global_cond:
+            # reshape B, T, ... to B*T
+            this_nobs = dict_apply(nobs, 
+                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
+            nobs_features = self.obs_encoder(this_nobs)
+            if self.project_obs_embedding:
+                nobs_features = self.obs_embedding_projector(nobs_features)
+            # reshape back to B, Do
+            global_cond = nobs_features.reshape(batch_size, -1)
+
+        return global_cond, nobs_features
+
     def forward(self, batch, noisy_trajectory, timesteps):
         assert 'valid_mask' not in batch
         nobs = self.normalizer.normalize(batch['obs'])
