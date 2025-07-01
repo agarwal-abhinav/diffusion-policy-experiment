@@ -48,7 +48,10 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             pretrained_encoder=False,
             freeze_pretrained_encoder=False,
             initialize_obs_encoder=None,
+            initialize_wrist_encoder=None, 
+            initialize_overhead_encoder=None,
             freeze_self_trained_obs_encoder=False,
+            inference_loading = False, 
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -57,6 +60,16 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             assert target_dim is not None
         assert one_hot_encoding_dim >= 0
         assert obs_as_global_cond
+
+        if initialize_obs_encoder is not None: 
+            assert initialize_wrist_encoder is None 
+            assert initialize_overhead_encoder is None
+        if initialize_wrist_encoder is not None:
+            assert initialize_obs_encoder is None 
+            assert initialize_overhead_encoder is None
+        if initialize_overhead_encoder is not None:
+            assert initialize_obs_encoder is None 
+            assert initialize_wrist_encoder is None
 
         # parse shape_meta
         action_shape = shape_meta['action']['shape']
@@ -183,13 +196,32 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         )
 
         self.obs_encoder = obs_encoder
-        if initialize_obs_encoder is not None: 
-            state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
-            self.obs_encoder.load_state_dict(state_dict, strict=True)
-        
-            if freeze_self_trained_obs_encoder: 
-                for param in self.obs_encoder.parameters(): 
-                    param.requires_grad = False
+        if inference_loading == False: 
+            if initialize_wrist_encoder is not None: 
+                state_dict = torch.load(initialize_wrist_encoder, map_location='cpu')
+                wrist_sd = {k:v for k,v in state_dict.items() if "wrist_camera" in k}
+                self.obs_encoder.load_state_dict(wrist_sd, strict=False)
+
+                for name, p in self.obs_encoder.named_parameters(): 
+                    if "wrist_camera" in name:
+                        p.requires_grad = False
+                    else: 
+                        p.requires_grad = True
+
+                for name, p in self.obs_encoder.named_parameters(): 
+                    print(f"{name:60s} requires_grad={p.requires_grad}")
+
+
+            if initialize_overhead_encoder is not None: 
+                state_dict = torch.load(initialize_overhead_encoder, map_location='cpu')
+                breakpoint()
+            if initialize_obs_encoder is not None: 
+                state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
+                self.obs_encoder.load_state_dict(state_dict, strict=True)
+            
+                if freeze_self_trained_obs_encoder: 
+                    for param in self.obs_encoder.parameters(): 
+                        param.requires_grad = False
         self.model = model
         self.noise_scheduler = noise_scheduler
         
