@@ -211,7 +211,6 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 for name, p in self.obs_encoder.named_parameters(): 
                     print(f"{name:60s} requires_grad={p.requires_grad}")
 
-
             if initialize_overhead_encoder is not None: 
                 state_dict = torch.load(initialize_overhead_encoder, map_location='cpu')
                 breakpoint()

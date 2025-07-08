@@ -60,6 +60,7 @@ class MazeLowdimTargetConditionedDataset(BaseLowdimDataset):
         self.target_key = target_key
         self.action_key = action_key
         self.train_mask = train_mask
+        self.val_mask = val_mask
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
@@ -71,9 +72,9 @@ class MazeLowdimTargetConditionedDataset(BaseLowdimDataset):
             sequence_length=self.horizon,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
-            episode_mask=~self.train_mask
+            episode_mask=self.val_mask
             )
-        val_set.train_mask = ~self.train_mask
+        val_set.train_mask = self.val_mask
         return val_set
 
     def get_normalizer(self, mode='limits', **kwargs):

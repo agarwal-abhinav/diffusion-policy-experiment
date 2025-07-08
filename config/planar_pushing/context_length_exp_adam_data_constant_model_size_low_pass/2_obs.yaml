@@ -38,7 +38,7 @@ logging:
   id: null
   mode: online
   name: 2_initial
-  project: t_pushing_wrist_lp
+  project: t_pushing_lp
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -133,6 +133,7 @@ task:
   name: scene_image
   shape_meta: ${shape_meta} # not used?
   low_pass_on_wrist: true
+  low_pass_on_overhead: true
 task_name: planar_pushing
 training:
   checkpoint_every: 5

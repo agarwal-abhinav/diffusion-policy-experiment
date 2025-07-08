@@ -287,6 +287,11 @@ class PlanarPushingDataset(BaseImageDataset):
                         torch.from_numpy(data['obs'][key]),
                         self.wrist_kernel.to(dtype=torch.float64)
                     ).numpy()
+                if self.low_pass_on_overhead and key == 'overhead_camera': 
+                    data['obs'][key] = low_pass_filter(
+                        torch.from_numpy(data['obs'][key]), 
+                        self.overhead_kernel.to(dtype=torch.float64)
+                    ).numpy()
                 del sample[key]
         else:
             # Stack images and apply color jitter to ensure
