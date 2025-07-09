@@ -112,7 +112,7 @@ task_name: maze_lowdim_target_conditioned
 training:
   checkpoint_every: 5
   debug: false
-  device: cpu
+  device: mps
   gradient_accumulate_every: 1
   lr_scheduler: cosine
   lr_warmup_steps: 500

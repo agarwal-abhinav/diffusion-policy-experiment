@@ -123,6 +123,15 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
         )
 
         # device transfer
+        if cfg.training.device == "mps": 
+            # MPS does not support float16
+            self.model = self.model.to(torch.float32)
+            if self.ema_model is not None:
+                self.ema_model = self.ema_model.to(torch.float32)
+            for state in self.optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(device=device)
         device = torch.device(cfg.training.device)
         self.model.to(device)
         if self.ema_model is not None:
@@ -152,6 +161,8 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                         leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
+                        if cfg.training.device == "mps": 
+                            batch = dict_apply(batch, lambda x: x.to(torch.float32))
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                         if train_sampling_batch is None:
                             train_sampling_batch = batch
