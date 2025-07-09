@@ -124,14 +124,14 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
 
         # device transfer
         if cfg.training.device == "mps": 
-            # MPS does not support float16
+            # MPS does not support float64
             self.model = self.model.to(torch.float32)
             if self.ema_model is not None:
                 self.ema_model = self.ema_model.to(torch.float32)
             for state in self.optimizer.state.values():
                 for k, v in state.items():
                     if isinstance(v, torch.Tensor):
-                        state[k] = v.to(device=device)
+                        state[k] = v.to(torch.float32)
         device = torch.device(cfg.training.device)
         self.model.to(device)
         if self.ema_model is not None:
@@ -222,6 +222,8 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                         with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
                                 leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                             for batch_idx, batch in enumerate(tepoch):
+                                if cfg.training.device == "mps": 
+                                    batch = dict_apply(batch, lambda x: x.to(torch.float32))
                                 batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                                 loss = self.model.compute_loss(batch)
                                 val_losses.append(loss)
@@ -238,6 +240,8 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                     with torch.no_grad():
                         # sample trajectory from training set, and evaluate difference
                         batch = train_sampling_batch
+                        if cfg.training.device == "mps": 
+                            batch = dict_apply(batch, lambda x: x.to(torch.float32))
                         obs_dict = {'obs': batch['obs'],
                                     'target': batch['target']}
                         gt_action = batch['action']

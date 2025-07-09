@@ -105,7 +105,7 @@ task:
     val_ratio: 0.1
     # Override if using smaller dataset
     # ex. task.dataset.zarr_path=data/maze/maze_dataset_target_conditioned_100.zarr
-    zarr_path: data/planar_integrator_task/collection_4_2000_each.zarr
+    zarr_path: data/diffusion_experiments/planar_integrator_task/collection_4_2000_each.zarr
   name: maze_lowdim_target_conditioned
   obs_dim: 2
 task_name: maze_lowdim_target_conditioned
