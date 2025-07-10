@@ -67,6 +67,7 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             condition_data, condition_mask,
             local_cond=None, global_cond=None,
             target_cond=None, generator=None,
+            sample_for_vis=False,
             # keyword arguments to scheduler.step
             **kwargs
             ):
@@ -81,6 +82,9 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
     
         # set step values
         scheduler.set_timesteps(self.num_inference_steps)
+
+        if sample_for_vis: 
+            trajectories = []
 
         for t in scheduler.timesteps:
             # 1. apply conditioning
@@ -97,14 +101,21 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
                 generator=generator,
                 **kwargs
                 ).prev_sample
+            
+            if sample_for_vis: 
+                if t % 5 == 0 or t < 10: 
+                    trajectories.append(trajectory.clone())
         
         # finally make sure conditioning is enforced
-        trajectory[condition_mask] = condition_data[condition_mask]        
+        trajectory[condition_mask] = condition_data[condition_mask]       
+
+        if sample_for_vis: 
+            return trajectory, trajectories 
 
         return trajectory
 
 
-    def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def predict_action(self, obs_dict: Dict[str, torch.Tensor], sample_for_vis: bool = False) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
         obs_dict: must include "target" key if use_target_cond is True
@@ -170,11 +181,21 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             local_cond=local_cond,
             global_cond=global_cond,
             target_cond=target_cond,
+            sample_for_vis=sample_for_vis,
             **self.kwargs)
         
+        if sample_for_vis: 
+            nsample, trajectories = nsample
         # unnormalize prediction
         naction_pred = nsample[...,:Da]
         action_pred = self.normalizer['action'].unnormalize(naction_pred)
+
+        unnormalized_trajectories = []
+        if sample_for_vis: 
+            for traj in trajectories: 
+                ntraj = traj[..., :Da]
+                traj_action_pred = self.normalizer['action'].unnormalize(ntraj)
+                unnormalized_trajectories.append(traj_action_pred)
 
         # get action
         if self.pred_action_steps_only:
@@ -196,6 +217,10 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             action_obs_pred = obs_pred[:,start:end]
             result['action_obs_pred'] = action_obs_pred
             result['obs_pred'] = obs_pred
+
+        if sample_for_vis: 
+            return result, unnormalized_trajectories
+        
         return result
 
     # ========= training  ============
