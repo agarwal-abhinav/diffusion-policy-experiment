@@ -10,7 +10,7 @@ if __name__ == "__main__":
 import os
 import hydra
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, ListConfig
 import pathlib
 from torch.utils.data import DataLoader
 import copy
@@ -122,10 +122,27 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
         )
 
         # configure checkpoint
-        topk_manager = TopKCheckpointManager(
-            save_dir=os.path.join(self.output_dir, 'checkpoints'),
-            **cfg.checkpoint.topk
-        )
+        assert cfg.training.checkpoint_every % cfg.training.val_every == 0
+        if not isinstance(cfg.checkpoint, ListConfig):
+            # configure single checkpoint manager
+            topk_managers = [TopKCheckpointManager(
+                save_dir=os.path.join(self.output_dir, 'checkpoints'),
+                **cfg.checkpoint.topk
+            )]
+            save_last_ckpt = cfg.checkpoint.save_last_ckpt
+            save_last_snapshot = cfg.checkpoint.save_last_snapshot
+        else:
+            # configure multiple checkpoint managers
+            topk_managers = []
+            save_last_ckpt = False
+            save_last_snapshot = False
+            for ckpt_cfg in cfg.checkpoint:
+                topk_managers.append(TopKCheckpointManager(
+                    save_dir=os.path.join(self.output_dir, 'checkpoints'),
+                    **ckpt_cfg.topk
+                ))
+                save_last_ckpt = save_last_ckpt or ckpt_cfg.save_last_ckpt
+                save_last_snapshot = save_last_snapshot or ckpt_cfg.save_last_snapshot
 
         # device transfer
         device = torch.device(cfg.training.device)
