@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, reduce
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
@@ -29,6 +30,7 @@ class DiffusionTransformerHybridImagePolicy(BaseImagePolicy):
             n_action_steps, 
             n_obs_steps,
             num_inference_steps=None,
+            num_DDIM_inference_steps=10,
             # image
             crop_shape=(76, 76),
             obs_encoder_group_norm=False,
@@ -160,6 +162,19 @@ class DiffusionTransformerHybridImagePolicy(BaseImagePolicy):
         self.obs_encoder = obs_encoder
         self.model = model
         self.noise_scheduler = noise_scheduler
+
+        DDIM_noise_scheduler = DDIMScheduler(
+            num_train_timesteps=self.noise_scheduler.num_train_timesteps, 
+            beta_start=self.noise_scheduler.beta_start, 
+            beta_end=self.noise_scheduler.beta_end,
+            beta_schedule=self.noise_scheduler.beta_schedule,
+            clip_sample=self.noise_scheduler.clip_sample,
+            prediction_type=self.noise_scheduler.prediction_type
+        )
+        DDIM_noise_scheduler.set_timesteps(num_DDIM_inference_steps)
+        self.DDIM_noise_scheduler = DDIM_noise_scheduler
+        self.num_DDIM_inference_steps = num_DDIM_inference_steps
+
         self.mask_generator = LowdimMaskGenerator(
             action_dim=action_dim,
             obs_dim=0 if (obs_as_cond) else obs_feature_dim,
@@ -188,11 +203,17 @@ class DiffusionTransformerHybridImagePolicy(BaseImagePolicy):
     def conditional_sample(self, 
             condition_data, condition_mask,
             cond=None, generator=None,
+            use_DDIM=False,
             # keyword arguments to scheduler.step
             **kwargs
             ):
         model = self.model
-        scheduler = self.noise_scheduler
+        if use_DDIM: 
+            scheduler = self.DDIM_noise_scheduler
+            scheduler.set_timesteps(self.num_DDIM_inference_steps)
+        else: 
+            scheduler = self.noise_scheduler
+            scheduler.set_timesteps(self.num_inference_steps)
 
         trajectory = torch.randn(
             size=condition_data.shape, 
@@ -222,15 +243,15 @@ class DiffusionTransformerHybridImagePolicy(BaseImagePolicy):
 
         return trajectory
 
-
-    def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def predict_action(self, obs_dict: Dict[str, torch.Tensor], use_DDIM=False) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
         result: must include "action" key
         """
         assert 'past_action' not in obs_dict # not implemented yet
         # normalize input
-        nobs = self.normalizer.normalize(obs_dict)
+        nobs = self.normalizer.normalize(obs_dict['obs'])
+
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
         T = self.horizon
@@ -273,6 +294,7 @@ class DiffusionTransformerHybridImagePolicy(BaseImagePolicy):
             cond_data, 
             cond_mask,
             cond=cond,
+            use_DDIM=use_DDIM,
             **self.kwargs)
         
         # unnormalize prediction

@@ -73,6 +73,16 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
         assert isinstance(dataset, BaseImageDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
+        torch.save(normalizer, os.path.join(self.output_dir, 'normalizer.pt'))
+
+        # configure validation datasets
+        self.num_datasets = dataset.get_num_datasets()
+        self.sample_probabilities = dataset.get_sample_probabilities()
+        val_dataloaders = []
+        for i in range(self.num_datasets):
+            val_dataset = dataset.get_validation_dataset(i)
+            val_dataloaders.append(DataLoader(val_dataset, **cfg.val_dataloader))
+        self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloaders)
 
         # configure validation dataset
         val_dataset = dataset.get_validation_dataset()
@@ -153,6 +163,8 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
         
         # save batch for sampling
         train_sampling_batch = None
+
+        val_sampling_batches = [None] * self.num_datasets
 
         if cfg.training.debug:
             cfg.training.num_epochs = 2
@@ -235,46 +247,99 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                 # run validation
                 if (self.epoch % cfg.training.val_every) == 0:
                     with torch.no_grad():
-                        val_losses = list()
-                        with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
-                                leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
-                            for batch_idx, batch in enumerate(tepoch):
-                                batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                                loss = self.model.compute_loss(batch)
-                                val_losses.append(loss)
-                                if (cfg.training.max_val_steps is not None) \
-                                    and batch_idx >= (cfg.training.max_val_steps-1):
-                                    break
-                        if len(val_losses) > 0:
-                            val_loss = torch.mean(torch.tensor(val_losses)).item()
-                            # log epoch average validation loss
-                            step_log['val_loss'] = val_loss
+                        val_loss_per_dataset = []
+                        for dataset_idx in range(self.num_datasets): 
+                            val_dataloader = val_dataloaders[dataset_idx]
+                            val_losses = list()
+                            with tqdm.tqdm(val_dataloader, desc=f"Dataset {dataset_idx}Validation epoch {self.epoch}", 
+                                    leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                                for batch_idx, batch in enumerate(tepoch):
+                                    batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                                    if val_sampling_batches[dataset_idx] is None: 
+                                        val_sampling_batches[dataset_idx] = batch
+                                    loss = self.model.compute_loss(batch)
+                                    val_losses.append(loss)
+                                    if (cfg.training.max_val_steps is not None) \
+                                        and batch_idx >= (cfg.training.max_val_steps-1):
+                                        break
+                                    
+                            if len(val_losses) > 0:
+                                val_loss = torch.mean(torch.tensor(val_losses)).item()
+                                val_loss_per_dataset.append(val_loss)
+                                # log epoch average validation loss
+                                step_log[f'val_loss_{dataset_idx}'] = val_loss
+
+                        overall_val_loss = 0
+                        for i in range(self.num_datasets): 
+                            overall_val_loss += self.sample_probabilities[i] * val_loss_per_dataset[i]
+                        step_log['val_loss'] = overall_val_loss
 
                 # run diffusion sampling on a training batch
-                if (self.epoch % cfg.training.sample_every) == 0:
+                if (self.epoch % cfg.training.sample_every) == 0 and cfg.training.log_val_mse:
                     with torch.no_grad():
-                        # sample trajectory from training set, and evaluate difference
-                        batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                        obs_dict = batch['obs']
-                        gt_action = batch['action']
+                        val_ddpm_action_mses = []
+                        val_ddim_action_mses = []
+                        for dataset_idx in range(self.num_datasets): 
+                            val_sampling_batch = val_sampling_batches[dataset_idx]
+                            val_batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
+                            val_obs_dict = {key: val_batch[key] for key in val_batch.keys() if key != 'action'}
+                            val_gt_action = val_sampling_batch['action']
+
+                            if cfg.training.eval_mse_DDPM: 
+                                result = policy.predict_action(val_obs_dict, use_DDIM=False)
+                                pred_action = result['action_pred']
+                                mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
+                                step_log[f'val_ddpm_mse_{dataset_idx}'] = mse.item()
+                                val_ddpm_action_mses.append(mse.item())
+                            
+                            if cfg.training.eval_mse_DDIM: 
+                                result = policy.predict_action(val_obs_dict, use_DDIM=True)
+                                pred_action = result['action_pred']
+                                mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
+                                step_log[f'val_ddim_mse_{dataset_idx}'] = mse.item()
+                                val_ddim_action_mses.append(mse.item())
                         
-                        result = policy.predict_action(obs_dict)
-                        pred_action = result['action_pred']
-                        mse = torch.nn.functional.mse_loss(pred_action, gt_action)
-                        step_log['train_action_mse_error'] = mse.item()
-                        del batch
-                        del obs_dict
-                        del gt_action
-                        del result
-                        del pred_action
+                        # Compute weighted val action MSEs
+                        if cfg.training.eval_mse_DDPM:
+                            val_ = 0
+                            for i in range(self.num_datasets):
+                                val_ += self.sample_probabilities[i] * val_ddpm_action_mses[i]
+                            step_log['val_ddpm_mse'] = val_
+                        if cfg.training.eval_mse_DDIM:
+                            val_ = 0
+                            for i in range(self.num_datasets):
+                                val_ += self.sample_probabilities[i] * val_ddim_action_mses[i]
+                            step_log['val_ddim_mse'] = val_
+
+                        del val_batch
+                        del val_obs_dict
+                        del val_gt_action
+                        del result 
+                        del pred_action 
                         del mse
+
+                        # # sample trajectory from training set, and evaluate difference
+                        # batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
+                        # obs_dict = batch['obs']
+                        # gt_action = batch['action']
+                        
+                        # result = policy.predict_action(obs_dict)
+                        # pred_action = result['action_pred']
+                        # mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                        # step_log['train_action_mse_error'] = mse.item()
+                        # del batch
+                        # del obs_dict
+                        # del gt_action
+                        # del result
+                        # del pred_action
+                        # del mse
                 
                 # checkpoint
                 if (self.epoch % cfg.training.checkpoint_every) == 0:
                     # checkpointing
-                    if cfg.checkpoint.save_last_ckpt:
+                    if save_last_ckpt:
                         self.save_checkpoint()
-                    if cfg.checkpoint.save_last_snapshot:
+                    if save_last_snapshot:
                         self.save_snapshot()
 
                     # sanitize metric names
@@ -286,10 +351,19 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                     # We can't copy the last checkpoint here
                     # since save_checkpoint uses threads.
                     # therefore at this point the file might have been empty!
-                    topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
+                    topk_ckpt_paths = []
+                    for i, topk_manager in enumerate(topk_managers):
+                        protected_ckpts = self._get_protected_paths(i, topk_managers)
+                        ckpt_path = topk_manager.get_ckpt_path(metric_dict, protected_ckpts)
+                        topk_ckpt_paths.append(ckpt_path)
 
-                    if topk_ckpt_path is not None:
-                        self.save_checkpoint(path=topk_ckpt_path)
+                    for i, topk_ckpt_path in enumerate(topk_ckpt_paths):
+                        if topk_ckpt_path is not None:
+                            self.save_checkpoint(path=topk_ckpt_path)
+                            break
+                # last epoch => save last checkpoint
+                if self.epoch == cfg.training.num_epochs-1:
+                    self.save_checkpoint()
                 # ========= eval end for this epoch ==========
                 policy.train()
 
@@ -299,6 +373,58 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                 json_logger.log(step_log)
                 self.global_step += 1
                 self.epoch += 1
+
+    def _print_dataset_diagnostics(self, cfg, dataset, train_dataloader, val_dataloaders):
+        print()
+        print("============= Dataset Diagnostics =============")
+        print(f"Number of datasets: {self.num_datasets}")
+        print(f"Sample probabilities: {self.sample_probabilities}")
+        print(f"[Training] Number of batches: {len(train_dataloader)}")
+        for i in range(self.num_datasets):
+            print(f"[Val {i}] Number of batches: {len(val_dataloaders[i])}")
+        print()
+
+        for i in range(self.num_datasets):
+            val_dataset = dataset.get_validation_dataset(i)
+            print(f"Dataset {i}: {dataset.zarr_paths[i]}")
+            print("------------------------------------------------")
+            print(f"Number of training demonstrations: {np.sum(dataset.train_masks[i])}")
+            print(f"Number of validation demonstrations: {np.sum(dataset.val_masks[i])}")
+            print(f"Number of training samples: {len(dataset.samplers[i])}")
+            print(f"Number of validation samples: {len(val_dataset)}")
+            print(f"Approx. number of training batches: {len(dataset.samplers[i]) // cfg.dataloader.batch_size}")
+            print(f"Approx. number of validation batches: {len(val_dataset) // cfg.val_dataloader.batch_size}")
+            print(f"Sample probability: {self.sample_probabilities[i]}")
+            print()
+        print("================================================")
+
+    def _get_protected_paths(self, topk_manager_idx, topk_managers):
+        """
+        Returns the paths that should not be deleted by topk_manager
+        """
+        if len(topk_managers) == 1:
+            return set()
+        
+        topk_manager = topk_managers[topk_manager_idx]
+
+        protected_paths = set()
+        for manager in topk_managers:
+            protected_paths.update(manager.get_path_value_map().keys())
+        
+        # Remove the paths that can be deleted
+        # If a ckpt is ONLY being tracked by topk_manager, it can be deleted
+        for path in topk_manager.get_path_value_map().keys():
+            protected = False
+            for i, manager in enumerate(topk_managers):
+                if i == topk_manager_idx:
+                    continue
+                if path in manager.get_path_value_map().keys():
+                    protected = True
+                    break
+            if not protected:
+                protected_paths.remove(path)
+        
+        return protected_paths
 
 @hydra.main(
     version_base=None,
