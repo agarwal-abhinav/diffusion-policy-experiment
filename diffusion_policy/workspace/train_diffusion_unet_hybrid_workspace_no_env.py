@@ -135,6 +135,22 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             last_epoch=self.global_step-1
         )
 
+        from collections import defaultdict
+
+        if cfg.policy.rescale_encoder_gradients == True: 
+            hooks_by_param = defaultdict(list)
+            for name, p in self.model.obs_encoder.named_parameters():
+                # getattr will return {} if no hooks were registered
+                hooks = getattr(p, '_backward_hooks', {})
+                if hooks:
+                    hooks_by_param[name] = list(hooks.items())
+
+            # Print a report
+            for name, hook_list in hooks_by_param.items():
+                print(f"Param {name} has {len(hook_list)} hook(s):")
+                for hook_id, fn in hook_list:
+                    print(f"  id={hook_id}, fn={fn}")
+
         # configure ema
         ema: EMAModel = None
         if cfg.training.use_ema:

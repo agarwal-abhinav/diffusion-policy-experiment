@@ -52,6 +52,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             initialize_overhead_encoder=None,
             freeze_self_trained_obs_encoder=False,
             inference_loading = False, 
+            rescale_encoder_gradients=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -234,6 +235,17 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                         param.requires_grad = False
         self.model = model
         self.noise_scheduler = noise_scheduler
+
+        if rescale_encoder_gradients: 
+            def scale_grad_hook(factor: float): 
+                def hook(grad): 
+                    return grad.div(factor)
+                
+                return hook 
+            
+            for p in self.obs_encoder.parameters():
+                if p.requires_grad:
+                    p.register_hook(scale_grad_hook(float(n_obs_steps)))
         
         # Create DDIM sampler
         DDIM_noise_scheduler = DDIMScheduler(
