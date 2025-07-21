@@ -137,7 +137,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
 
         from collections import defaultdict
 
-        if cfg.policy.rescale_encoder_gradients == True: 
+        if getattr(cfg.policy, "rescale_encoder_gradients", False) == True:
             hooks_by_param = defaultdict(list)
             for name, p in self.model.obs_encoder.named_parameters():
                 # getattr will return {} if no hooks were registered
