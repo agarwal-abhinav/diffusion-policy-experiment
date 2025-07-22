@@ -24,9 +24,9 @@ echo "[submit_training.sh] Running training code..."
 echo "[submit_training.sh] Date: $DATE"
 echo "[submit_training.sh] Time: $TIME"
 
-CONFIG_DIR=config/planar_pushing/diffusion_transformer_training/context_length_exp_adam_data
-CONFIG_NAME=5_obs.yaml
-HYDRA_RUN_DIR=data/outputs/planar_pushing/diffusion_transformer_training/context_length_exp_adam_data_try_2/5_obs
+CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_resnet_plus_transformer/cls_token_only
+CONFIG_NAME=1_obs.yaml
+HYDRA_RUN_DIR=data/outputs/planar_pushing/context_length_exp_adam_data_resnet_plus_transformer/cls_token_only/1_obs
 
 # CONFIG_DIR=config/grasp_two_bins/constant_model_size_frozen_encoder/2_frozen
 # CONFIG_NAME=16_obs.yaml
