@@ -1,17 +1,16 @@
 # config for target conditioned experiments
 
 _target_: diffusion_policy.workspace.train_diffusion_unet_lowdim_workspace_no_env.TrainDiffusionUnetLowdimWorkspaceNoEnv
-action_dim: 2
 checkpoint:
   save_last_ckpt: true
   save_last_snapshot: false
   topk:
     format_str: epoch={epoch:04d}-val_loss={val_loss:.3f}.ckpt
-    k: 5
+    k: 10
     mode: min
     monitor_key: val_loss
 dataloader:
-  batch_size: 128
+  batch_size: 256
   num_workers: 1
   persistent_workers: false
   pin_memory: true
@@ -24,12 +23,11 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: default
-horizon: 36
 logging:
   group: null
   id: null
   mode: online
-  name: 16_obs_try_desktop_lh
+  name: 2_obs_cms_horizon_32
   project: planar_integrator_test
   resume: true
   tags:
@@ -41,11 +39,14 @@ multi_run:
   wandb_name_base: train_diffusion_unet_lowdim_maze_target_conditioned
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 16
+n_obs_steps: 2
+horizon: 32
+obs_dim: 2
+action_dim: 2
+target_dim: null
 name: train_diffusion_unet_lowdim
 obs_as_global_cond: true
 obs_as_local_cond: false
-obs_dim: 2
 optimizer:
   _target_: torch.optim.AdamW
   betas:
@@ -56,11 +57,11 @@ optimizer:
   weight_decay: 1.0e-06
 past_action_visible: false
 policy:
-  _target_: diffusion_policy.policy.diffusion_unet_lowdim_policy.DiffusionUnetLowdimPolicy
-  obs_dim: 2
-  action_dim: 2
-  target_dim: 2
-  horizon: 36
+  _target_: diffusion_policy.policy.diffusion_unet_lowdim_policy_constant_size.DiffusionUnetLowdimPolicy
+  obs_dim: ${obs_dim}
+  action_dim: ${action_dim}
+  target_dim: ${target_dim}
+  horizon: ${horizon}
   model:
     _target_: diffusion_policy.model.diffusion.conditional_unet1d.ConditionalUnet1D
     cond_predict_scale: true
@@ -69,14 +70,14 @@ policy:
     - 64
     - 128
     - 256
-    global_cond_dim: 32 # 16*2 dim for obs history
-    target_dim: null 
-    input_dim: 2
+    global_cond_dim: 32 # 16 is the max context length we are testing
+    target_dim: ${target_dim} 
+    input_dim: ${action_dim}
     kernel_size: 3
     local_cond_dim: null
     n_groups: 8
-  n_action_steps: 8
-  n_obs_steps: 16
+  n_action_steps: ${n_action_steps}
+  n_obs_steps: ${n_obs_steps}
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -94,20 +95,20 @@ policy:
   pred_action_steps_only: false
 pred_action_steps_only: false
 task:
-  action_dim: 2
+  action_dim: ${action_dim}
   dataset:
     _target_: diffusion_policy.dataset.drake_maze_target_conditioned_dataset.MazeLowdimTargetConditionedDataset
-    horizon: 36
+    horizon: ${horizon}
     max_train_episodes: null # I think this caps the number of training episodes
-    pad_after: 7
-    pad_before: 1
+    pad_after: ${eval:${n_action_steps} - 1}
+    pad_before: ${eval:${n_obs_steps} - 1}
     seed: 42
-    val_ratio: 0.1
+    val_ratio: 0.01
     # Override if using smaller dataset
     # ex. task.dataset.zarr_path=data/maze/maze_dataset_target_conditioned_100.zarr
     zarr_path: data/diffusion_experiments/planar_integrator_task/collection_4_2000_each.zarr
   name: maze_lowdim_target_conditioned
-  obs_dim: 2
+  obs_dim: ${obs_dim}
 task_name: maze_lowdim_target_conditioned
 training:
   checkpoint_every: 5
@@ -118,7 +119,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 300
+  num_epochs: 200
   resume: true
   rollout_every: 5
   sample_every: 5

@@ -167,6 +167,7 @@ class ConditionalUnet1D(nn.Module):
         self.up_modules = up_modules
         self.down_modules = down_modules
         self.final_conv = final_conv
+        self.global_cond_dim = global_cond_dim
 
         logger.info(
             "number of parameters: %e", sum(p.numel() for p in self.parameters())

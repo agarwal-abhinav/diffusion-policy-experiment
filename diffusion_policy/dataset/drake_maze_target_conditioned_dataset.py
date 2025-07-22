@@ -65,6 +65,8 @@ class MazeLowdimTargetConditionedDataset(BaseLowdimDataset):
         self.pad_before = pad_before
         self.pad_after = pad_after
 
+        self.zarr_path = zarr_path
+
     def get_validation_dataset(self):
         val_set = copy.copy(self)
         val_set.sampler = SequenceSampler(

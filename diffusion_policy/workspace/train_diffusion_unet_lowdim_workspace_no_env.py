@@ -75,10 +75,13 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
         assert isinstance(dataset, BaseLowdimDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
+        torch.save(normalizer, os.path.join(self.output_dir, 'normalizer.pt'))
 
         # configure validation dataset
         val_dataset = dataset.get_validation_dataset()
         val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+
+        self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloader)
 
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
@@ -295,6 +298,25 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                 json_logger.log(step_log)
                 self.global_step += 1
                 self.epoch += 1
+
+    def _print_dataset_diagnostics(self, cfg, dataset, train_dataloader, val_dataloader):
+        print()
+        print("============= Dataset Diagnostics =============")
+        print(f"[Training] Number of batches: {len(train_dataloader)}")
+        print(f"[Val] Number of batches: {len(val_dataloader)}")
+        print()
+
+        val_dataset = dataset.get_validation_dataset()
+        print(f"Dataset: {dataset.zarr_path}")
+        print("------------------------------------------------")
+        print(f"Number of training demonstrations: {np.sum(dataset.train_mask)}")
+        print(f"Number of validation demonstrations: {np.sum(dataset.val_mask)}")
+        print(f"Number of training samples: {len(dataset.sampler)}")
+        print(f"Number of validation samples: {len(val_dataset)}")
+        print(f"Approx. number of training batches: {len(dataset.sampler) // cfg.dataloader.batch_size}")
+        print(f"Approx. number of validation batches: {len(val_dataset) // cfg.val_dataloader.batch_size}")
+        print()
+        print("================================================")
 
 @hydra.main(
     version_base=None,

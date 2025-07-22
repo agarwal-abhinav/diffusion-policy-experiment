@@ -75,10 +75,13 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
         assert isinstance(dataset, BaseLowdimDataset)
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
+        torch.save(normalizer, os.path.join(self.output_dir, 'normalizer.pt'))
 
         # configure validation dataset
         val_dataset = dataset.get_validation_dataset()
         val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+
+        self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloader)
 
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
@@ -104,13 +107,6 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                 cfg.ema,
                 model=self.ema_model)
 
-        # configure env runner
-        env_runner: BaseLowdimRunner
-        env_runner = hydra.utils.instantiate(
-            cfg.task.env_runner,
-            output_dir=self.output_dir)
-        assert isinstance(env_runner, BaseLowdimRunner)
-
         # configure logging
         wandb_run = wandb.init(
             dir=str(self.output_dir),
@@ -130,6 +126,15 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
         )
 
         # device transfer
+        if cfg.training.device == "mps": 
+            # MPS does not support float64
+            self.model = self.model.to(torch.float32)
+            if self.ema_model is not None:
+                self.ema_model = self.ema_model.to(torch.float32)
+            for state in self.optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(torch.float32)
         device = torch.device(cfg.training.device)
         self.model.to(device)
         if self.ema_model is not None:
@@ -159,6 +164,8 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                         leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
+                        if cfg.training.device == "mps": 
+                            batch = dict_apply(batch, lambda x: x.to(torch.float32))
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                         if train_sampling_batch is None:
                             train_sampling_batch = batch
@@ -211,12 +218,6 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                     policy = self.ema_model
                 policy.eval()
 
-                # run rollout
-                if (self.epoch % cfg.training.rollout_every) == 0:
-                    runner_log = env_runner.run(policy)
-                    # log all
-                    step_log.update(runner_log)
-
                 # run validation
                 if (self.epoch % cfg.training.val_every) == 0:
                     with torch.no_grad():
@@ -224,6 +225,8 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                         with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
                                 leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                             for batch_idx, batch in enumerate(tepoch):
+                                if cfg.training.device == "mps": 
+                                    batch = dict_apply(batch, lambda x: x.to(torch.float32))
                                 batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                                 loss = self.model.compute_loss(batch)
                                 val_losses.append(loss)
@@ -240,7 +243,10 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                     with torch.no_grad():
                         # sample trajectory from training set, and evaluate difference
                         batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                        obs_dict = {'obs': batch['obs']}
+                        if cfg.training.device == "mps": 
+                            batch = dict_apply(batch, lambda x: x.to(torch.float32))
+                        obs_dict = {'obs': batch['obs'], 
+                                    'target': batch['target']}
                         gt_action = batch['action']
                         
                         result = policy.predict_action(obs_dict)
@@ -252,7 +258,9 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                         else:
                             pred_action = result['action_pred']
                         mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                        # log
                         step_log['train_action_mse_error'] = mse.item()
+                        # release RAM
                         del batch
                         del obs_dict
                         del gt_action
@@ -290,6 +298,25 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                 json_logger.log(step_log)
                 self.global_step += 1
                 self.epoch += 1
+
+    def _print_dataset_diagnostics(self, cfg, dataset, train_dataloader, val_dataloader):
+        print()
+        print("============= Dataset Diagnostics =============")
+        print(f"[Training] Number of batches: {len(train_dataloader)}")
+        print(f"[Val] Number of batches: {len(val_dataloader)}")
+        print()
+
+        val_dataset = dataset.get_validation_dataset()
+        print(f"Dataset: {dataset.zarr_path}")
+        print("------------------------------------------------")
+        print(f"Number of training demonstrations: {np.sum(dataset.train_mask)}")
+        print(f"Number of validation demonstrations: {np.sum(dataset.val_mask)}")
+        print(f"Number of training samples: {len(dataset.sampler)}")
+        print(f"Number of validation samples: {len(val_dataset)}")
+        print(f"Approx. number of training batches: {len(dataset.sampler) // cfg.dataloader.batch_size}")
+        print(f"Approx. number of validation batches: {len(val_dataset) // cfg.val_dataloader.batch_size}")
+        print()
+        print("================================================")
 
 @hydra.main(
     version_base=None,

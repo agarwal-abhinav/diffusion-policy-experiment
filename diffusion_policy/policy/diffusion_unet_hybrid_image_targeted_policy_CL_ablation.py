@@ -20,7 +20,28 @@ import robomimic.models.base_nets as rmbn
 import robomimic.models.obs_core as rmobsc
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
+import dill
+import hydra
 
+def load_other_policy(policy_name: str): 
+    payload = torch.load(open(policy_name, "rb"), pickle_module=dill)
+
+    model_cfg = payload["cfg"]
+
+    model_workspace_cls = hydra.utils.get_class(model_cfg._target_)
+    model_workspace = model_workspace_cls(model_cfg)
+    model_workspace.load_payload(payload, exclude_keys=None, include_keys=None)
+
+    # if load_normalzer_from_file: 
+    #     normalizer_path = os.path.join(os.path.dirname(os.path.dirname(policy_name)), "normalizer.pt")
+    #     normalizer = torch.load(normalizer_path, weights_only=False)
+
+    policy = model_workspace.model 
+    if model_cfg.training.use_ema: 
+        policy = model_workspace.ema_model 
+
+    policy.eval()
+    return policy
 
 class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def __init__(self, 
@@ -50,6 +71,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             initialize_obs_encoder=None,
             initialize_wrist_encoder=None, 
             initialize_overhead_encoder=None,
+            initialize_all_weights=None,
             freeze_self_trained_obs_encoder=False,
             inference_loading = False, 
             rescale_encoder_gradients=False,
@@ -65,12 +87,19 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if initialize_obs_encoder is not None: 
             assert initialize_wrist_encoder is None 
             assert initialize_overhead_encoder is None
+            assert initialize_all_weights is None
         if initialize_wrist_encoder is not None:
             assert initialize_obs_encoder is None 
             assert initialize_overhead_encoder is None
+            assert initialize_all_weights is None
         if initialize_overhead_encoder is not None:
             assert initialize_obs_encoder is None 
             assert initialize_wrist_encoder is None
+            assert initialize_all_weights is None
+        if initialize_all_weights is not None:
+            assert initialize_obs_encoder is None 
+            assert initialize_wrist_encoder is None
+            assert initialize_overhead_encoder is None
 
         # parse shape_meta
         action_shape = shape_meta['action']['shape']
@@ -233,6 +262,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 if freeze_self_trained_obs_encoder: 
                     for param in self.obs_encoder.parameters(): 
                         param.requires_grad = False
+
         self.model = model
         self.noise_scheduler = noise_scheduler
 
@@ -282,6 +312,12 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if num_inference_steps is None:
             num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps
+
+        if inference_loading == False: 
+            if initialize_all_weights is not None: 
+                other_policy = load_other_policy(initialize_all_weights)
+                self.load_state_dict(other_policy.module.state_dict(), strict=True)
+                print(f"Loaded weights from {initialize_all_weights}")
 
         print("Diffusion params: %e" % sum(p.numel() for p in self.model.parameters()))
         print("Vision params: %e" % sum(p.numel() for p in self.obs_encoder.parameters()))

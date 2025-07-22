@@ -62,9 +62,12 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps
 
+        self.conditioning_size = self.model.global_cond_dim
+        self.conditioning_completing_ones = torch.ones(1, self.conditioning_size - self.obs_dim * self.n_obs_steps)
+
         print("Diffusion params: %e" % sum(p.numel() for p in self.model.parameters()))
         print("Global condition dim: %e" % self.model.global_cond_dim)
-    
+
     # ========= inference  ============
     def conditional_sample(self, 
             condition_data, condition_mask,
@@ -159,6 +162,11 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
         elif self.obs_as_global_cond:
             # condition through global feature
             global_cond = nobs[:,:To].reshape(nobs.shape[0], -1)
+            global_cond = torch.cat([
+                global_cond, self.conditioning_completing_ones.expand(
+                    nobs.shape[0], -1
+                ).to(global_cond.device)
+            ], dim=-1)
             shape = (B, T, Da)
             if self.pred_action_steps_only:
                 shape = (B, self.n_action_steps, Da)
@@ -252,6 +260,11 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
             slice_end = self.n_obs_steps
             global_cond = obs[:,:slice_end,:].reshape(
                 obs.shape[0], -1)
+            global_cond = torch.cat([
+                global_cond, self.conditioning_completing_ones.expand(
+                    obs.shape[0], -1
+                ).to(global_cond.device)
+            ], dim=-1)
             if self.pred_action_steps_only:
                 To = self.n_obs_steps
                 start = To

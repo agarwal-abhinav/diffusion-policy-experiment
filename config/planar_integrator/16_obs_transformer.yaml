@@ -1,0 +1,140 @@
+_target_: diffusion_policy.workspace.train_diffusion_transformer_lowdim_workspace.TrainDiffusionTransformerLowdimWorkspace
+
+checkpoint:
+  save_last_ckpt: true
+  save_last_snapshot: false
+  topk:
+    format_str: epoch={epoch:04d}-val_loss={val_loss:.3f}.ckpt
+    k: 5
+    mode: min
+    monitor_key: val_loss
+
+dataloader:
+  batch_size: 256
+  num_workers: 1
+  shuffle: True
+  pin_memory: True
+  persistent_workers: False
+
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  update_after_step: 0
+  inv_gamma: 1.0
+  power: 0.75
+  min_value: 0.0
+  max_value: 0.9999
+
+exp_name: default
+
+logging:
+  group: null
+  id: null
+  mode: online
+  name: 16_obs_try_desktop_lh
+  project: planar_integrator_test
+  resume: true
+  tags:
+  - train_diffusion_unet_lowdim_target_conditioned
+  - default
+
+multi_run:
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+
+n_action_steps: 8 
+n_latency_steps: 0
+n_obs_steps: 2 
+horizon: 32
+obs_dim: 2 
+action_dim: 2 
+target_dim: null 
+obs_as_cond: true 
+pred_action_steps_only: false 
+
+optimizer:
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-3
+  betas: [0.9, 0.95]
+
+policy: 
+  _target_: diffusion_policy.policy.diffusion_transformer_lowdim_policy.DiffusionTransformerLowdimPolicy 
+
+  model:
+    _target_: diffusion_policy.model.diffusion.transformer_for_diffusion.TransformerForDiffusion
+    input_dim: ${obs_dim}
+    output_dim: ${policy.model.input_dim}
+    horizon: ${horizon}
+    n_obs_steps: ${n_obs_steps}
+    cond_dim: ${obs_dim}
+
+    n_layer: 8
+    n_head: 4 
+    n_emb: 256 
+    p_drop_emb: 0.0 
+    p_drop_attn: 0.3 
+
+    causal_attn: True 
+    time_as_cond: True 
+    obs_as_cond: ${obs_as_cond}
+    n_cond_layers: 0 # >0: use transformer encoder for cond, otherwise use MLP
+
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+    num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    variance_type: fixed_small # Yilun's paper uses fixed_small_log instead, but easy to cause Nan
+    clip_sample: True # required when predict_epsilon=False
+    prediction_type: epsilon # or sample
+
+  horizon: ${horizon}
+  obs_dim: ${obs_dim}
+  action_dim: ${action_dim}
+  n_action_steps: ${n_action_steps}
+  n_obs_steps: ${n_obs_steps}
+  num_inference_steps: 100
+  obs_as_cond: ${obs_as_cond}
+  pred_action_steps_only: ${pred_action_steps_only}
+
+task: 
+  action_dim: ${action_dim}
+  dataset: 
+    _target_: diffusion_policy.dataset.drake_maze_target_conditioned_dataset.MazeLowdimTargetConditionedDataset
+    horizon: ${horizon}
+    max_train_episodes: null 
+    pad_after: ${eval:${n_action_steps} - 1}
+    pad_before: ${eval:${n_obs_steps} - 1}
+    seed: 42
+    val_ratio: 0.01
+    # Override if using smaller dataset
+    # ex. task.dataset.zarr_path=data/maze/maze_dataset_target_conditioned_100.zarr
+    zarr_path: data/diffusion_experiments/planar_integrator_task/collection_4_2000_each.zarr
+  name: dit_planar_integrator 
+  obs_dim: ${obs_dim}
+task_name: dit_planar_integrator
+
+training: 
+  device: cuda:0
+  checkpoint_every: 5
+  debug: false 
+  gradient_accumulate_every: 1 
+  lr_schedule: cosine 
+  lr_warmup_steps: 1000 
+  num_epochs: 1000 
+  use_ema: true 
+  max_train_steps: null 
+  max_val_steps: null 
+  resume: true 
+  rollout_every: 5 
+  sample_every: 5 
+  seed: 42 
+  tqdm_interval_sec: 1.0 
+  val_every: 1 
+
+val_dataloader:
+  batch_size: 256
+  num_workers: 1
+  persistent_workers: false
+  pin_memory: true
+  shuffle: false
