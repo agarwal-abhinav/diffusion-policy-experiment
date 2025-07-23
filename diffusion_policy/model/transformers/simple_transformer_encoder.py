@@ -18,7 +18,7 @@ class AllFeedEmbeddingTransformer(nn.Module):
         for key in self.obs_keys: 
             if key == "agent_pos": 
                 encoder_dict[key] = nn.Sequential(
-                        nn.Linear(3, d_model), 
+                        nn.Linear(input_slicing_indices[1], d_model), # this only works for 2 cameras
                         nn.GELU(), 
                         nn.Linear(d_model, d_model), 
                         SingleFeedEmbeddingTransformer(
@@ -26,7 +26,7 @@ class AllFeedEmbeddingTransformer(nn.Module):
                             n_head=n_head, 
                             dim_feedforward=dim_feedforward, 
                             max_tokens=context_length, 
-                            downsample_tokens=3
+                            downsample_tokens=input_slicing_indices[1]
                         )
                     )
             else: 

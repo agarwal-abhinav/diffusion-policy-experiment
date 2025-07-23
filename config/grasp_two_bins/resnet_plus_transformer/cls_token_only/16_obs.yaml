@@ -65,7 +65,7 @@ past_action_visible: false
 shape_meta:
   action:
     shape:
-    - 2
+    - 13
   obs:
     agent_pos:
       shape:
@@ -73,7 +73,7 @@ shape_meta:
       type: low_dim
     overhead_camera:
       shape:
-      - 13
+      - 3
       - 128
       - 128
       type: rgb

@@ -175,6 +175,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             obs_feature_dim = obs_encoder.output_shape()[0]
             project_obs_embedding = False
 
+        self.obs_feature_dim = obs_feature_dim
         # create diffusion model
         # obs_feature_dim = obs_encoder.output_shape()[0]
         input_dim = action_dim + obs_feature_dim
@@ -248,9 +249,15 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 if p.requires_grad:
                     p.register_hook(scale_grad_hook(float(n_obs_steps)))
 
+        action_slicing_dim = shape_meta['obs']['agent_pos']['shape'][0]
+
+        # this only works for 2 camera right now
+        input_slicing_indices = [0, action_slicing_dim, action_slicing_dim + 64, action_slicing_dim + 128]
+        assert input_slicing_indices[-1] == self.obs_feature_dim
         self.resnet_post_processer = AllFeedEmbeddingTransformer(
             obs_keys=list(shape_meta['obs'].keys()), 
-            context_length=n_obs_steps
+            context_length=n_obs_steps, 
+            input_slicing_indices=input_slicing_indices,
         )
         
         # Create DDIM sampler
@@ -376,7 +383,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(B, -1)
-            global_cond = global_cond.view(B, self.n_obs_steps, 131)
+            global_cond = global_cond.view(B, self.n_obs_steps, self.obs_feature_dim)
             global_cond = self.resnet_post_processer(global_cond)
 
             # empty data for action
@@ -448,7 +455,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
-            global_cond = global_cond.view(batch_size, self.n_obs_steps, 131)
+            global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
             global_cond = self.resnet_post_processer(global_cond)
         else:
             nactions = self.normalizer['action'].normalize(batch['action'])
@@ -531,7 +538,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
-            global_cond = global_cond.view(batch_size, self.n_obs_steps, 131)
+            global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
             global_cond = self.resnet_post_processer(global_cond)
         else:
             # reshape B, T, ... to B*T
@@ -586,7 +593,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
-            global_cond = global_cond.view(batch_size, self.n_obs_steps, 131)
+            global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
             global_cond = self.resnet_post_processer(global_cond)
         else:
             # reshape B, T, ... to B*T
