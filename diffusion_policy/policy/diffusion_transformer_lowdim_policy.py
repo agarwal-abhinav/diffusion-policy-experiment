@@ -50,6 +50,8 @@ class DiffusionTransformerLowdimPolicy(BaseLowdimPolicy):
         if num_inference_steps is None:
             num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps
+
+        print("Diffusion params: %e" % sum(p.numel() for p in self.model.parameters()))
     
     # ========= inference  ============
     def conditional_sample(self, 
