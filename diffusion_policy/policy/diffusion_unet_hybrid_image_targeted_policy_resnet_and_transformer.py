@@ -23,6 +23,26 @@ from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
 from diffusion_policy.model.transformers.simple_transformer_encoder import AllFeedEmbeddingTransformer
 
+def make_cls_causal_mask(L: int, device=None) -> torch.Tensor:
+    """
+    Creates an L×L boolean mask where:
+      - mask[0, j] = False  (CLS token attends to every key j)
+      - for i > 0: mask[i, j] = False if j <= i (can attend to past+present)
+                 = True  if j > i   (cannot attend to future)
+    """
+    # start with all True (i.e. everything masked)
+    mask = torch.ones(L, L, dtype=torch.bool, device=device)
+
+    # CLS row: allow all
+    mask[0, :] = False
+
+    # rows i=1..L-1: allow j=0..i
+    idxs = torch.arange(L, device=device)
+    # for each row i, unmask columns j <= i
+    mask[1:] = idxs[None, :] > idxs[:, None][1:]  # truth table
+
+    return mask
+
 class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def __init__(self, 
             shape_meta: dict,
@@ -35,7 +55,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             obs_as_global_cond=True,
             use_target_cond=False,
             target_dim=None,
-            max_obs_steps_for_ablation=16,
+            causal_transformer=False, 
             crop_shape=(76, 76),
             diffusion_step_embed_dim=256,
             down_dims=(256,512,1024),
@@ -108,7 +128,6 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             dataset_type='ph', 
             pretrained_encoder=pretrained_encoder,
             freeze_pretrained_encoder=freeze_pretrained_encoder)
-        self.max_obs_steps_for_ablation = max_obs_steps_for_ablation
                 
         with config.unlocked():
             # set config with shape_meta
@@ -296,6 +315,12 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps
 
+        if causal_transformer: 
+            transformer_mask = make_cls_causal_mask(self.n_obs_steps + 1)
+            self.register_buffer("transformer_mask", transformer_mask)
+        else: 
+            self.transformer_mask = None
+
         print("Diffusion params: %e" % sum(p.numel() for p in self.model.parameters()))
         print("Vision params: %e" % sum(p.numel() for p in self.obs_encoder.parameters()))
         print("Resnet post-processor params: %e" % sum(p.numel() for p in self.resnet_post_processer.parameters()))
@@ -384,7 +409,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(B, -1)
             global_cond = global_cond.view(B, self.n_obs_steps, self.obs_feature_dim)
-            global_cond = self.resnet_post_processer(global_cond)
+            global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
 
             # empty data for action
             cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
@@ -456,7 +481,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
-            global_cond = self.resnet_post_processer(global_cond)
+            global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
         else:
             nactions = self.normalizer['action'].normalize(batch['action'])
             horizon = nactions.shape[1]
@@ -539,7 +564,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
-            global_cond = self.resnet_post_processer(global_cond)
+            global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
@@ -594,7 +619,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
-            global_cond = self.resnet_post_processer(global_cond)
+            global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))

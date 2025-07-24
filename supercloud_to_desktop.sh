@@ -12,7 +12,7 @@ TARGET_USER="aagarwal2"
 TARGET_HOST="txe1-login.mit.edu"
 # TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/grasp_two_bins/constant_model_size_frozen_encoder/2_frozen/5_obs/checkpoints/latest.ckpt"
 # TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/planar_pushing/diffusion_transformer_training/context_length_exp_adam_data/5_obs"
-TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/planar_pushing/context_length_exp_adam_data_resnet_plus_transformer/cls_token_only/12_obs"
+TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/planar_pushing/context_length_exp_adam_data_resnet_plus_transformer/cls_token_only/16_obs"
 
 # TARGET_DIR="/home/gridsan/aagarwal2/RLG/diffusion-search-learning/outputs/diffusion_experiments/random_system_seed_0_controller_noise_0.5/partially_observable_ss/0_mean_50_context/checkpoints/latest.ckpt"
 

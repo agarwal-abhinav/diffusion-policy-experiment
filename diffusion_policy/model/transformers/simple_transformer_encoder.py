@@ -1,6 +1,17 @@
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import torch.nn as nn
 import torch
+import inspect
+
+class MaskSequential(nn.Sequential): 
+    def forward(self, input, mask=None): 
+        for module in self: 
+            sig = inspect.signature(module.forward)
+            if 'mask' in sig.parameters: 
+                input = module(input, mask=mask)
+            else: 
+                input = module(input)
+        return input
 
 class AllFeedEmbeddingTransformer(nn.Module): 
     def __init__(self, 
@@ -17,7 +28,7 @@ class AllFeedEmbeddingTransformer(nn.Module):
         encoder_dict = nn.ModuleDict()
         for key in self.obs_keys: 
             if key == "agent_pos": 
-                encoder_dict[key] = nn.Sequential(
+                encoder_dict[key] = MaskSequential(
                         nn.Linear(input_slicing_indices[1], d_model), # this only works for 2 cameras
                         nn.GELU(), 
                         nn.Linear(d_model, d_model), 
@@ -30,7 +41,7 @@ class AllFeedEmbeddingTransformer(nn.Module):
                         )
                     )
             else: 
-                encoder_dict[key] = nn.Sequential(
+                encoder_dict[key] = MaskSequential(
                     SingleFeedEmbeddingTransformer(
                         d_model=d_model,
                         n_head=n_head, 
@@ -40,7 +51,7 @@ class AllFeedEmbeddingTransformer(nn.Module):
                 )
         self.encoder_dict = encoder_dict
     
-    def forward(self, obs): 
+    def forward(self, obs, mask=None): 
         # obs is of shape B, n_obs_steps, D_overall_embedding
         temp_dict = {}
         for i, key in enumerate(self.obs_keys): 
@@ -49,7 +60,7 @@ class AllFeedEmbeddingTransformer(nn.Module):
         # Pass the sliced inputs through their respective encoders
         encoder_outputs = []
         for key in self.obs_keys: 
-            encoder_outputs.append(self.encoder_dict[key](temp_dict[key])[0])
+            encoder_outputs.append(self.encoder_dict[key](temp_dict[key], mask=mask)[0])
 
         concatenated = torch.cat(encoder_outputs, dim=-1)
         return concatenated
@@ -91,7 +102,7 @@ class SingleFeedEmbeddingTransformer(nn.Module):
         if self.down_sample_tokens: 
             self.downsample = nn.Linear(d_model, self.down_sample_tokens)  
 
-    def forward(self, x): 
+    def forward(self, x, mask=None): 
         batch_size, seq_len, embed_dim = x.shape 
 
         cls = self.cls_token.expand(batch_size, -1, -1)
@@ -99,7 +110,7 @@ class SingleFeedEmbeddingTransformer(nn.Module):
 
         tokens = tokens + self.pos_embed
 
-        out = self.transformer_encoder(tokens)
+        out = self.transformer_encoder(tokens, mask=mask)
 
         if self.down_sample_tokens: 
             out = self.downsample(out)
