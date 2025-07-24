@@ -248,6 +248,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                     print(f"{name:60s} requires_grad={p.requires_grad}")
 
             if initialize_obs_encoder is not None: 
+                print(f"Loading obs encoder from {initialize_obs_encoder}")
                 state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
                 self.obs_encoder.load_state_dict(state_dict, strict=True)
             
@@ -326,6 +327,9 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         print("Resnet post-processor params: %e" % sum(p.numel() for p in self.resnet_post_processer.parameters()))
         if project_obs_embedding:
             print("Vision projector params: %e" % sum(p.numel() for p in self.obs_embedding_projector.parameters()))
+
+        total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        print(f"Total trainable parameters: {total_params}")
     
     # ========= inference  ============
     def conditional_sample(self, 
