@@ -6,14 +6,14 @@ checkpoint:
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 5
+      k: 10
       mode: min
       monitor_key: val_loss_0
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 5
+      k: 10
       mode: min
       monitor_key: val_ddim_mse_0
 dataloader:
@@ -22,7 +22,7 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
-dataset_obs_steps: 1
+dataset_obs_steps: 10
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -37,8 +37,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: 1_initial
-  project: t_pushing_resnet_plus_transform_cls_token_only
+  name: 12_initial
+  project: t_pushing_cl_ablation
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -50,7 +50,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 1
+n_obs_steps: 12
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -99,7 +99,7 @@ policy:
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
-  n_obs_steps: 1
+  n_obs_steps: 12
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -121,13 +121,13 @@ task:
     _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
     shape_meta: ${shape_meta}
     horizon: 24
-    n_obs_steps: 1
+    n_obs_steps: 12
     pad_after: 7
-    pad_before: 1
+    pad_before: 9
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
-      max_train_episodes: 160
+      max_train_episodes: 320
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image

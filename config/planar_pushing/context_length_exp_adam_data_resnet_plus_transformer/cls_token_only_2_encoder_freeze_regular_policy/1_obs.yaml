@@ -116,6 +116,8 @@ policy:
   target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
+  initialize_obs_encoder: 'data/outputs/context_length_exp_adam_data_constant_model_size/2_obs/best_ckpt_encoder.pth'
+  freeze_self_trained_obs_encoder: true
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
