@@ -20,7 +20,8 @@ class AllFeedEmbeddingTransformer(nn.Module):
                  d_model=64, 
                  n_head=8, 
                  dim_feedforward=256, 
-                 input_slicing_indices = [0, 3, 67, 131]): 
+                 input_slicing_indices = [0, 3, 67, 131], 
+                 num_cls_tokens=1): 
         super(AllFeedEmbeddingTransformer, self).__init__()
         self.obs_keys = obs_keys
         self.input_slicing_indices = input_slicing_indices
@@ -37,7 +38,8 @@ class AllFeedEmbeddingTransformer(nn.Module):
                             n_head=n_head, 
                             dim_feedforward=dim_feedforward, 
                             max_tokens=context_length, 
-                            downsample_tokens=input_slicing_indices[1]
+                            downsample_tokens=input_slicing_indices[1], 
+                            num_cls_tokens=num_cls_tokens
                         )
                     )
             else: 
@@ -47,9 +49,11 @@ class AllFeedEmbeddingTransformer(nn.Module):
                         n_head=n_head, 
                         dim_feedforward=dim_feedforward,
                         max_tokens=context_length,
+                        num_cls_tokens=num_cls_tokens
                     )
                 )
         self.encoder_dict = encoder_dict
+        self.num_cls_tokens = num_cls_tokens
     
     def forward(self, obs, mask=None): 
         # obs is of shape B, n_obs_steps, D_overall_embedding
@@ -77,7 +81,8 @@ class SingleFeedEmbeddingTransformer(nn.Module):
                  norm_first=True, 
                  batch_first=True, 
                  num_layers=8, 
-                 downsample_tokens=None
+                 downsample_tokens=None, 
+                 num_cls_tokens=1
                  ): 
         super(SingleFeedEmbeddingTransformer, self).__init__()
 
@@ -93,14 +98,16 @@ class SingleFeedEmbeddingTransformer(nn.Module):
         )
 
         self.transformer_encoder = TransformerEncoder(encoder_layer=encoder_layer, num_layers=num_layers, enable_nested_tensor=False)
+        
+        self.cls_token = nn.Parameter(torch.randn(1, num_cls_tokens, d_model))
 
-        self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
-
-        self.pos_embed = nn.Parameter(torch.randn(1, 1 + max_tokens, d_model))        
+        self.pos_embed = nn.Parameter(torch.randn(1, num_cls_tokens + max_tokens, d_model))        
 
         self.down_sample_tokens = downsample_tokens
         if self.down_sample_tokens: 
             self.downsample = nn.Linear(d_model, self.down_sample_tokens)  
+
+        self.num_cls_tokens = num_cls_tokens
 
     def forward(self, x, mask=None): 
         batch_size, seq_len, embed_dim = x.shape 
@@ -115,7 +122,11 @@ class SingleFeedEmbeddingTransformer(nn.Module):
         if self.down_sample_tokens: 
             out = self.downsample(out)
 
-        cls_out = out[:, 0, :]
-        embeddings_out = out[:, 1:, :]
+        if self.num_cls_tokens == 1: 
+            cls_out = out[:, 0, :]
+            embeddings_out = out[:, 1:, :]
+        else:
+            cls_out = out[:, :self.num_cls_tokens, :]
+            embeddings_out = out[:, self.num_cls_tokens:, :]
 
         return cls_out, embeddings_out

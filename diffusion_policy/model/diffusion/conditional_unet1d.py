@@ -251,3 +251,89 @@ class ConditionalUnet1D(nn.Module):
 
         x = einops.rearrange(x, 'b t h -> b h t')
         return x
+
+class VariableConditionalUnet1D(ConditionalUnet1D): 
+    def forward(self, 
+            sample: torch.Tensor, 
+            timestep: Union[torch.Tensor, float, int], 
+            local_cond=None, global_cond=None, 
+            gc_start=None,
+            gc_end=None,
+            threshold=None,
+            target_cond=None, **kwargs):
+        """
+        x: (B,T,input_dim)
+        timestep: (B,) or int, diffusion step
+        local_cond: (B,T,local_cond_dim)
+        global_cond: (B,global_cond_dim)
+        target_cond: (B,target_dim)
+        output: (B,T,input_dim)
+        """
+        sample = einops.rearrange(sample, 'b h t -> b t h')
+
+        # 1. time
+        timesteps = timestep
+        if not torch.is_tensor(timesteps):
+            # TODO: this requires sync between CPU and GPU. So try to pass timesteps as tensors if you can
+            timesteps = torch.tensor([timesteps], dtype=torch.long, device=sample.device)
+        elif torch.is_tensor(timesteps) and len(timesteps.shape) == 0:
+            timesteps = timesteps[None].to(sample.device)
+        # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
+        timesteps = timesteps.expand(sample.shape[0])
+
+        global_feature = self.diffusion_step_encoder(timesteps)
+
+        # Concatenate global conditioning (ex. observation history)
+        if global_cond is not None and global_cond_late is not None:
+            assert threshold is not None, "Threshold must be provided when using global_cond_late"
+            mask = (timesteps > threshold).unsqueeze(-1)
+            chosen = torch.where(mask, global_cond, global_cond_late)
+            global_feature = torch.cat([
+                global_feature, chosen
+            ], axis=-1)
+
+        # Concatenate target conditioning (ex. target goal state)
+        if target_cond is not None:
+            global_feature = torch.cat([
+                global_feature, target_cond
+            ], axis=-1)
+        
+        # encode local features
+        h_local = list()
+        if local_cond is not None:
+            local_cond = einops.rearrange(local_cond, 'b h t -> b t h')
+            resnet, resnet2 = self.local_cond_encoder
+            x = resnet(local_cond, global_feature)
+            h_local.append(x)
+            x = resnet2(local_cond, global_feature)
+            h_local.append(x)
+        
+        x = sample
+        h = []
+        for idx, (resnet, resnet2, downsample) in enumerate(self.down_modules):
+            x = resnet(x, global_feature)
+            if idx == 0 and len(h_local) > 0:
+                x = x + h_local[0]
+            x = resnet2(x, global_feature)
+            h.append(x)
+            x = downsample(x)
+
+        for mid_module in self.mid_modules:
+            x = mid_module(x, global_feature)
+
+        for idx, (resnet, resnet2, upsample) in enumerate(self.up_modules):
+            x = torch.cat((x, h.pop()), dim=1)
+            x = resnet(x, global_feature)
+            # The correct condition should be:
+            # if idx == (len(self.up_modules)-1) and len(h_local) > 0:
+            # However this change will break compatibility with published checkpoints.
+            # Therefore it is left as a comment.
+            if idx == len(self.up_modules) and len(h_local) > 0:
+                x = x + h_local[1]
+            x = resnet2(x, global_feature)
+            x = upsample(x)
+
+        x = self.final_conv(x)
+
+        x = einops.rearrange(x, 'b t h -> b h t')
+        return x
