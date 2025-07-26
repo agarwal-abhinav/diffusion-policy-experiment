@@ -116,7 +116,7 @@ policy:
   target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
-  initialize_obs_encoder: 'data/outputs/context_length_exp_adam_data_constant_model_size/2_obs/best_ckpt_encoder.pth'
+  initialize_all_weights: 'data/outputs/context_length_exp_adam_data_constant_model_size_init_encoder/2_encoder_freeze/2_obs/checkpoints/epoch=0110-val_loss=0.0632-val_ddim_mse=0.0010.ckpt'
   freeze_self_trained_obs_encoder: true
 task:
   dataset:
