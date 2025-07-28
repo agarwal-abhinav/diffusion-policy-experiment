@@ -153,7 +153,6 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             **kwargs):
         super().__init__()
         
-        assert causal_transformer == False, "Currently only supporting non-causal transformer"
         assert num_cls_tokens <=2, "Currently only supporting 1 or 2 cls tokens"
 
         if num_cls_tokens > 1: 
