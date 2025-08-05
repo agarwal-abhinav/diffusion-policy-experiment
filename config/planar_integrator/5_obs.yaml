@@ -41,7 +41,7 @@ multi_run:
   wandb_name_base: train_diffusion_unet_lowdim_maze_target_conditioned
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 16
+n_obs_steps: 5
 name: train_diffusion_unet_lowdim
 obs_as_global_cond: true
 obs_as_local_cond: false
@@ -69,14 +69,14 @@ policy:
     - 64
     - 128
     - 256
-    global_cond_dim: 32 # 16*2 dim for obs history
-    target_dim: null 
+    global_cond_dim: 10 # 5*2 dim for obs history
+    target_dim: null
     input_dim: 2
     kernel_size: 3
     local_cond_dim: null
     n_groups: 8
   n_action_steps: 8
-  n_obs_steps: 16
+  n_obs_steps: 5
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -100,7 +100,7 @@ task:
     horizon: 24
     max_train_episodes: null # I think this caps the number of training episodes
     pad_after: 7
-    pad_before: 15
+    pad_before: 4
     seed: 42
     val_ratio: 0.1
     # Override if using smaller dataset

@@ -217,25 +217,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         resume_epoch = self.epoch
-
-        _forward_z = {}
-        def _forward_hook(module, input, output): 
-            output.retain_grad()
-            _forward_z['z'] = output
-        self.model.obs_encoder.register_forward_hook(_forward_hook)
-
-        # from torch.func import functional_call, vmap, grad
-        # def single_sample_pseudo_loss(params, buffers, x, gz): 
-        #     x = dict_apply(x, lambda t: t.unsqueeze(0))
-        #     z = functional_call(self.model.obs_encoder, (params, buffers), x)
-
-        #     z.squeeze(0)
-        #     return (z * gz).sum()
-        
-        # param_grad_fn = grad(single_sample_pseudo_loss)
-
-        from torch.random import fork_rng
-
         with JsonLogger(log_path) as json_logger:
             for local_epoch_idx in range(resume_epoch, cfg.training.num_epochs):
                 step_log = dict()
@@ -263,98 +244,12 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             trajectory, noise, timesteps)
                         
                         # call to the policy's forward function: computes 1 denoising step
-                        # with fork_rng(devices=[0]): 
-                        # cpu_pre = torch.get_rng_state()
-                        # gpu_pre = torch.cuda.get_rng_state(device)
                         pred = self.model(batch, noisy_trajectory, timesteps)
-
-                        # encoder_copy = copy.deepcopy(self.model.obs_encoder)
-                        # encoder_param_dict = {name: param.detach() for name, param in encoder_copy.named_parameters()}
-                        # encoder_buffer_dict = {name: buf.detach() for name, buf in encoder_copy.named_buffers()}
-
+                        
                         # compute loss
                         raw_loss = self.compute_loss(trajectory, noise, pred)
                         loss = raw_loss / cfg.training.gradient_accumulate_every
-                        loss.backward(retain_graph=True)
-
-                        name_list = []
-                        param_list = []
-                        for name, param in self.model.obs_encoder.named_parameters(): 
-                            name_list.append(name)
-                            param_list.append(param)
-                        encoder_params = tuple(param_list)
-
-                        z = _forward_z['z']
-                        grad_z_detached = z.grad.detach()
-
-                        per_sample_param_grads = []
-                        for c in range(grad_z_detached.shape[0]):
-                            pseudo_loss_c = (z[c].unsqueeze(0) * grad_z_detached[c].unsqueeze(0)).sum()
-                            grads_c = torch.autograd.grad(
-                                pseudo_loss_c, 
-                                encoder_params, 
-                                retain_graph=True,
-                                allow_unused=True, 
-                                create_graph=False
-                            )
-                            per_sample_param_grads.append(grads_c[1].cpu())
-
-                            del grads_c, pseudo_loss_c
-                        
-                        averages = []
-                        for c in range(5): 
-                            group = per_sample_param_grads[c::5]
-
-                            avg = torch.stack(group).mean(dim=0)
-                            averages.append(avg.numpy())
-
-                        # cpu_post = torch.get_rng_state()
-                        # gpu_post = torch.cuda.get_rng_state(device)
-                        
-                        # torch.set_rng_state(cpu_pre)
-                        # torch.cuda.set_rng_state(gpu_pre, device=device)
-                        # nobs = self.model.normalizer.normalize(batch['obs'])
-                        # this_nobs = dict_apply(nobs, 
-                        #     lambda x: x[:,:self.model.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-                        # grad_z_eh = _forward_z['z'].grad
-                        # grad_z = grad_z_eh.detach()
-                        # # z_new = encoder_copy(this_nobs)
-                        # # pseudo_losses = (z_new * grad_z).sum(dim=1)
-                        # name_list = []
-                        # param_list = []
-                        # for name, param in encoder_copy.named_parameters(): 
-                        #     name_list.append(name)
-                        #     param_list.append(param)
-                        # new_encoder_params = tuple(param_list)
-                        # # new_encoder_params = tuple(encoder_copy.parameters())
-                        # per_sample_param_grads = []
-                        # # with fork_rng(devices=[0]): 
-                        # for c in range(grad_z.shape[0]): 
-                        #     x_c = dict_apply(this_nobs, lambda t: t[c:c+1,...])
-                        #     enc_c = encoder_copy(x_c)
-                        #     pseudo_loss_c = (enc_c * grad_z[c].unsqueeze(0)).sum()
-
-                        #     grads_c = torch.autograd.grad(
-                        #         pseudo_loss_c, 
-                        #         new_encoder_params,
-                        #         retain_graph=False, 
-                        #         allow_unused=True
-                        #     )
-                        #     per_sample_param_grads.append(grads_c)
-                        #     breakpoint()
-
-                        #     del enc_c, pseudo_loss_c, grads_c
-                        
-                        # breakpoint()
-
-
-                        # # per_sample_param_grads = vmap(
-                        # #     param_grad_fn, 
-                        # #     in_dims=(None, None, 0, 0), 
-                        # #     randomness="different"
-                        # # )(encoder_param_dict, encoder_buffer_dict, this_nobs, grad_z)
-
-                        # breakpoint()
+                        loss.backward()
 
                         # step optimizer
                         if self.global_step % cfg.training.gradient_accumulate_every == 0:
@@ -370,16 +265,16 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         raw_loss_cpu = raw_loss.item()
                         tepoch.set_postfix(loss=raw_loss_cpu, refresh=False)
                         train_losses.append(raw_loss_cpu)
+                        bias = self.model.module.input_bias
+                        bias_values = bias.view(-1).detach().cpu().numpy()
                         step_log = {
                             'train_loss': raw_loss_cpu,
                             'global_step': self.global_step,
                             'epoch': self.epoch,
                             'lr': lr_scheduler.get_last_lr()[0]
                         }
-
-                        for c in range(self.model.n_obs_steps): 
-                            step_log[f'gradients/obs_encoder_grad_{c}_0'] = averages[c][0]
-                            step_log[f'gradients/obs_encoder_grad_{c}_1'] = averages[c][1]
+                        for c in range(self.model.n_obs_steps):
+                            step_log[f'input_bias/{c+1}'] = bias_values[-(c+1)]
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:

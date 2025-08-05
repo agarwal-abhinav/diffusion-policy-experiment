@@ -56,7 +56,7 @@ optimizer:
   weight_decay: 1.0e-06
 past_action_visible: false
 policy:
-  _target_: diffusion_policy.policy.diffusion_unet_lowdim_policy.DiffusionUnetLowdimPolicy
+  _target_: diffusion_policy.policy.diffusion_unet_lowdim_policy_encoder_layer.DiffusionUnetLowdimPolicy
   obs_dim: 2
   action_dim: 2
   target_dim: 2

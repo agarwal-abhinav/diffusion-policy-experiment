@@ -15,6 +15,21 @@ def dict_apply(
             result[key] = func(value)
     return result
 
+def dict_apply_with_exclude(
+        x: Dict[str, torch.Tensor], 
+        func: Callable[[torch.Tensor], torch.Tensor], 
+        ignore_keys: List[str] = []
+        ) -> Dict[str, torch.Tensor]:
+    result = dict()
+    for key, value in x.items():
+        if key in ignore_keys:
+            result[key] = value
+        elif isinstance(value, dict):
+            result[key] = dict_apply(value, func)
+        else:
+            result[key] = func(value)
+    return result
+
 def pad_remaining_dims(x, target):
     assert x.shape == target.shape[:len(x.shape)]
     return x.reshape(x.shape + (1,)*(len(target.shape) - len(x.shape)))
