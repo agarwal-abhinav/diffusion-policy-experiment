@@ -43,6 +43,81 @@ class DataParallelWrapper(DataParallel):
         except AttributeError:
             return getattr(self.module, name)
         
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io
+
+def analyze_encoder_gradient_directions(g_ts, step, wandb_run, tag="encoder_grad", log_to_wandb=True):
+    """
+    Analyze gradient direction agreement across encoder outputs for different timesteps.
+    
+    Args:
+        h_ts (list of torch.Tensor): encoder output gradients per time frame, each shape (B, D)
+        step (int): training step (for wandb)
+        tag (str): wandb tag
+        log_to_wandb (bool): whether to log results to wandb
+    """
+    # Collect mean gradients per timestep
+    grad_vecs = []
+    for g_t in g_ts:
+        grad_vecs.append(g_t.mean(dim=0))  # shape (D,)
+
+    T = len(grad_vecs)
+    grads = torch.stack(grad_vecs, dim=0)  # shape (T, D)
+    grads_unit = F.normalize(grads, dim=1)  # (T, D)
+
+    # Cosine similarity matrix
+    cosine_matrix = grads_unit @ grads_unit.T  # (T, T)
+
+    # Dot product matrix
+    dot_product_matrix = grads @ grads.T  # (T, T)
+
+    # Projected contribution to mean direction
+    mean_dir = grads_unit.mean(dim=0, keepdim=True)  # (1, D)
+    projection = (grads @ mean_dir.T).squeeze()  # shape (T,)
+
+    # Histograms
+    cosine_vals = cosine_matrix[~torch.eye(T, dtype=bool)]  # off-diagonal values only
+    dot_vals = dot_product_matrix[~torch.eye(T, dtype=bool)]
+
+    # Log to wandb
+    if log_to_wandb:
+        wandb_run.log({
+            f"{tag}/mean_cosine_similarity": cosine_vals.mean().item(),
+            f"{tag}/min_cosine_similarity": cosine_vals.min().item(),
+            f"{tag}/max_cosine_similarity": cosine_vals.max().item(),
+            f"{tag}/mean_dot_product": dot_vals.mean().item(),
+            f"{tag}/min_dot_product": dot_vals.min().item(),
+            f"{tag}/max_dot_product": dot_vals.max().item(),
+            f"{tag}/projection_to_mean_direction": wandb.Histogram(projection.cpu().numpy()),
+            f"{tag}/cosine_similarity_hist": wandb.Histogram(cosine_vals.cpu().numpy()),
+            f"{tag}/dot_product_hist": wandb.Histogram(dot_vals.cpu().numpy()),
+        }, step=step)
+
+        if step % 500 == 0: 
+            # Plot heatmaps
+            cos_img = _plot_heatmap(cosine_matrix, title=f"{tag}/cosine_similarity", vmin=-1, vmax=1)
+            dot_img = _plot_heatmap(dot_product_matrix, title=f"{tag}/dot_product")
+
+            wandb_run.log({
+                f"{tag}/cosine_similarity_matrix": wandb.Image(cos_img),
+                f"{tag}/dot_product_matrix": wandb.Image(dot_img),
+            }, step=step)
+
+def _plot_heatmap(matrix, title="Matrix", vmin=None, vmax=None):
+    """
+    Render a heatmap image from a tensor for wandb.
+    """
+    fig, ax = plt.subplots(figsize=(5, 4))
+    sns.heatmap(matrix.cpu().numpy(), annot=True, fmt=".2f", cmap="coolwarm", vmin=vmin, vmax=vmax)
+    ax.set_title(title)
+    # buf = io.BytesIO()
+    plt.tight_layout()
+    # plt.savefig(buf, format='png')
+    # plt.close(fig)
+    # buf.seek(0)
+    return fig
+        
 class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
     include_keys = ['global_step', 'epoch']
 
@@ -220,7 +295,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
 
         _forward_z = {}
         def _forward_hook(module, input, output): 
-            output.retain_grad()
+            if output.requires_grad: 
+                output.retain_grad()
             _forward_z['z'] = output
         self.model.obs_encoder.register_forward_hook(_forward_hook)
 
@@ -287,26 +363,79 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         z = _forward_z['z']
                         grad_z_detached = z.grad.detach()
 
-                        per_sample_param_grads = []
-                        for c in range(grad_z_detached.shape[0]):
-                            pseudo_loss_c = (z[c].unsqueeze(0) * grad_z_detached[c].unsqueeze(0)).sum()
-                            grads_c = torch.autograd.grad(
-                                pseudo_loss_c, 
-                                encoder_params, 
-                                retain_graph=True,
-                                allow_unused=True, 
-                                create_graph=False
-                            )
-                            per_sample_param_grads.append(grads_c[1].cpu())
+                        averages_overhead = []
+                        averages_wrist = []
+                        averages_normal = []
 
-                            del grads_c, pseudo_loss_c
+                        gradients_overhead = []
+                        gradients_wrist = []
+                        gradients_normal = []
+                        for c in range(self.model.n_obs_steps): 
+                            this_group = grad_z_detached[c::self.model.n_obs_steps]
+                            this_group_overhead = this_group[:, 3:67]
+                            this_group_wrist = this_group[:, 67:131]
+                            this_group_normal = this_group[:, 0:3]
+
+                            gradients_overhead.append(this_group_overhead)
+                            gradients_wrist.append(this_group_wrist)
+                            gradients_normal.append(this_group_normal)
+
+                            norms_overhead = torch.norm(this_group_overhead, dim=1)
+                            norms_wrist = torch.norm(this_group_wrist, dim=1)
+                            norms_normal = torch.norm(this_group_normal, dim=1)
+
+                            avg_norm_overhead = norms_overhead.mean()
+                            avg_norm_wrist = norms_wrist.mean()
+                            avg_norm_normal = norms_normal.mean()
+
+                            averages_overhead.append(avg_norm_overhead.cpu().numpy().item())
+                            averages_wrist.append(avg_norm_wrist.cpu().numpy().item())
+                            averages_normal.append(avg_norm_normal.cpu().numpy().item())
+
+                        analyze_encoder_gradient_directions(
+                            g_ts=gradients_overhead[::-1], 
+                            step=self.global_step, 
+                            wandb_run=wandb_run,
+                            tag=f"encoder_gradients/overhead_{self.model.n_obs_steps}",
+                            log_to_wandb=True
+                        )
+
+                        analyze_encoder_gradient_directions(
+                            g_ts=gradients_wrist[::-1], 
+                            step=self.global_step, 
+                            wandb_run=wandb_run,
+                            tag=f"encoder_gradients/wrist_{self.model.n_obs_steps}",
+                            log_to_wandb=True
+                        )
+
+                        analyze_encoder_gradient_directions(
+                            g_ts=gradients_normal[::-1], 
+                            step=self.global_step, 
+                            wandb_run=wandb_run,
+                            tag=f"encoder_gradients/normal_{self.model.n_obs_steps}",
+                            log_to_wandb=True
+                        )
+
+                        # per_sample_param_grads = []
+                        # for c in range(grad_z_detached.shape[0]):
+                        #     pseudo_loss_c = (z[c].unsqueeze(0) * grad_z_detached[c].unsqueeze(0)).sum()
+                        #     grads_c = torch.autograd.grad(
+                        #         pseudo_loss_c, 
+                        #         encoder_params, 
+                        #         retain_graph=True,
+                        #         allow_unused=True, 
+                        #         create_graph=False
+                        #     )
+                        #     per_sample_param_grads.append(grads_c[1].cpu())
+
+                        #     del grads_c, pseudo_loss_c
                         
-                        averages = []
-                        for c in range(5): 
-                            group = per_sample_param_grads[c::5]
+                        # averages = []
+                        # for c in range(5): 
+                        #     group = per_sample_param_grads[c::5]
 
-                            avg = torch.stack(group).mean(dim=0)
-                            averages.append(avg.numpy())
+                        #     avg = torch.stack(group).mean(dim=0)
+                        #     averages.append(avg.numpy())
 
                         # cpu_post = torch.get_rng_state()
                         # gpu_post = torch.cuda.get_rng_state(device)
@@ -378,8 +507,13 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         }
 
                         for c in range(self.model.n_obs_steps): 
-                            step_log[f'gradients/obs_encoder_grad_{c}_0'] = averages[c][0]
-                            step_log[f'gradients/obs_encoder_grad_{c}_1'] = averages[c][1]
+                            step_log[f'gradients_overhead/{c+1}'] = averages_overhead[-(c+1)]
+                            step_log[f'gradients_wrist/{c+1}'] = averages_wrist[-(c+1)]
+                            step_log[f'gradients_normal/{c+1}'] = averages_normal[-(c+1)]
+
+                        # for c in range(self.model.n_obs_steps): 
+                        #     step_log[f'gradients/obs_encoder_grad_{c}_0'] = averages[c][0]
+                        #     step_log[f'gradients/obs_encoder_grad_{c}_1'] = averages[c][1]
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:
