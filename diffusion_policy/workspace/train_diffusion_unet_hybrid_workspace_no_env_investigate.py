@@ -104,6 +104,14 @@ def analyze_encoder_gradient_directions(g_ts, step, wandb_run, tag="encoder_grad
                 f"{tag}/dot_product_matrix": wandb.Image(dot_img),
             }, step=step)
 
+        if step % 100 == 0: 
+            for i in range(T): 
+                for j in range(i+1, T): 
+                    wandb_run.log({
+                        f"{tag}/numbers/cosine_similarity_{i}_{j}": cosine_matrix[i,j].item(),
+                        f"{tag}/numbers/dot_product_{i}_{j}": dot_product_matrix[i,j].item(),
+                    }, step=step)
+
 def _plot_heatmap(matrix, title="Matrix", vmin=None, vmax=None):
     """
     Render a heatmap image from a tensor for wandb.
