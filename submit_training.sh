@@ -25,8 +25,8 @@ echo "[submit_training.sh] Date: $DATE"
 echo "[submit_training.sh] Time: $TIME"
 
 CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size_init_encoder/16_encoder_freeze/
-CONFIG_NAME=12_obs.yaml
-HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_constant_model_size_init_encoder/16_encoder_freeze/12_obs
+CONFIG_NAME=16_obs.yaml
+HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_constant_model_size_init_encoder/16_encoder_freeze/16_obs
 
 # CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size_init_encoder/2_encoder_freeze_then_resume/
 # CONFIG_NAME=1_obs.yaml
