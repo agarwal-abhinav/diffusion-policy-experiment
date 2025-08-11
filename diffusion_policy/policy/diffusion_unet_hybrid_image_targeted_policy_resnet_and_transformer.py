@@ -21,7 +21,7 @@ import robomimic.models.obs_core as rmobsc
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
-from diffusion_policy.model.transformers.simple_transformer_encoder import AllFeedEmbeddingTransformer
+from diffusion_policy.model.transformers.simple_transformer_encoder import AllFeedEmbeddingTransformer, AllTogetherEmbeddingTransformer
 
 def make_cls_causal_mask(L: int, device=None) -> torch.Tensor:
     """
@@ -74,6 +74,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             freeze_self_trained_obs_encoder=False,
             inference_loading = False, 
             rescale_encoder_gradients=False,
+            process_all_inputs_together=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -274,11 +275,18 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         # this only works for 2 camera right now
         input_slicing_indices = [0, action_slicing_dim, action_slicing_dim + 64, action_slicing_dim + 128]
         assert input_slicing_indices[-1] == self.obs_feature_dim
-        self.resnet_post_processer = AllFeedEmbeddingTransformer(
-            obs_keys=list(shape_meta['obs'].keys()), 
-            context_length=n_obs_steps, 
-            input_slicing_indices=input_slicing_indices,
-        )
+
+        if process_all_inputs_together: 
+            self.resnet_post_processer = AllTogetherEmbeddingTransformer(
+                context_length=n_obs_steps, 
+                embedding_dim=self.obs_feature_dim
+            )
+        else: 
+            self.resnet_post_processer = AllFeedEmbeddingTransformer(
+                obs_keys=list(shape_meta['obs'].keys()), 
+                context_length=n_obs_steps, 
+                input_slicing_indices=input_slicing_indices,
+            )
         
         # Create DDIM sampler
         DDIM_noise_scheduler = DDIMScheduler(

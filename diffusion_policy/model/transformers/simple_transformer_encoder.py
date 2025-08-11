@@ -12,6 +12,71 @@ class MaskSequential(nn.Sequential):
             else: 
                 input = module(input)
         return input
+    
+class AllTogetherEmbeddingTransformer(nn.Module): 
+    def __init__(self, 
+                 context_length=5, 
+                 num_cls_tokens=1,
+                 num_layers=8,
+                 embedding_dim=131,
+                 d_model=128, 
+                 n_head=8, 
+                 dim_feedforward=256, 
+                 dropout=0.1, 
+                 activation="gelu", 
+                 layer_norm_eps=1e-6, 
+                 norm_first=True, 
+                 batch_first=True
+    ): 
+        super(AllTogetherEmbeddingTransformer, self).__init__() 
+
+        self.embedding_projector = nn.Sequential(
+            nn.Linear(embedding_dim, d_model), 
+            nn.GELU(), 
+            nn.Linear(d_model, d_model)
+        )
+
+        encoder_layer = TransformerEncoderLayer(
+            d_model=d_model, 
+            nhead=n_head, 
+            dim_feedforward=dim_feedforward,
+            dropout=dropout, 
+            activation=activation,
+            layer_norm_eps=layer_norm_eps,
+            norm_first=norm_first,
+            batch_first=batch_first
+        )
+
+        self.transformer_encoder = TransformerEncoder(encoder_layer=encoder_layer, num_layers=num_layers, enable_nested_tensor=False)
+
+        self.cls_token = nn.Parameter(torch.randn(1, num_cls_tokens, d_model))
+
+        self.pos_embed = nn.Parameter(torch.randn(1, num_cls_tokens + context_length, d_model))        
+
+        self.num_cls_tokens = num_cls_tokens
+
+        self.reverse_projector = nn.Linear(d_model, embedding_dim)
+
+    def forward(self, obs, mask=None, return_only_cls=True): 
+        batch_size, seq_len, embed_dim = obs.shape 
+        cls = self.cls_token.expand(batch_size, -1, -1)
+        tokens = torch.cat([cls, self.embedding_projector(obs)], dim=1)
+
+        tokens = tokens + self.pos_embed 
+
+        out = self.transformer_encoder(tokens, mask=mask)
+
+        if self.num_cls_tokens == 1: 
+            cls_out = out[:, 0, :]
+            embeddings_out = out[:, 1:, :]
+        else: 
+            cls_out = out[:, :self.num_cls_tokens, :]
+            embeddings_out = out[:, self.num_cls_tokens:, :]
+        
+        if return_only_cls: 
+            return self.reverse_projector(cls_out)
+        else: 
+            return self.reverse_projector(cls_out), self.reverse_projector(embeddings_out)
 
 class AllFeedEmbeddingTransformer(nn.Module): 
     def __init__(self, 
