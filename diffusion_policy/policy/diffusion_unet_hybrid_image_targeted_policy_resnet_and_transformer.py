@@ -75,6 +75,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             inference_loading = False, 
             rescale_encoder_gradients=False,
             process_all_inputs_together=False,
+            max_obs_steps_for_ablation=None, 
+            use_all_tokens_for_conditioning=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -203,8 +205,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if obs_as_global_cond:
             input_dim = action_dim
             global_cond_dim = obs_feature_dim 
+            if use_all_tokens_for_conditioning: 
+                global_cond_dim = obs_feature_dim * n_obs_steps if max_obs_steps_for_ablation is None else obs_feature_dim * max_obs_steps_for_ablation
             self.global_cond_dim = global_cond_dim
         print(f"Input dim: {input_dim}, Global cond dim: {global_cond_dim}")
+
+        self.max_obs_steps_for_ablation = max_obs_steps_for_ablation
+        self.use_all_tokens_for_conditioning = use_all_tokens_for_conditioning
 
         model = ConditionalUnet1D(
             input_dim=input_dim,
@@ -276,16 +283,24 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         input_slicing_indices = [0, action_slicing_dim, action_slicing_dim + 64, action_slicing_dim + 128]
         assert input_slicing_indices[-1] == self.obs_feature_dim
 
+        if use_all_tokens_for_conditioning: 
+            num_cls_tokens = 0
+        else: 
+            num_cls_tokens = 1
+
         if process_all_inputs_together: 
             self.resnet_post_processer = AllTogetherEmbeddingTransformer(
                 context_length=n_obs_steps, 
-                embedding_dim=self.obs_feature_dim
+                embedding_dim=self.obs_feature_dim, 
+                num_cls_tokens=num_cls_tokens
             )
         else: 
+            assert num_cls_tokens > 0 and use_all_tokens_for_conditioning == False, "not setup yet"
             self.resnet_post_processer = AllFeedEmbeddingTransformer(
                 obs_keys=list(shape_meta['obs'].keys()), 
                 context_length=n_obs_steps, 
                 input_slicing_indices=input_slicing_indices,
+                num_cls_tokens=num_cls_tokens
             )
         
         # Create DDIM sampler
@@ -423,6 +438,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             global_cond = global_cond.view(B, self.n_obs_steps, self.obs_feature_dim)
             global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
 
+            if self.use_all_tokens_for_conditioning: 
+                global_cond = global_cond.reshape(B, -1)
+                if self.max_obs_steps_for_ablation is not None: 
+                    additional_zeros = torch.zeros(B, self.global_cond_dim - global_cond.shape[1],
+                        device=global_cond.device, dtype=global_cond.dtype)
+                    global_cond = torch.cat([global_cond, additional_zeros], dim=-1)
+
             # empty data for action
             cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
             cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
@@ -494,6 +516,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
             global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
+
+            if self.use_all_tokens_for_conditioning: 
+                global_cond = global_cond.reshape(batch_size, -1)
+                if self.max_obs_steps_for_ablation is not None: 
+                    additional_zeros = torch.zeros(batch_size, self.global_cond_dim - global_cond.shape[1],
+                        device=global_cond.device, dtype=global_cond.dtype)
+                    global_cond = torch.cat([global_cond, additional_zeros], dim=-1)
         else:
             nactions = self.normalizer['action'].normalize(batch['action'])
             horizon = nactions.shape[1]
@@ -577,6 +606,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
             global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
+
+            if self.use_all_tokens_for_conditioning: 
+                global_cond = global_cond.reshape(batch_size, -1)
+                if self.max_obs_steps_for_ablation is not None: 
+                    additional_zeros = torch.zeros(batch_size, self.global_cond_dim - global_cond.shape[1],
+                        device=global_cond.device, dtype=global_cond.dtype)
+                    global_cond = torch.cat([global_cond, additional_zeros], dim=-1)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
@@ -632,6 +668,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
             global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
+
+            if self.use_all_tokens_for_conditioning: 
+                global_cond = global_cond.reshape(batch_size, -1)
+                if self.max_obs_steps_for_ablation is not None: 
+                    additional_zeros = torch.zeros(batch_size, self.global_cond_dim - global_cond.shape[1],
+                        device=global_cond.device, dtype=global_cond.dtype)
+                    global_cond = torch.cat([global_cond, additional_zeros], dim=-1)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
