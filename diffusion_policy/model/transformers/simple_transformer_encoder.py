@@ -135,13 +135,21 @@ class AllFeedEmbeddingTransformer(nn.Module):
             temp_dict[key] = obs[:, :, self.input_slicing_indices[i]:self.input_slicing_indices[i+1]]
 
         # Pass the sliced inputs through their respective encoders
-        encoder_outputs = []
-        for key in self.obs_keys: 
-            encoder_outputs.append(self.encoder_dict[key](temp_dict[key], mask=mask)[0])
+        if self.num_cls_tokens > 0: 
+            encoder_outputs = []
+            for key in self.obs_keys: 
+                encoder_outputs.append(self.encoder_dict[key](temp_dict[key], mask=mask)[0])
 
-        concatenated = torch.cat(encoder_outputs, dim=-1)
-        return concatenated
-
+            concatenated = torch.cat(encoder_outputs, dim=-1)
+            return concatenated
+        else: 
+            encoder_outputs = []
+            for key in self.obs_keys: 
+                encoder_outputs.append(self.encoder_dict[key](temp_dict[key], mask=mask))
+            
+            concatenated = torch.cat(encoder_outputs, dim=-1)
+            return concatenated
+        
 class SingleFeedEmbeddingTransformer(nn.Module): 
     def __init__(self, 
                  d_model, 
@@ -172,7 +180,8 @@ class SingleFeedEmbeddingTransformer(nn.Module):
 
         self.transformer_encoder = TransformerEncoder(encoder_layer=encoder_layer, num_layers=num_layers, enable_nested_tensor=False)
         
-        self.cls_token = nn.Parameter(torch.randn(1, num_cls_tokens, d_model))
+        if num_cls_tokens > 0: 
+            self.cls_token = nn.Parameter(torch.randn(1, num_cls_tokens, d_model))
 
         self.pos_embed = nn.Parameter(torch.randn(1, num_cls_tokens + max_tokens, d_model))        
 
@@ -185,8 +194,11 @@ class SingleFeedEmbeddingTransformer(nn.Module):
     def forward(self, x, mask=None): 
         batch_size, seq_len, embed_dim = x.shape 
 
-        cls = self.cls_token.expand(batch_size, -1, -1)
-        tokens = torch.cat([cls, x], dim=1)
+        if self.num_cls_tokens > 0: 
+            cls = self.cls_token.expand(batch_size, -1, -1)
+            tokens = torch.cat([cls, x], dim=1)
+        else: 
+            tokens = x
 
         tokens = tokens + self.pos_embed
 
@@ -195,11 +207,15 @@ class SingleFeedEmbeddingTransformer(nn.Module):
         if self.down_sample_tokens: 
             out = self.downsample(out)
 
-        if self.num_cls_tokens == 1: 
-            cls_out = out[:, 0, :]
-            embeddings_out = out[:, 1:, :]
-        else:
-            cls_out = out[:, :self.num_cls_tokens, :]
-            embeddings_out = out[:, self.num_cls_tokens:, :]
+        if self.num_cls_tokens > 0: 
+            if self.num_cls_tokens == 1: 
+                cls_out = out[:, 0, :]
+                embeddings_out = out[:, 1:, :]
+            else:
+                cls_out = out[:, :self.num_cls_tokens, :]
+                embeddings_out = out[:, self.num_cls_tokens:, :]
 
-        return cls_out, embeddings_out
+            return cls_out, embeddings_out
+        else: 
+            embeddings_out = out
+            return embeddings_out

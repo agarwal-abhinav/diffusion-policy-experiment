@@ -295,7 +295,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 num_cls_tokens=num_cls_tokens
             )
         else: 
-            assert num_cls_tokens > 0 and use_all_tokens_for_conditioning == False, "not setup yet"
+            # assert num_cls_tokens > 0 and use_all_tokens_for_conditioning == False, "not setup yet"
             self.resnet_post_processer = AllFeedEmbeddingTransformer(
                 obs_keys=list(shape_meta['obs'].keys()), 
                 context_length=n_obs_steps, 
