@@ -92,6 +92,7 @@ class AllFeedEmbeddingTransformer(nn.Module):
                  context_length=5, 
                  d_model=64, 
                  n_head=8, 
+                 num_layers=8,
                  dim_feedforward=256, 
                  input_slicing_indices = [0, 3, 67, 131], 
                  num_cls_tokens=1): 
@@ -112,7 +113,8 @@ class AllFeedEmbeddingTransformer(nn.Module):
                             dim_feedforward=dim_feedforward, 
                             max_tokens=context_length, 
                             downsample_tokens=input_slicing_indices[1], 
-                            num_cls_tokens=num_cls_tokens
+                            num_cls_tokens=num_cls_tokens, 
+                            num_layers=num_layers
                         )
                     )
             else: 
@@ -122,7 +124,8 @@ class AllFeedEmbeddingTransformer(nn.Module):
                         n_head=n_head, 
                         dim_feedforward=dim_feedforward,
                         max_tokens=context_length,
-                        num_cls_tokens=num_cls_tokens
+                        num_cls_tokens=num_cls_tokens, 
+                        num_layers=num_layers
                     )
                 )
         self.encoder_dict = encoder_dict
