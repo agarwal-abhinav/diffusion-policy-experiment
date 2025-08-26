@@ -208,14 +208,21 @@ class BinaryTaskDataset(BaseImageDataset):
         val_set.one_hot_encoding = np.zeros(self.num_datasets).astype(np.float32)
         val_set.one_hot_encoding[index] = 1
 
-        val_set.samplers = [SequenceSampler(
+        # val_set.samplers = [SequenceSampler(
+        #     replay_buffer=self.replay_buffers[index], 
+        #     sequence_length=self.horizon,
+        #     pad_before=self.pad_before, 
+        #     pad_after=self.pad_after,
+        #     episode_mask=self.val_masks[index]
+        # )]
+        val_set.samplers = [BinaryDatasetSampler(
             replay_buffer=self.replay_buffers[index], 
             sequence_length=self.horizon,
+            shape_meta=self.shape_meta,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
             episode_mask=self.val_masks[index]
         )]
-        
         return val_set
     
     def get_normalizer(self, mode='limits', **kwargs):
@@ -362,7 +369,7 @@ class BinaryTaskDataset(BaseImageDataset):
         if self.num_datasets == 1:
             sampler_idx = 0
             sampler = self.samplers[sampler_idx]
-            sample = sampler.sample_sequence(idx)
+            data = sampler.sample_data(idx)
         else:
             # sampler_idx = np.random.choice(self.num_datasets, p=self.sample_probabilities)
             if idx < len(self.samplers[0]): 
