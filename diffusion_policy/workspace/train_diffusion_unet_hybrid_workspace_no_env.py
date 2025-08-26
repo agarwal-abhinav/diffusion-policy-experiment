@@ -89,6 +89,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         self.global_step = 0
         self.epoch = 0
 
+        self.new_type_dataloader = getattr(cfg, 'new_type_dataloader', False)
+
     def run(self):
         cfg = copy.deepcopy(self.cfg)
 
@@ -227,6 +229,10 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                        if self.new_type_dataloader: 
+                            # this is done to maintain validity for older code
+                            for key in dataset.rgb_keys: 
+                                batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                         batch_size = batch['action'].shape[0]
                         # print(f"Outside batch size: {batch_size}")
                         

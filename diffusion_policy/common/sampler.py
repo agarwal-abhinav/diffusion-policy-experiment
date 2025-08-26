@@ -1,4 +1,5 @@
 from typing import Optional
+from unittest import result
 import numpy as np
 import numba
 import time
@@ -152,3 +153,70 @@ class SequenceSampler:
                 data[sample_start_idx:sample_end_idx] = sample
             result[key] = data
         return result
+
+
+class BinaryDatasetSampler(SequenceSampler): 
+    def __init__(self,
+                 replay_buffer: ReplayBuffer, 
+                sequence_length:int,
+                shape_meta: dict,
+                pad_before:int=0,
+                pad_after:int=0,
+                keys=None,
+                key_first_k=dict(),
+                episode_mask: Optional[np.ndarray]=None, 
+                 ): 
+        super().__init__(
+            replay_buffer=replay_buffer, 
+            sequence_length=sequence_length,
+            pad_before=pad_before,
+            pad_after=pad_after,
+            keys=keys,
+            key_first_k=key_first_k,
+            episode_mask=episode_mask,
+        )
+
+        self.shape_meta = shape_meta 
+        self.obs_dict_keys = shape_meta['obs'].keys()
+        self.rgb_keys = [key for key in self.obs_dict_keys if shape_meta['obs'][key]['type'] == 'rgb']
+        self.data_dict_keys = [key for key in self.keys if key not in self.obs_dict_keys]
+
+    def sample_data(self, idx): 
+        buffer_start_idx, buffer_end_idx, sample_start_idx, sample_end_idx \
+            = self.indices[idx]
+        datagram = dict()
+        datagram['obs'] = dict()
+        for key in self.keys:
+            input_arr = self.replay_buffer[key]
+            # performance optimization, avoid small allocation if possible
+            if key not in self.key_first_k:
+                sample = input_arr[buffer_start_idx:buffer_end_idx]
+            else:
+                # performance optimization, only load used obs steps
+                n_data = buffer_end_idx - buffer_start_idx
+                k_data = min(self.key_first_k[key], n_data)
+                # fill value with Nan to catch bugs
+                # the non-loaded region should never be used
+                sample = np.full((n_data,) + input_arr.shape[1:], 
+                    fill_value=np.nan, dtype=input_arr.dtype)
+                try:
+                    sample[:k_data] = input_arr[buffer_start_idx:buffer_start_idx+k_data]
+                except Exception as e:
+                    import pdb; pdb.set_trace()
+            data = sample
+            if (sample_start_idx > 0) or (sample_end_idx < self.sequence_length):
+                data = np.zeros(
+                    shape=(self.sequence_length,) + input_arr.shape[1:],
+                    dtype=input_arr.dtype)
+                if sample_start_idx > 0:
+                    data[:sample_start_idx] = sample[0]
+                if sample_end_idx < self.sequence_length:
+                    data[sample_end_idx:] = sample[-1]
+                data[sample_start_idx:sample_end_idx] = sample
+            if key == 'state': 
+                    datagram['obs']['agent_pos'] = data.astype(np.float32)
+            elif key in self.rgb_keys: 
+                datagram['obs'][key] = data.astype(np.uint8)
+            else: 
+                datagram[key] = data.astype(np.float32)
+        return datagram
