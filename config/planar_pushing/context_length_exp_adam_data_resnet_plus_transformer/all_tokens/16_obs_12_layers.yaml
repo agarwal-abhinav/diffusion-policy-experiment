@@ -1,6 +1,6 @@
 # config for target conditioned experiments with image obs
 
-_target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env_investigate.TrainDiffusionUnetHybridWorkspaceNoEnv
+_target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env.TrainDiffusionUnetHybridWorkspaceNoEnv
 checkpoint:
   - save_last_ckpt: true
     save_last_snapshot: false
@@ -22,7 +22,7 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
-dataset_obs_steps: 5
+dataset_obs_steps: 10
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -37,8 +37,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: 12_cls_token_only
-  project: t_pushing_gradient_study
+  name: 16_initial
+  project: t_pushing_resnet_plus_transform_all_tokens
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -50,7 +50,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 12
+n_obs_steps: 16
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -99,7 +99,7 @@ policy:
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
-  n_obs_steps: 12
+  n_obs_steps: 16
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -116,14 +116,18 @@ policy:
   target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
+  # max_obs_steps_for_ablation: 16
+  use_all_tokens_for_conditioning: true
+  process_all_inputs_together: false
+  num_attention_layers: 12
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
     shape_meta: ${shape_meta}
     horizon: 24
-    n_obs_steps: 12
+    n_obs_steps: 16
     pad_after: 7
-    pad_before: 11
+    pad_before: 15
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr

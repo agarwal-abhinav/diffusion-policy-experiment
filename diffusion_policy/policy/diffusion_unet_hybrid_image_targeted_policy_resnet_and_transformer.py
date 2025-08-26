@@ -77,6 +77,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             process_all_inputs_together=False,
             max_obs_steps_for_ablation=None, 
             use_all_tokens_for_conditioning=False,
+            num_attention_layers=8,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -292,7 +293,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             self.resnet_post_processer = AllTogetherEmbeddingTransformer(
                 context_length=n_obs_steps, 
                 embedding_dim=self.obs_feature_dim, 
-                num_cls_tokens=num_cls_tokens
+                num_cls_tokens=num_cls_tokens, 
+                num_layers=num_attention_layers
             )
         else: 
             # assert num_cls_tokens > 0 and use_all_tokens_for_conditioning == False, "not setup yet"
@@ -300,7 +302,8 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 obs_keys=list(shape_meta['obs'].keys()), 
                 context_length=n_obs_steps, 
                 input_slicing_indices=input_slicing_indices,
-                num_cls_tokens=num_cls_tokens
+                num_cls_tokens=num_cls_tokens, 
+                num_layers=num_attention_layers
             )
         
         # Create DDIM sampler

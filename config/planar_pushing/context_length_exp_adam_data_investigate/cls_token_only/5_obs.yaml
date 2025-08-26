@@ -37,7 +37,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 5_initial
+  name: 5_cls_token_only
   project: t_pushing_gradient_study
   resume: true
   tags:
