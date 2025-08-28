@@ -25,7 +25,7 @@ from torchvision.models.video import mc3_18, MC3_18_Weights
 from torchvision.models.video.resnet import VideoResNet
 import torch.nn.functional as F
 
-from typing import List
+from typing import List, Optional
 
 class VideoRandomCrop(nn.Module): 
     def __init__(self, crop_size: tuple[int, int]): 
@@ -67,9 +67,9 @@ class VideoRandomCrop(nn.Module):
 class MC3ObsEncoder(nn.Module): 
     def __init__(self, 
                  output_dim: int,
-                 pretrained: str | None = None, 
+                 pretrained: Optional[str] = None, 
                  normalize_output: bool = True, 
-                 random_crop_size: tuple[int, int] | None = (112, 112)): 
+                 random_crop_size: Optional[tuple[int, int]] = (112, 112)): 
         super().__init__()
 
         if random_crop_size is not None: 
@@ -113,9 +113,9 @@ class RGBInputMC3Encoder(nn.Module):
     def __init__(self, 
                  input_labels: List[str], 
                  output_dim: int, 
-                 pretrained: str | None = None, 
+                 pretrained: Optional[str] = None, 
                  normalize_output: bool = True, 
-                 random_crop_size: tuple[int, int] | None = (112, 112)
+                 random_crop_size: Optional[tuple[int, int]] = (112, 112)
                  ): 
         super().__init__() 
 
@@ -141,9 +141,9 @@ class AllInputEncoder(nn.Module):
                  rgb_input_labels: List[str],
                  other_input_labels: List[str], 
                  video_output_dim_per_modality: int,
-                 pretrained_rgb_encoder: str | None = None, 
+                 pretrained_rgb_encoder: Optional[str] = None, 
                  normalize_rgb_output: bool = True, 
-                 crop_shape: tuple[int, int] | None = (112, 112)
+                 crop_shape: Optional[tuple[int, int]] = (112, 112)
                  ): 
         super().__init__()
 
@@ -206,7 +206,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             one_hot_encoding_dim=0,
             obs_encoder_group_norm=False,
             num_DDIM_inference_steps=10,
-            pretrained_encoder: str | None = None,
+            pretrained_encoder: Optional[str] = None,
             normalize_rgb_output: bool = True,
             freeze_encoder: bool = False, 
             # parameters passed to step
