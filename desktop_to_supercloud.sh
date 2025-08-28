@@ -2,7 +2,7 @@
 
 # Source directory on your computer
 # SOURCE_DIR="data/sim_sim_tee_data_carbon_large.zarr"
-SOURCE_DIR="data/diffusion_experiments/grasp_two_bins/two_bins_data_1_desired_commands_only_right.zarr"
+SOURCE_DIR="data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_right.zarr"
 
 # Target directory on the target computer
 TARGET_USER="aagarwal2"

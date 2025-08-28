@@ -21,6 +21,165 @@ import robomimic.models.obs_core as rmobsc
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
+from torchvision.models.video import mc3_18, MC3_18_Weights
+from torchvision.models.video.resnet import VideoResNet
+import torch.nn.functional as F
+
+from typing import List
+
+class VideoRandomCrop(nn.Module): 
+    def __init__(self, crop_size: tuple[int, int]): 
+        super().__init__()
+        self.ch, self.cw = crop_size
+
+    @torch.no_grad()
+    def _sample_positions(self, B, H, W, device, training: bool): 
+        if training: 
+            top = torch.randint(0, H - self.ch + 1, (B,), device=device)
+            left = torch.randint(0, W - self.cw + 1, (B,), device=device)
+        else:
+            top = torch.full((B,), (H - self.ch)//2, device=device, dtype=torch.long)
+            left = torch.full((B,), (W - self.cw)//2, device=device, dtype=torch.long)
+        return top, left
+
+    def forward(self, x): 
+        """
+        x: B, T, C, H, W
+        returns: B, T, C, crop_H, crop_W
+        """
+        B, T, C, H, W = x.shape 
+
+        assert x.dtype == torch.float32
+
+        top, left = self._sample_positions(B, H, W, x.device, self.training)
+
+        h_idx = top[:, None] + torch.arange(self.ch, device=x.device)[None, :]
+        w_idx = left[:, None] + torch.arange(self.cw, device=x.device)[None, :]
+
+        idx_h = h_idx[:, None, None, :, None].expand(B, T, C, self.ch, W)
+        x_h = x.gather(dim=3, index=idx_h)
+
+        idx_w = w_idx[:, None, None, None, :].expand(B, T, C, self.ch, self.cw)
+        x_hw = x_h.gather(dim=4, index=idx_w)
+
+        return x_hw
+
+class MC3ObsEncoder(nn.Module): 
+    def __init__(self, 
+                 output_dim: int,
+                 pretrained: str | None = None, 
+                 normalize_output: bool = True, 
+                 random_crop_size: tuple[int, int] | None = (112, 112)): 
+        super().__init__()
+
+        if random_crop_size is not None: 
+            self.random_cropper = VideoRandomCrop(random_crop_size)
+        else: 
+            self.random_cropper = None
+
+        self.backbone: VideoResNet = mc3_18(weights=None)
+
+        if pretrained is not None: 
+            sd = torch.load(pretrained, map_location='cpu')
+            missing, unexpected = self.backbone.load_state_dict(sd, strict=True)
+
+        # remove the final classification layer 
+        feat_dim = self.backbone.fc.in_features
+        self.backbone.fc = nn.Identity()
+        self.proj = nn.Linear(feat_dim, output_dim)
+
+        self.normalize_output = normalize_output
+    
+    def forward(self, x): 
+        """
+        x: B, T, C, H, W
+        """
+        if self.random_cropper is not None:
+            x = self.random_cropper(x)
+        
+        x = x.permute(0, 2, 1, 3, 4)
+        x = self.backbone(x)
+        x = self.proj(x)
+
+        if self.normalize_output:
+            x = F.normalize(x, dim=-1)
+
+        return x
+    
+class RGBInputMC3Encoder(nn.Module): 
+    def __init__(self, 
+                 input_labels: List[str], 
+                 output_dim: int, 
+                 pretrained: str | None = None, 
+                 normalize_output: bool = True, 
+                 random_crop_size: tuple[int, int] | None = (112, 112)
+                 ): 
+        super().__init__() 
+
+        self.module_dict = nn.ModuleDict()
+
+        for key in input_labels: 
+            self.module_dict[key] = MC3ObsEncoder(output_dim=output_dim, 
+                                                  pretrained=pretrained, 
+                                                  normalize_output=normalize_output, 
+                                                  random_crop_size=random_crop_size)
+        
+        self.keys = input_labels
+    
+    def forward(self, x_dict): 
+        outputs = []
+        for key in self.keys: 
+            outputs.append(self.module_dict[key](x_dict[key]))
+
+        return torch.cat(outputs, dim=-1)
+
+class AllInputEncoder(nn.Module): 
+    def __init__(self, 
+                 rgb_input_labels: List[str],
+                 other_input_labels: List[str], 
+                 video_output_dim_per_modality: int,
+                 pretrained_rgb_encoder: str | None = None, 
+                 normalize_rgb_output: bool = True, 
+                 crop_shape: tuple[int, int] | None = (112, 112)
+                 ): 
+        super().__init__()
+
+        self.rgb_encoder = RGBInputMC3Encoder(
+            input_labels=rgb_input_labels,
+            output_dim=video_output_dim_per_modality,
+            pretrained=pretrained_rgb_encoder,
+            normalize_output=normalize_rgb_output, 
+            random_crop_size=crop_shape
+        )
+        self.other_input_labels = other_input_labels
+        self.rgb_input_labels = rgb_input_labels    
+    
+    def forward(self, x_dict): 
+        rgb_features = self.rgb_encoder(x_dict)
+
+        all_features = [rgb_features]
+
+        for key in self.other_input_labels: 
+            all_features.append(x_dict[key].view(x_dict[key].shape[0], -1))
+
+        return torch.cat(all_features, dim=-1)
+    
+class VideoNormalizer(nn.Module): 
+    def __init__(self, mean, std, inplace=False): 
+        super().__init__()
+
+        mean = torch.as_tensor(mean).view(1, 1, -1, 1, 1)
+        std = torch.as_tensor(std).view(1, 1, -1, 1, 1)
+        self.register_buffer('mean', mean)
+        self.register_buffer('std', std)
+        self.inplace = inplace
+
+    def forward(self, x): 
+        if self.inplace: 
+            x.sub_(self.mean).div_(self.std)
+            return x 
+        else: 
+            return (x - self.mean) / self.std
 
 class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def __init__(self, 
@@ -29,25 +188,23 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             horizon, 
             n_action_steps, 
             n_obs_steps,
-            one_hot_encoding_dim=0,
+            video_output_dim_per_modality,
             num_inference_steps=None,
             obs_as_global_cond=True,
             use_target_cond=False,
             target_dim=None,
-            crop_shape=(76, 76),
+            crop_shape=(112, 112),
             diffusion_step_embed_dim=256,
             down_dims=(256,512,1024),
             kernel_size=5,
             n_groups=8,
             cond_predict_scale=True,
             obs_embedding_dim=None,
+            one_hot_encoding_dim=0,
             obs_encoder_group_norm=False,
-            eval_fixed_crop=False,
             num_DDIM_inference_steps=10,
-            pretrained_encoder=False,
-            freeze_pretrained_encoder=False,
-            initialize_obs_encoder=None, 
-            freeze_self_trained_obs_encoder=False, 
+            pretrained_encoder: str | None = None,
+            normalize_rgb_output: bool = True,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -84,78 +241,24 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             else:
                 raise RuntimeError(f"Unsupported obs type: {type}")
 
-        # get raw robomimic config
-        config = get_robomimic_config(
-            algo_name='bc_rnn',
-            hdf5_type='image',
-            task_name='square',
-            dataset_type='ph', 
-            pretrained_encoder=pretrained_encoder,
-            freeze_pretrained_encoder=freeze_pretrained_encoder)
-                
-        with config.unlocked():
-            # set config with shape_meta
-            config.observation.modalities.obs = obs_config
+        obs_encoder = AllInputEncoder(
+            rgb_input_labels=obs_config['rgb'], 
+            other_input_labels=obs_config['low_dim'],
+            video_output_dim_per_modality=video_output_dim_per_modality, 
+            pretrained_rgb_encoder=pretrained_encoder,
+            normalize_rgb_output=normalize_rgb_output, 
+            crop_shape=crop_shape
+        )
 
-            if crop_shape is None:
-                for key, modality in config.observation.encoder.items():
-                    if modality.obs_randomizer_class == 'CropRandomizer':
-                        modality['obs_randomizer_class'] = None
-            else:
-                # set random crop parameter
-                ch, cw = crop_shape
-                for key, modality in config.observation.encoder.items():
-                    if modality.obs_randomizer_class == 'CropRandomizer':
-                        modality.obs_randomizer_kwargs.crop_height = ch
-                        modality.obs_randomizer_kwargs.crop_width = cw
-
-        # init global state
-        ObsUtils.initialize_obs_utils_with_config(config)
-
-        # load model
-        policy: PolicyAlgo = algo_factory(
-                algo_name=config.algo_name,
-                config=config,
-                obs_key_shapes=obs_key_shapes,
-                ac_dim=action_dim,
-                device='cuda' if torch.cuda.is_available() else 'cpu'
-            )
-
-        # extract the image encoder
-        obs_encoder = policy.nets['policy'].nets['encoder'].nets['obs']
-        
-        if obs_encoder_group_norm:
-            # replace batch norm with group norm
-            replace_submodules(
-                root_module=obs_encoder,
-                predicate=lambda x: isinstance(x, nn.BatchNorm2d),
-                func=lambda x: nn.GroupNorm(
-                    num_groups=x.num_features//16, 
-                    num_channels=x.num_features)
-            )
-            # obs_encoder.obs_nets['agentview_image'].nets[0].nets
-        
-        # obs_encoder.obs_randomizers['agentview_image']
-        if eval_fixed_crop:
-            replace_submodules(
-                root_module=obs_encoder,
-                predicate=lambda x: isinstance(x, rmobsc.CropRandomizer),
-                func=lambda x: dmvc.CropRandomizer(
-                    input_shape=x.input_shape,
-                    crop_height=x.crop_height,
-                    crop_width=x.crop_width,
-                    num_crops=x.num_crops,
-                    pos_enc=x.pos_enc
-                )
-            )
-
+        assert obs_embedding_dim is None
         if obs_embedding_dim is not None:
             obs_feature_dim = obs_embedding_dim
             self.obs_embedding_projector = MLP(obs_encoder.output_shape()[0], [], obs_feature_dim)
             self.obs_embedding_projector.to('cuda' if torch.cuda.is_available() else 'cpu')
             project_obs_embedding = True
         else:
-            obs_feature_dim = obs_encoder.output_shape()[0]
+            obs_feature_dim = len(obs_config['rgb']) * video_output_dim_per_modality + sum(
+                [math.prod(obs_key_shapes[key]) * n_obs_steps for key in obs_config['low_dim']])
             project_obs_embedding = False
 
         # create diffusion model
@@ -164,7 +267,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         global_cond_dim = None
         if obs_as_global_cond:
             input_dim = action_dim
-            global_cond_dim = obs_feature_dim * n_obs_steps + one_hot_encoding_dim
+            global_cond_dim = obs_feature_dim 
         print(f"Input dim: {input_dim}, Global cond dim: {global_cond_dim}")
 
         model = ConditionalUnet1D(
@@ -180,17 +283,24 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         )
 
         self.obs_encoder = obs_encoder
-        if initialize_obs_encoder is not None: 
-            state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
-            self.obs_encoder.load_state_dict(state_dict)
+        # if initialize_obs_encoder is not None: 
+        #     state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
+        #     self.obs_encoder.load_state_dict(state_dict)
         
-            if freeze_self_trained_obs_encoder: 
-                for param in self.obs_encoder.parameters(): 
-                    param.requires_grad = False
+        #     if freeze_self_trained_obs_encoder: 
+        #         for param in self.obs_encoder.parameters(): 
+        #             param.requires_grad = False
         
         self.model = model
         self.noise_scheduler = noise_scheduler
-        
+
+        mean = (0.43216, 0.394666, 0.37645)
+        std  = (0.22803, 0.22145, 0.216989)
+
+        self.video_normalizer = nn.ModuleDict()
+        for key in obs_config['rgb']:
+            self.video_normalizer[key] = VideoNormalizer(mean, std, inplace=True)
+
         # Create DDIM sampler
         DDIM_noise_scheduler = DDIMScheduler(
             num_train_timesteps=self.noise_scheduler.num_train_timesteps,
@@ -222,6 +332,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         self.one_hot_encoding_dim = one_hot_encoding_dim
         self.use_target_cond = use_target_cond
         self.kwargs = kwargs
+        self.obs_config = obs_config
 
         if num_inference_steps is None:
             num_inference_steps = noise_scheduler.config.num_train_timesteps
@@ -231,6 +342,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         print("Vision params: %e" % sum(p.numel() for p in self.obs_encoder.parameters()))
         if project_obs_embedding:
             print("Vision projector params: %e" % sum(p.numel() for p in self.obs_embedding_projector.parameters()))
+        print("Global cond dim: %d" % (0 if global_cond_dim is None else global_cond_dim))
     
     # ========= inference  ============
     def conditional_sample(self, 
@@ -275,6 +387,16 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         trajectory[condition_mask] = condition_data[condition_mask]        
 
         return trajectory
+    
+    def _apply_obs_normalization(self, obs_dict): 
+        nobs = dict()
+        for key in self.obs_config['rgb']:
+            nobs[key] = self.video_normalizer[key](obs_dict[key])
+        
+        for key in self.obs_config['low_dim']:
+            nobs[key] = self.normalizer[key].normalize(obs_dict[key])
+        
+        return nobs
 
     def predict_action(self, obs_dict: Dict[str, torch.Tensor], use_DDIM=False) -> Dict[str, torch.Tensor]:
         """
@@ -287,7 +409,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             assert 'target' in obs_dict
         assert 'past_action' not in obs_dict # not implemented yet
         # normalize input
-        nobs = self.normalizer.normalize(obs_dict['obs'])
+        nobs = self._apply_obs_normalization(obs_dict['obs'])
         ntarget = None
         if self.use_target_cond:
             ntarget = self.normalizer['target'].normalize(obs_dict['target'])
@@ -307,12 +429,12 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         global_cond = None
         if self.obs_as_global_cond:
             # condition through global feature
-            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
+            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...])
+            global_cond = self.obs_encoder(this_nobs)
             if self.project_obs_embedding:
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
-            global_cond = nobs_features.reshape(B, -1)
+            # global_cond = nobs_features.reshape(B, -1)
             # empty data for action
             cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
             cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
@@ -368,7 +490,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
 
     def compute_obs_embedding(self, batch):
         assert 'valid_mask' not in batch
-        nobs = self.normalizer.normalize(batch['obs'])
+        nobs = self._apply_obs_normalization(batch['obs'])
         key = next(iter(nobs.keys()))
         batch_size = nobs[key].shape[0]
 
@@ -376,12 +498,12 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
-                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
+                lambda x: x[:,:self.n_obs_steps,...])
+            global_cond = self.obs_encoder(this_nobs)
             if self.project_obs_embedding:
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
-            global_cond = nobs_features.reshape(batch_size, -1)
+            # global_cond = nobs_features.reshape(batch_size, -1)
         else:
             nactions = self.normalizer['action'].normalize(batch['action'])
             horizon = nactions.shape[1]
@@ -412,7 +534,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
 
     def get_encoder_output(self, batch): 
         assert 'valid_mask' not in batch
-        nobs = self.normalizer.normalize(batch['obs'])
+        nobs = self._apply_obs_normalization(batch['obs'])
         ntarget = None
         if self.use_target_cond:
             ntarget = self.normalizer['target'].normalize(batch['target'])
@@ -429,18 +551,18 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
-                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
+                lambda x: x[:,:self.n_obs_steps,...])
+            global_cond = self.obs_encoder(this_nobs)
             if self.project_obs_embedding:
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
-            global_cond = nobs_features.reshape(batch_size, -1)
+            # global_cond = nobs_features.reshape(batch_size, -1)
 
         return global_cond, nobs_features
 
     def forward(self, batch, noisy_trajectory, timesteps):
         assert 'valid_mask' not in batch
-        nobs = self.normalizer.normalize(batch['obs'])
+        nobs = self._apply_obs_normalization(batch['obs'])
         ntarget = None
         if self.use_target_cond:
             ntarget = self.normalizer['target'].normalize(batch['target'])
@@ -457,12 +579,12 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
-                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
+                lambda x: x[:,:self.n_obs_steps,...])
+            global_cond = self.obs_encoder(this_nobs)
             if self.project_obs_embedding:
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
-            global_cond = nobs_features.reshape(batch_size, -1)
+            # global_cond = nobs_features.reshape(batch_size, -1)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
@@ -494,7 +616,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def compute_loss(self, batch):
         # normalize input
         assert 'valid_mask' not in batch
-        nobs = self.normalizer.normalize(batch['obs'])
+        nobs = self._apply_obs_normalization(batch['obs'])
         nactions = self.normalizer['action'].normalize(batch['action'])
         ntarget = None
         if self.use_target_cond:
@@ -510,12 +632,12 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
-                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
+                lambda x: x[:,:self.n_obs_steps,...])
+            global_cond = self.obs_encoder(this_nobs)
             if self.project_obs_embedding:
                 nobs_features = self.obs_embedding_projector(nobs_features)
             # reshape back to B, Do
-            global_cond = nobs_features.reshape(batch_size, -1)
+            # global_cond = nobs_features.reshape(batch_size, -1)
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))

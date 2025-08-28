@@ -155,7 +155,7 @@ class SequenceSampler:
         return result
 
 
-class BinaryDatasetSampler(SequenceSampler): 
+class ImprovedDatasetSampler(SequenceSampler): 
     def __init__(self,
                  replay_buffer: ReplayBuffer, 
                 sequence_length:int,
