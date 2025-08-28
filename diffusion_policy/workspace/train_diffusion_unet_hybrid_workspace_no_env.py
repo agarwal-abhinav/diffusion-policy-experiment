@@ -22,6 +22,7 @@ import dill
 import shutil
 import torch
 from torch.nn.parallel import DataParallel
+from torch.cuda.amp import GradScaler, autocast
 from einops import rearrange, reduce
 import torch.nn.functional as F
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
@@ -81,15 +82,56 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         if cfg.training.use_ema:
             self.ema_model = copy.deepcopy(self.model)
 
-        # configure training state
-        self.optimizer = hydra.utils.instantiate(
-            cfg.optimizer, params=self.model.parameters())
+        # configure training state with variable learning rates
+        self.encoder_lr_scale = getattr(cfg.training, 'encoder_lr_scale', 1.0)
+        self.use_variable_lr = getattr(cfg.training, 'use_variable_lr', False)
+        
+        if self.use_variable_lr and hasattr(self.model, 'obs_encoder'):
+            # Check if this is MC3 encoder by looking for the specific policy class
+            # is_mc3_model = 'r3d' in self.model.__class__.__module__
+            
+            # if is_mc3_model:
+            print(f"Using variable learning rate: encoder LR = {cfg.optimizer.lr * self.encoder_lr_scale:.6f}, rest = {cfg.optimizer.lr:.6f}")
+            
+            # Separate parameters for encoder and rest of model
+            encoder_params = list(self.model.obs_encoder.parameters())
+            encoder_param_ids = {id(p) for p in encoder_params}
+            
+            other_params = [p for p in self.model.parameters() if id(p) not in encoder_param_ids]
+            
+            # Create parameter groups with different learning rates
+            param_groups = [
+                {'params': encoder_params, 'lr': cfg.optimizer.lr * self.encoder_lr_scale},
+                {'params': other_params, 'lr': cfg.optimizer.lr}
+            ]
+            
+            # Create optimizer with parameter groups
+            import torch.optim as optim
+            optimizer_class = getattr(optim, cfg.optimizer._target_.split('.')[-1])  # Extract class name
+            
+            optimizer_kwargs = dict(cfg.optimizer)
+            optimizer_kwargs.pop('_target_')
+            optimizer_kwargs.pop('lr')  # Remove base lr since we're setting per group
+            
+            self.optimizer = optimizer_class(param_groups, **optimizer_kwargs)
+            # else:
+            #     print("Variable LR requested but not MC3 model - using standard optimizer")
+            #     self.optimizer = hydra.utils.instantiate(
+            #         cfg.optimizer, params=self.model.parameters())
+        else:
+            self.optimizer = hydra.utils.instantiate(
+                cfg.optimizer, params=self.model.parameters())
 
         # configure training state
         self.global_step = 0
         self.epoch = 0
 
         self.new_type_dataloader = getattr(cfg, 'new_type_dataloader', False)
+        
+        # configure mixed precision training
+        self.use_amp = getattr(cfg.training, 'use_amp', False)
+        self.scaler = GradScaler() if self.use_amp else None
+        print(f"Mixed precision training: {'enabled' if self.use_amp else 'disabled'}")
 
     def run(self):
         cfg = copy.deepcopy(self.cfg)
@@ -259,18 +301,32 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         noisy_trajectory = self.model.noise_scheduler.add_noise(
                             trajectory, noise, timesteps)
                         
-                        # call to the policy's forward function: computes 1 denoising step
-                        pred = self.model(batch, noisy_trajectory, timesteps)
+                        # Forward pass with optional mixed precision
+                        if self.use_amp:
+                            with autocast(dtype=torch.float16):
+                                pred = self.model(batch, noisy_trajectory, timesteps)
+                                raw_loss = self.compute_loss(trajectory, noise, pred)
+                                loss = raw_loss / cfg.training.gradient_accumulate_every
+                        else:
+                            pred = self.model(batch, noisy_trajectory, timesteps)
+                            raw_loss = self.compute_loss(trajectory, noise, pred)
+                            loss = raw_loss / cfg.training.gradient_accumulate_every
                         
-                        # compute loss
-                        raw_loss = self.compute_loss(trajectory, noise, pred)
-                        loss = raw_loss / cfg.training.gradient_accumulate_every
-                        loss.backward()
+                        # Backward pass with optional mixed precision
+                        if self.use_amp:
+                            self.scaler.scale(loss).backward()
+                        else:
+                            loss.backward()
 
                         # step optimizer
                         if self.global_step % cfg.training.gradient_accumulate_every == 0:
-                            self.optimizer.step()
-                            self.optimizer.zero_grad()
+                            if self.use_amp:
+                                self.scaler.step(self.optimizer)
+                                self.scaler.update()
+                                self.optimizer.zero_grad()
+                            else:
+                                self.optimizer.step()
+                                self.optimizer.zero_grad()
                             lr_scheduler.step()
                         
                         # update ema

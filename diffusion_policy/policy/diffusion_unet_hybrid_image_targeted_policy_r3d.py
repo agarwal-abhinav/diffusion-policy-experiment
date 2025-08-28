@@ -89,6 +89,9 @@ class MC3ObsEncoder(nn.Module):
         self.proj = nn.Linear(feat_dim, output_dim)
 
         self.normalize_output = normalize_output
+        
+        # Compile the backbone for faster execution
+        # self.backbone = torch.compile(self.backbone, mode='max-autotune')
     
     def forward(self, x): 
         """
@@ -96,7 +99,7 @@ class MC3ObsEncoder(nn.Module):
         """
         if self.random_cropper is not None:
             x = self.random_cropper(x)
-        
+                         
         x = x.permute(0, 2, 1, 3, 4)
         x = self.backbone(x)
         x = self.proj(x)
@@ -205,6 +208,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             num_DDIM_inference_steps=10,
             pretrained_encoder: str | None = None,
             normalize_rgb_output: bool = True,
+            freeze_encoder: bool = False, 
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -287,9 +291,9 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         #     state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
         #     self.obs_encoder.load_state_dict(state_dict)
         
-        #     if freeze_self_trained_obs_encoder: 
-        #         for param in self.obs_encoder.parameters(): 
-        #             param.requires_grad = False
+        if freeze_encoder: 
+            for param in self.obs_encoder.parameters(): 
+                param.requires_grad = False
         
         self.model = model
         self.noise_scheduler = noise_scheduler

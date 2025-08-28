@@ -6,14 +6,14 @@ checkpoint:
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 5
+      k: 10
       mode: min
       monitor_key: val_loss_0
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 5
+      k: 10
       mode: min
       monitor_key: val_ddim_mse_0
 dataloader:
@@ -22,7 +22,8 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
-dataset_obs_steps: 2
+new_type_dataloader: true
+dataset_obs_steps: 16
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -31,14 +32,14 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 16
+horizon: 24
 keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
   mode: online
-  name: 2_initial
-  project: t_pushing_cl_ablation
+  name: 16_tenth_lr
+  project: t_pushing_mc3
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -50,7 +51,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 2
+n_obs_steps: 16
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -84,8 +85,9 @@ shape_meta:
       - 128
       type: rgb
 policy:
-  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
+  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy_r3d.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
+  video_output_dim_per_modality: 320
   crop_shape:
   - 112
   - 112
@@ -94,12 +96,11 @@ policy:
   - 256
   - 512
   - 1024
-  eval_fixed_crop: true
-  horizon: 16
+  horizon: 24
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
-  n_obs_steps: 2
+  n_obs_steps: 16
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -111,19 +112,19 @@ policy:
     variance_type: fixed_small
   num_inference_steps: 100
   obs_as_global_cond: true
-  obs_encoder_group_norm: true
-  use_target_cond: true
-  target_dim: 3
+  obs_encoder_group_norm: false
+  use_target_cond: false
+  # target_dim: 3
   shape_meta: ${shape_meta}
-  pretrained_encoder: false
+  pretrained_encoder: data/pretrained_models/mc3_18.pth
 task:
   dataset:
-    _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
+    _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
     shape_meta: ${shape_meta}
-    horizon: 16
-    n_obs_steps: 2
+    horizon: 24
+    n_obs_steps: 16
     pad_after: 7
-    pad_before: 1
+    pad_before: 15
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
@@ -153,6 +154,10 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
+  use_amp: false  # Enable mixed precision training
+  total_train_steps: 100000
+  use_variable_lr: true  # Enable variable learning rate for encoder
+  encoder_lr_scale: 0.1  # Encoder gets 1/10th the learning rate
 # val_dataloader smaller than train_dataloader
 # since some datasets are very small
 val_dataloader:
