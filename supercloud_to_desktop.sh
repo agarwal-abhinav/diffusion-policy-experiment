@@ -3,7 +3,7 @@
 # Source directory on your computer
 # SOURCE_DIR="outputs/diffusion_experiments/cartpole_controller_noise_100/partially_observable_h_50_pred_8_ablation/3_traj/"
 # SOURCE_DIR="outputs/diffusion_experiments/random_system_seed_0_controller_noise_0.5/partially_observable_ss/0_mean_50_context/checkpoints/"
-SOURCE_DIR="data/outputs/grasp_two_bins/separate_dataset_training_resnet_plus_transformer/cls_token_only/"
+SOURCE_DIR="data/outputs/canonical_planar_pushing/initial_training/"
 # SOURCE_DIR="data/outputs/planar_pushing/diffusion_transformer_training/context_length_exp_adam_data/"
 # SOURCE_DIR="data/outputs/context_length_exp_adam_data_resnet_plus_transformer/cls_token_only_2_encoder_freeze_regular_policy/"
 # SOURCE_DIR="data/outputs/context_length_exp_adam_data_resnet_plus_transformer/cls_token_only_2_encoder_freeze_regular_policy/"
@@ -11,7 +11,8 @@ SOURCE_DIR="data/outputs/grasp_two_bins/separate_dataset_training_resnet_plus_tr
 # Target directory on the target computer
 TARGET_USER="aagarwal2"
 TARGET_HOST="txe1-login.mit.edu"
-TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/grasp_two_bins/separate_dataset_training_resnet_plus_transformer/cls_token_only/5_obs"
+# TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/grasp_two_bins_flat/resnet_plus_transformer/cls_token_only/5_obs"
+TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/canonical_planar_pushing/initial_training/24_obs_h_32"
 # TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/planar_pushing/diffusion_transformer_training/context_length_exp_adam_data/5_obs"
 # TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/outputs/context_length_exp_adam_data_resnet_plus_transformer/cls_token_only_2_encoder_freeze_regular_policy/10_obs"
 

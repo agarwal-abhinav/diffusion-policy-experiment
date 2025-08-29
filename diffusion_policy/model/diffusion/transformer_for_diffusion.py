@@ -329,7 +329,6 @@ class TransformerForDiffusion(ModuleAttrMixin):
             ]  # each position maps to a (learnable) vector
             x = self.drop(token_embeddings + position_embeddings)
             # (B,T,n_emb)
-            breakpoint()
             x = self.decoder(
                 tgt=x,
                 memory=memory,
