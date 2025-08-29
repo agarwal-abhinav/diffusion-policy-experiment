@@ -453,11 +453,11 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
     def _apply_obs_normalization(self, obs_dict): 
         nobs = dict()
         for key in self.obs_config['rgb']:
-            nobs[key] = self.image_normalizer[key](obs_dict[key])
+            nobs[key] = self.image_normalizer[key](obs_dict[key]).to(torch.float32)
         
         for key in self.obs_config['low_dim']:
-            nobs[key] = self.normalizer[key].normalize(obs_dict[key])
-        
+            nobs[key] = self.normalizer[key].normalize(obs_dict[key]).to(torch.float32)
+
         return nobs
 
     def predict_action(self, obs_dict: Dict[str, torch.Tensor], use_DDIM=False) -> Dict[str, torch.Tensor]:
