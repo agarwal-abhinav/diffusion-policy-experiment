@@ -66,8 +66,9 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             obs_encoder_group_norm=False,
             eval_fixed_crop=False,
             num_DDIM_inference_steps=10,
-            pretrained_encoder=False,
-            freeze_pretrained_encoder=False,
+            pretrained_encoder=False, # robomimic interaction, not used
+            freeze_pretrained_encoder=False, # robomimic interaction, not used
+            # these are added after the CL experiments started
             initialize_obs_encoder=None,
             initialize_wrist_encoder=None, 
             initialize_overhead_encoder=None,
