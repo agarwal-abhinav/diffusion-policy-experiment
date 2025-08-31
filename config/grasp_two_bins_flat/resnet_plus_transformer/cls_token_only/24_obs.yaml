@@ -6,14 +6,14 @@ checkpoint:
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 10
+      k: 5
       mode: min
       monitor_key: val_loss_0
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 10
+      k: 5
       mode: min
       monitor_key: val_ddim_mse_0
 dataloader:
@@ -124,7 +124,7 @@ task:
     horizon: 32
     n_obs_steps: 24
     pad_after: 7
-    pad_before: 4
+    pad_before: 23
     seed: 42
     zarr_configs:
     - path: data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_right.zarr

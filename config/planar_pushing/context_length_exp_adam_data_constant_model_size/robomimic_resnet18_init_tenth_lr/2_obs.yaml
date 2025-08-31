@@ -23,7 +23,7 @@ dataloader:
   pin_memory: true
   shuffle: true
 new_type_dataloader: true
-dataset_obs_steps: 16
+dataset_obs_steps: 2
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -38,8 +38,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: 16_tenth_lr
-  project: t_pushing_mc3
+  name: 2_initial
+  project: t_pushing_cl_ablation_constant_model_size
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -51,7 +51,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 16
+n_obs_steps: 2
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -85,9 +85,8 @@ shape_meta:
       - 128
       type: rgb
 policy:
-  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy_r3d.DiffusionUnetHybridImageTargetedPolicy
+  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy_CL_ablation.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
-  video_output_dim_per_modality: 320
   crop_shape:
   - 112
   - 112
@@ -96,11 +95,12 @@ policy:
   - 256
   - 512
   - 1024
+  eval_fixed_crop: true
   horizon: 24
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
-  n_obs_steps: 16
+  n_obs_steps: 2
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -112,19 +112,20 @@ policy:
     variance_type: fixed_small
   num_inference_steps: 100
   obs_as_global_cond: true
-  obs_encoder_group_norm: false
-  use_target_cond: false
-  # target_dim: 3
+  obs_encoder_group_norm: true
+  use_target_cond: true
+  target_dim: 3
   shape_meta: ${shape_meta}
-  pretrained_encoder: data/pretrained_models/mc3_18.pth
+  pretrained_encoder: false
+  initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
     shape_meta: ${shape_meta}
     horizon: 24
-    n_obs_steps: 16
+    n_obs_steps: 2
     pad_after: 7
-    pad_before: 15
+    pad_before: 1
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
@@ -154,7 +155,6 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
-  use_amp: true  # Enable mixed precision training
   total_train_steps: 100000
   use_variable_lr: true  # Enable variable learning rate for encoder
   encoder_lr_scale: 0.1  # Encoder gets 1/10th the learning rate
