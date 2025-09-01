@@ -133,3 +133,17 @@ The codebase includes extensive real robot capabilities:
 - **Wandb Integration**: Training automatically logs to Weights & Biases if configured
 - **Evaluation Frequency**: Policies are evaluated every 50 epochs by default during training
 - **Multirun Metrics**: Use `multirun_metrics.py` to aggregate results across multiple training runs
+
+## Additional Utilities
+
+**Checkpoint Management**:
+- `transfer_checkpoints.py`: Utility for transferring checkpoints between systems
+- Best checkpoint selection scripts in `scripts/`: `find_best_act_mse.py`, `find_best_val_loss.py`
+
+**Data Generation**: 
+- `data_generation/`: Contains maze environment generation and motion planning tools
+- `submit_*.sh`: Batch job submission scripts for cluster computing
+
+**Analysis Tools**:
+- `experiments/`: Embedding computation and nearest neighbor experiments
+- `scripts/save_embeddings.py`: Extract and save model embeddings for analysis
