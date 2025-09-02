@@ -23,7 +23,7 @@ dataloader:
   pin_memory: true
   shuffle: true
 new_type_dataloader: true
-dataset_obs_steps: 24
+dataset_obs_steps: 10
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -32,14 +32,14 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 32
+horizon: 24
 keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
   mode: online
-  name: 24_cls_only
-  project: grasp_task_flat_resnet_plus_transformer
+  name: 10_resnet18_freeze
+  project: t_pushing_cl_ablation_constant_model_size
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -51,7 +51,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 24
+n_obs_steps: 10
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -66,11 +66,11 @@ past_action_visible: false
 shape_meta:
   action:
     shape:
-    - 13
+    - 2
   obs:
     agent_pos:
       shape:
-      - 13
+      - 3
       type: low_dim
     overhead_camera:
       shape:
@@ -85,7 +85,7 @@ shape_meta:
       - 128
       type: rgb
 policy:
-  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy_resnet_and_transformer.DiffusionUnetHybridImageTargetedPolicy
+  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy_CL_ablation.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
   crop_shape:
   - 112
@@ -96,11 +96,11 @@ policy:
   - 512
   - 1024
   eval_fixed_crop: true
-  horizon: 32
+  horizon: 24
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
-  n_obs_steps: 24
+  n_obs_steps: 10
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -113,26 +113,24 @@ policy:
   num_inference_steps: 100
   obs_as_global_cond: true
   obs_encoder_group_norm: true
-  use_target_cond: false
-  # target_dim: 3
+  use_target_cond: true
+  target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
+  initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
+  freeze_pretrained_resnet_encoder: true
 task:
   dataset:
-    _target_: diffusion_policy.dataset.binary_task_dataset.BinaryTaskDataset
+    _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
     shape_meta: ${shape_meta}
-    horizon: 32
-    n_obs_steps: 24
+    horizon: 24
+    n_obs_steps: 10
     pad_after: 7
-    pad_before: 23
+    pad_before: 9
     seed: 42
     zarr_configs:
-    - path: data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_right.zarr
-      max_train_episodes: 85
-      sampling_weight: null
-      val_ratio: 0.0625 # 10 / 160 trajectories
-    - path: data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_left.zarr
-      max_train_episodes: 85
+    - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
+      max_train_episodes: 160
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
@@ -148,7 +146,6 @@ training:
   max_train_steps: null
   max_val_steps: null
   num_epochs: 200 # 70 for 50, 2000; 200 for 50, 500
-  total_train_steps: 200000
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
@@ -159,6 +156,9 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
+  total_train_steps: 100000
+  use_variable_lr: false  # Enable variable learning rate for encoder
+  encoder_lr_scale: 0.1  # Encoder gets 1/10th the learning rate
 # val_dataloader smaller than train_dataloader
 # since some datasets are very small
 val_dataloader:
