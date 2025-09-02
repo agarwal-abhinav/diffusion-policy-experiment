@@ -74,6 +74,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             initialize_overhead_encoder=None,
             initialize_all_weights=None,
             freeze_self_trained_obs_encoder=False,
+            freeze_pretrained_resnet_encoder=False,
             inference_loading = False, 
             rescale_encoder_gradients=False,
             # parameters passed to step
@@ -259,7 +260,15 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             if initialize_obs_encoder is not None: 
                 state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
                 self.obs_encoder.load_state_dict(state_dict, strict=True)
-            
+
+                assert (freeze_self_trained_obs_encoder and freeze_pretrained_resnet_encoder) == False
+                if freeze_pretrained_resnet_encoder: 
+                    for name in self.obs_encoder.obs_nets.keys(): 
+                        module = self.obs_encoder.obs_nets[name]
+                        if module is not None: 
+                            for param in module.nets[0].parameters(): 
+                                param.requires_grad = False
+
                 if freeze_self_trained_obs_encoder: 
                     for param in self.obs_encoder.parameters(): 
                         param.requires_grad = False
