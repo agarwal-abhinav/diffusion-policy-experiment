@@ -28,13 +28,13 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=16_obs_12_layers.yaml
 # HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_resnet_plus_transformer/all_tokens/16_obs_12_layers
 
-CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size/robomimic_resnet18_freeze/
-CONFIG_NAME=16_obs.yaml
-HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_constant_model_size/robomimic_resnet18_freeze/16_obs
+# CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size/robomimic_resnet18_freeze/
+# CONFIG_NAME=1_obs.yaml
+# HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_constant_model_size/robomimic_resnet18_freeze/1_obs
 
-# CONFIG_DIR=config/grasp_two_bins_flat/resnet_plus_transformer/cls_token_only
-# CONFIG_NAME=24_obs.yaml
-# HYDRA_RUN_DIR=data/outputs/grasp_two_bins_flat/resnet_plus_transformer/cls_token_only/24_obs
+CONFIG_DIR=config/grasp_two_bins_flat/same_middle_same_return/basic_training
+CONFIG_NAME=22_obs.yaml
+HYDRA_RUN_DIR=data/outputs/grasp_two_bins_flat/same_middle_same_return/basic_training/22_obs
 
 # CONFIG_DIR=config/grasp_two_bins_flat/resnet_plus_transformer/cls_token_only/
 # CONFIG_NAME=24_obs.yaml
