@@ -23,7 +23,7 @@ dataloader:
   pin_memory: true
   shuffle: true
 new_type_dataloader: true
-dataset_obs_steps: 2
+dataset_obs_steps: 5
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -38,7 +38,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 2_initial
+  name: 5_initial
   project: t_pushing_resnet_plus_transform_all_tokens
   resume: true
   tags:
@@ -51,7 +51,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 2
+n_obs_steps: 5
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -100,7 +100,7 @@ policy:
   kernel_size: 5
   n_action_steps: 8
   n_groups: 8
-  n_obs_steps: 2
+  n_obs_steps: 5
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -117,18 +117,18 @@ policy:
   target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
-  # max_obs_steps_for_ablation: 16
+  max_obs_steps_for_ablation: 16
   use_all_tokens_for_conditioning: true
   process_all_inputs_together: false
-  initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
+  # initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
     shape_meta: ${shape_meta}
     horizon: 24
-    n_obs_steps: 2
+    n_obs_steps: 5
     pad_after: 7
-    pad_before: 1
+    pad_before: 4
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr

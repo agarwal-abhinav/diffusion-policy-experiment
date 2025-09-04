@@ -117,10 +117,10 @@ policy:
   target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
-  # max_obs_steps_for_ablation: 16
+  max_obs_steps_for_ablation: 16
   use_all_tokens_for_conditioning: true
   process_all_inputs_together: false
-  initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
+  # initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
