@@ -6,14 +6,14 @@ checkpoint:
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 5
+      k: 10
       mode: min
       monitor_key: val_loss_0
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
-      k: 5
+      k: 10
       mode: min
       monitor_key: val_ddim_mse_0
 dataloader:
@@ -38,7 +38,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 24_obs
+  name: 22_obs_resnet
   project: grasp_task_flat_basics
   resume: true
   tags:
@@ -117,6 +117,7 @@ policy:
   # target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
+  initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
 task:
   dataset:
     _target_: diffusion_policy.dataset.binary_task_dataset.BinaryTaskDataset
@@ -128,11 +129,11 @@ task:
     seed: 42
     zarr_configs:
     - path: data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_right_same_return_same_center_1_second_total.zarr
-      max_train_episodes: 25
+      max_train_episodes: 35
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
     - path: data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_left_same_return_same_center_1_second_total.zarr
-      max_train_episodes: 25
+      max_train_episodes: 35
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
@@ -148,7 +149,7 @@ training:
   max_train_steps: null
   max_val_steps: null
   num_epochs: 200 # 70 for 50, 2000; 200 for 50, 500
-  total_train_steps: 50000
+  total_train_steps: 100000
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
