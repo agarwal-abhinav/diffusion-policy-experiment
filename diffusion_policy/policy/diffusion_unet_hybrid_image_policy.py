@@ -39,6 +39,9 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             obs_encoder_group_norm=False,
             eval_fixed_crop=False,
             num_DDIM_inference_steps=10,
+            initialize_obs_encoder=None,
+            freeze_self_trained_obs_encoder=False,
+            inference_loading=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -152,6 +155,15 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
         )
 
         self.obs_encoder = obs_encoder
+        if inference_loading == False: 
+            if initialize_obs_encoder is not None: 
+                print(f"Initialize obs encoder with {initialize_obs_encoder}")
+                state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
+                self.obs_encoder.load_state_dict(state_dict, strict=True)
+
+                if freeze_self_trained_obs_encoder: 
+                    for param in self.obs_encoder.parameters(): 
+                        param.requires_grad = False
         self.model = model
         self.noise_scheduler = noise_scheduler
 
