@@ -217,6 +217,8 @@ class ImprovedDatasetSampler(SequenceSampler):
                     datagram['obs']['agent_pos'] = data.astype(np.float32)
             elif key in self.rgb_keys: 
                 datagram['obs'][key] = data.astype(np.uint8)
+            elif key in self.obs_dict_keys: 
+                datagram['obs'][key] = data.astype(np.float32)
             elif key == 'target': 
                 datagram['target'] = data[0].astype(np.float32)
             else: 

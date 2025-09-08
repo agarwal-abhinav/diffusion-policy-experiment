@@ -129,11 +129,11 @@ task:
     seed: 42
     zarr_configs:
     - path: data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_right_same_return_same_center_1_second_total.zarr
-      max_train_episodes: 50
+      max_train_episodes: 25
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
     - path: data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_left_same_return_same_center_1_second_total.zarr
-      max_train_episodes: 50
+      max_train_episodes: 25
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
@@ -149,7 +149,7 @@ training:
   max_train_steps: null
   max_val_steps: null
   num_epochs: 200 # 70 for 50, 2000; 200 for 50, 500
-  total_train_steps: 100000
+  total_train_steps: 30600
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}

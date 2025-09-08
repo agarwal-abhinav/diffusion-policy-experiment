@@ -20,7 +20,7 @@ from diffusion_policy.model.common.normalizer import LinearNormalizer, SingleFie
 from diffusion_policy.model.common.rotation_transformer import RotationTransformer
 from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, Jpeg2k
 from diffusion_policy.common.replay_buffer import ReplayBuffer
-from diffusion_policy.common.sampler import SequenceSampler, get_val_mask
+from diffusion_policy.common.sampler import SequenceSampler, get_val_mask, ImprovedDatasetSampler
 from diffusion_policy.common.normalize_util import (
     robomimic_abs_action_only_normalizer_from_stat,
     robomimic_abs_action_only_dual_arm_normalizer_from_stat,
@@ -50,6 +50,7 @@ class RobomimicReplayImageDataset(BaseImageDataset):
             from_rep='axis_angle', to_rep=rotation_rep)
 
         replay_buffer = None
+        self.dataset_path = dataset_path
         if use_cache:
             cache_zarr_path = dataset_path + '.zarr.zip'
             cache_lock_path = cache_zarr_path + '.lock'
@@ -128,10 +129,13 @@ class RobomimicReplayImageDataset(BaseImageDataset):
         self.abs_action = abs_action
         self.n_obs_steps = n_obs_steps
         self.train_mask = train_mask
+        self.val_mask = val_mask
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
         self.use_legacy_normalizer = use_legacy_normalizer
+        self.key_first_k = key_first_k
+        self.keys = rgb_keys + lowdim_keys + ['action']
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -218,7 +222,67 @@ class RobomimicReplayImageDataset(BaseImageDataset):
             'action': torch.from_numpy(data['action'].astype(np.float32))
         }
         return torch_data
+    
+class RobomimicReplayImageImprovedDataset(RobomimicReplayImageDataset): 
+    def __init__(self, 
+                 shape_meta: dict,
+            dataset_path: str,
+            horizon=1,
+            pad_before=0,
+            pad_after=0,
+            n_obs_steps=None,
+            abs_action=False,
+            rotation_rep='rotation_6d', # ignored when abs_action=False
+            use_legacy_normalizer=False,
+            use_cache=False,
+            seed=42,
+            val_ratio=0.0
+                 ): 
+        super().__init__(
+            shape_meta=shape_meta,
+            dataset_path=dataset_path,
+            horizon=horizon,
+            pad_before=pad_before,
+            pad_after=pad_after,
+            n_obs_steps=n_obs_steps,
+            abs_action=abs_action,
+            rotation_rep=rotation_rep, # ignored when abs_action=False
+            use_legacy_normalizer=use_legacy_normalizer,
+            use_cache=use_cache,
+            seed=seed,
+            val_ratio=val_ratio
+        )
 
+        del self.sampler 
+
+        self.sampler = ImprovedDatasetSampler(
+            replay_buffer=self.replay_buffer, 
+            sequence_length=horizon, 
+            shape_meta=shape_meta, 
+            pad_before=pad_before,
+            pad_after=pad_after,
+            key_first_k=self.key_first_k, 
+            episode_mask=self.train_mask, 
+        )
+
+    def get_validation_dataset(self):
+        val_set = copy.copy(self)
+        val_set.sampler = ImprovedDatasetSampler(
+            replay_buffer=self.replay_buffer, 
+            sequence_length=self.horizon,
+            pad_before=self.pad_before, 
+            pad_after=self.pad_after,
+            episode_mask=~self.train_mask, 
+            key_first_k=self.key_first_k,
+            shape_meta=self.shape_meta
+            )
+        val_set.train_mask = ~self.train_mask
+        return val_set
+
+    def __getitem__(self, idx):
+        data = self.sampler.sample_data(idx)
+        torch_data = dict_apply(data, torch.from_numpy)
+        return torch_data
 
 def _convert_actions(raw_actions, abs_action, rotation_transformer):
     actions = raw_actions
