@@ -18,7 +18,7 @@ wandb offline
 # Export date, time, environment variables
 DATE=`date +"%Y.%m.%d"`
 TIME=`date +"%H.%M.%S"`
-HYDRA_FULL_ERROR=1
+export cHYDRA_FULL_ERROR=1
 
 echo "[submit_training.sh] Running training code..."
 echo "[submit_training.sh] Date: $DATE"
