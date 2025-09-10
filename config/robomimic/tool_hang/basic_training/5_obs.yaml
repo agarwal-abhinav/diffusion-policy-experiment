@@ -134,15 +134,15 @@ task:
     shape_meta: ${shape_meta}
     use_cache: true
     val_ratio: 0.02
-  dataset_path: data/robomimic/square/ph/image_abs.hdf5
+  dataset_path: data/robomimic/tool_hang/ph/image_abs.hdf5
   dataset_type: ph
   env_runner:
     _target_: diffusion_policy.env_runner.robomimic_image_runner.RobomimicImageRunner
     abs_action: true
     crf: 22
-    dataset_path: data/robomimic/square/ph/image_abs.hdf5
+    dataset_path: data/robomimic/tool_hang/ph/image_abs.hdf5
     fps: 10
-    max_steps: 400
+    max_steps: 700
     n_action_steps: ${n_action_steps}
     n_envs: 28
     n_obs_steps: ${n_obs_steps}
@@ -151,26 +151,26 @@ task:
     n_train: 6
     n_train_vis: 2
     past_action: false
-    render_obs_key: agentview_image
+    render_obs_key: sideview_image
     shape_meta: ${shape_meta}
     test_start_seed: 100000
     tqdm_interval_sec: 1.0
     train_start_idx: 0
-  name: square_image
+  name: tool_hang_image
   shape_meta: ${shape_meta}
   task_name: square
-task_name: square_image
+task_name: tool_hang_image
 training:
   checkpoint_every: 5
   debug: false
-  device: cuda:0
+  device: cuda
   gradient_accumulate_every: 1
   lr_scheduler: cosine
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
   num_epochs: 200
-  total_train_steps: 100000
+  total_train_steps: 150000
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}

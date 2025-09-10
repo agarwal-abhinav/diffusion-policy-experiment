@@ -31,6 +31,13 @@ from diffusion_policy.model.common.lr_scheduler import get_scheduler
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
+class DataParallelWrapper(DataParallel):
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
 class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
     include_keys = ['global_step', 'epoch']
 
@@ -45,7 +52,15 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
 
         # configure model
         self.model: DiffusionTransformerHybridImagePolicy = hydra.utils.instantiate(cfg.policy)
+        num_GPU = torch.cuda.device_count()
+        if num_GPU > 0: 
+            self.model = self.model.to(torch.device("cuda"))
+        else: 
+            self.model = self.model.to(torch.device("cpu"))
 
+        print(f"Running on {num_GPU} GPU(s).")
+        self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
+        
         self.ema_model: DiffusionTransformerHybridImagePolicy = None
         if cfg.training.use_ema:
             self.ema_model = copy.deepcopy(self.model)

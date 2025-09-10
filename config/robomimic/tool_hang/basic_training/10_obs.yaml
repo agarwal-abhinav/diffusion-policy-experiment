@@ -21,8 +21,8 @@ dataloader:
   pin_memory: true
   shuffle: true
 # new_type_dataloader: true
-horizon: 24 
-n_obs_steps: 2
+horizon: 24
+n_obs_steps: 10
 n_action_steps: 8
 dataset_obs_steps: ${n_obs_steps}
 shape_meta:
@@ -67,7 +67,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 2_obs
+  name: 10_obs
   project: toolhang_basic_training
   resume: true
   tags:
@@ -128,7 +128,7 @@ task:
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 1
+    pad_before: 9
     rotation_rep: rotation_6d
     seed: 42
     shape_meta: ${shape_meta}
