@@ -19,6 +19,7 @@ import wandb
 import tqdm
 import numpy as np
 import shutil
+from torch.nn.parallel import DataParallel
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_transformer_hybrid_image_policy import DiffusionTransformerHybridImagePolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset

@@ -19,6 +19,7 @@ import wandb
 import tqdm
 import numpy as np
 import shutil
+from torch.nn.parallel import DataParallel
 from torch.cuda.amp import GradScaler, autocast
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import DiffusionUnetHybridImagePolicy
