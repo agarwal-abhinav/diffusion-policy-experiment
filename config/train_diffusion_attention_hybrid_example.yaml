@@ -1,0 +1,208 @@
+# Example configuration for attention-based diffusion policy
+# This demonstrates the new variable-length observation architecture
+
+defaults:
+  - _self_
+
+name: train_diffusion_attention_hybrid
+_target_: diffusion_policy.workspace.train_diffusion_attention_hybrid_workspace.TrainDiffusionAttentionHybridWorkspace
+
+# Memory optimization: use improved sampling with post-processing
+new_type_dataloader: true
+
+task_name: attention_planar_pushing
+exp_name: attention_variable_obs
+
+# NEW: Attention-based policy configuration
+policy:
+  _target_: diffusion_policy.policy.diffusion_attention_hybrid_image_policy.DiffusionAttentionHybridImagePolicy
+
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+    num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    beta_schedule: linear
+    variance_type: fixed_small
+    clip_sample: True
+    prediction_type: epsilon
+
+  shape_meta: &shape_meta
+    action: 
+      shape: [2]
+    obs:
+      agent_pos: 
+        shape: [3]
+        type: low_dim
+      overhead_camera:
+        shape: [3, 128, 128]
+        type: rgb
+      wrist_camera:
+        shape: [3, 128, 128]  
+        type: rgb
+
+  # Core parameters
+  horizon: 24                    # Total sequence length
+  n_action_steps: 8              # Number of action steps to execute
+  n_obs_steps: 16                # Maximum observation steps
+  
+  # NEW: Variable observation parameters
+  min_obs_steps: 2               # Minimum observation steps (must be >= 1)
+  variable_obs_curriculum: true  # Enable curriculum learning for obs lengths
+  
+  # Attention model parameters  
+  max_global_tokens: 18          # Max tokens for attention (obs + timestep + target)
+  num_attention_heads: 8         # Number of attention heads
+  attention_dropout: 0.1         # Attention dropout rate
+  
+  # Standard diffusion parameters
+  obs_as_global_cond: True
+  down_dims: [256, 512, 1024]
+  diffusion_step_embed_dim: 256
+  kernel_size: 5
+  n_groups: 8
+  
+  # Vision encoder parameters
+  crop_shape: [76, 76]
+  obs_embedding_dim: 256         # Project obs features to this dim
+  obs_encoder_group_norm: False
+  eval_fixed_crop: False
+  
+  # Training parameters
+  num_inference_steps: null      # Use all timesteps
+  num_DDIM_inference_steps: 10   # For fast inference
+
+# NEW: Attention-based dataset configuration
+task:
+  name: attention_planar_pushing
+  dataset:
+    _target_: diffusion_policy.dataset.planar_pushing_attention_dataset.PlanarPushingAttentionDataset
+    
+    zarr_configs:
+      - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
+        max_train_episodes: 160
+        sampling_weight: 1.0
+    
+    shape_meta: *shape_meta
+    
+    # Dataset parameters matching policy
+    horizon: 24                  # Must match policy horizon
+    n_obs_steps: 16              # Must match policy n_obs_steps  
+    min_obs_steps: 2             # Must match policy min_obs_steps
+    
+    # Data augmentation and preprocessing
+    pad_before: 1
+    pad_after: 7
+    seed: 42
+    val_ratio: 0.05
+    
+    # NEW: Dataset-level variable observation parameters
+    training_mode: 'random'       # 'random' or 'progressive' 
+    progressive_steps: 10000      # Steps for progressive curriculum (if using progressive mode)
+    
+    # Image preprocessing
+    color_jitter:
+      brightness: 0.1
+      saturation: 0.1
+      hue: 0.1
+    low_pass_on_wrist: false
+    low_pass_on_overhead: false
+
+# Training configuration
+training:
+  seed: 42
+  device: cuda:0
+  use_ema: True
+  
+  # Training schedule
+  num_epochs: 3000
+  gradient_accumulate_every: 1
+  
+  # Learning rate configuration
+  lr_scheduler: cosine
+  lr_warmup_steps: 500
+  
+  # NEW: Attention-specific training parameters
+  attention_curriculum_steps: 10000  # Steps for obs length curriculum
+  log_attention_stats: true          # Log attention statistics
+  
+  # Validation and checkpointing
+  val_every: 50
+  checkpoint_every: 50
+  sample_every: 50
+  
+  # Evaluation
+  log_val_mse: true
+  eval_mse_DDPM: true  
+  eval_mse_DDIM: true
+  
+  # Performance settings
+  max_train_steps: null
+  max_val_steps: null
+  tqdm_interval_sec: 1.0
+  
+  # Advanced training options
+  use_amp: false                # Mixed precision training
+  use_variable_lr: false        # Different LR for encoder vs diffusion model
+  encoder_lr_scale: 1.0         # Scale factor for encoder LR
+  
+  debug: false
+  resume: false
+
+# Optimizer
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 1.0e-6
+
+# Exponential Moving Average
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  update_after_step: 0
+  inv_gamma: 1.0
+  power: 0.75
+  min_value: 0.0
+  max_value: 0.9999
+
+# Data loading
+dataloader:
+  batch_size: 64
+  num_workers: 8
+  shuffle: true
+  pin_memory: true
+  persistent_workers: true
+
+val_dataloader:
+  batch_size: 64
+  num_workers: 8
+  shuffle: false
+  pin_memory: true
+  persistent_workers: true
+
+# Checkpointing
+checkpoint:
+  save_last_ckpt: True
+  save_last_snapshot: False
+  topk:
+    k: 5
+    mode: min
+    monitor_key: val_loss
+    format_str: 'epoch={epoch:04d}-val_loss={val_loss:.3f}.ckpt'
+
+# Logging
+logging:
+  project: diffusion_policy_attention
+  group: attention_planar_pushing
+  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  tags: ["attention", "variable_obs", "planar_pushing"]
+  notes: "Attention-based diffusion policy with variable observation lengths"
+  mode: online  # Set to 'disabled' to disable wandb logging
+
+# Hydra settings
+hydra:
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  job:
+    chdir: false

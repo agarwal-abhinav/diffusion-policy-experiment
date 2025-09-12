@@ -181,20 +181,25 @@ class ImprovedDatasetSampler(SequenceSampler):
         self.rgb_keys = [key for key in self.obs_dict_keys if shape_meta['obs'][key]['type'] == 'rgb']
         self.data_dict_keys = [key for key in self.keys if key not in self.obs_dict_keys]
 
-    def sample_data(self, idx): 
+    def sample_data(self, idx, key_first_k_override=None): 
         buffer_start_idx, buffer_end_idx, sample_start_idx, sample_end_idx \
             = self.indices[idx]
         datagram = dict()
         datagram['obs'] = dict()
+        if key_first_k_override is not None:
+            key_first_k_to_use = key_first_k_override
+        else: 
+            key_first_k_to_use = self.key_first_k
+        
         for key in self.keys:
             input_arr = self.replay_buffer[key]
             # performance optimization, avoid small allocation if possible
-            if key not in self.key_first_k:
+            if key not in key_first_k_to_use:
                 sample = input_arr[buffer_start_idx:buffer_end_idx]
             else:
                 # performance optimization, only load used obs steps
                 n_data = buffer_end_idx - buffer_start_idx
-                k_data = min(self.key_first_k[key], n_data)
+                k_data = min(key_first_k_to_use[key], n_data)
                 # fill value with Nan to catch bugs
                 # the non-loaded region should never be used
                 sample = np.full((n_data,) + input_arr.shape[1:], 
@@ -224,3 +229,70 @@ class ImprovedDatasetSampler(SequenceSampler):
             else: 
                 datagram[key] = data.astype(np.float32)
         return datagram
+
+
+class VariableDatasetSampler(ImprovedDatasetSampler):
+    """
+    Dataset sampler that can dynamically adjust observation loading based on requested num_obs_steps.
+    This avoids loading full n_obs_steps and then truncating - instead loads only what's needed.
+    """
+    def __init__(self,
+                 replay_buffer, 
+                 sequence_length: int,
+                 shape_meta: dict,
+                 max_obs_steps: int,
+                 horizon: int,
+                 pad_before: int = 0,
+                 pad_after: int = 0,
+                 keys: list = None,
+                 episode_mask = None, 
+                 ):
+        # Initialize parent without key_first_k - we'll set it dynamically
+        super().__init__(
+            replay_buffer=replay_buffer, 
+            sequence_length=sequence_length,
+            shape_meta=shape_meta,
+            pad_before=pad_before,
+            pad_after=pad_after,
+            keys=keys,
+            key_first_k=dict(),  # Empty initially - set dynamically
+            episode_mask=episode_mask,
+        )
+        
+        self.max_obs_steps = max_obs_steps
+        self.horizon = horizon
+        self.base_keys = keys or list(replay_buffer.keys())
+    
+    def sample_data_with_obs_steps(self, idx: int, num_obs_steps: int):
+        """
+        Sample data with specific number of observation steps.
+        Simple approach: Use parent sampler for full data, then limit observations manually.
+        
+        Args:
+            idx: Sample index
+            num_obs_steps: Number of observation steps to use
+            
+        Returns:
+            Data dict with exactly num_obs_steps observations and full horizon actions
+        """
+        # Use parent sampler to get full data (this handles all the complex episode boundary logic)
+        full_data = self.sample_data(idx)
+        
+        # Now manually limit observations and ensure proper NaN padding
+        result = {
+            'obs': {},
+            'action': full_data['action'],  # Keep full horizon
+            'target': full_data['target']   # Keep target
+        }
+        
+        # Process observations: keep num_obs_steps, pad rest with NaN
+        for key, value in full_data['obs'].items():
+            # Create new array filled with NaN (always float32)
+            obs_data = np.full(value.shape, fill_value=np.nan, dtype=np.float32)
+            
+            # Fill first num_obs_steps with actual data
+            obs_data[:num_obs_steps] = value[:num_obs_steps].astype(np.float32)
+            
+            result['obs'][key] = obs_data
+            
+        return result
