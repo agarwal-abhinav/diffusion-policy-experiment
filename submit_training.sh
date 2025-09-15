@@ -24,9 +24,9 @@ echo "[submit_training.sh] Running training code..."
 echo "[submit_training.sh] Date: $DATE"
 echo "[submit_training.sh] Time: $TIME"
 
-CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_variable_training/random_2_to_obs
-CONFIG_NAME=5_obs.yaml
-HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_variable_training/random_2_to_obs/5_obs
+CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_variable_training/random_sprinkle_2_to_obs_resnet_init/
+CONFIG_NAME=10_obs.yaml
+HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_variable_training/random_sprinkle_2_to_obs_resnet_init/10_obs
 
 # CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size/robomimic_resnet18_freeze/
 # CONFIG_NAME=1_obs.yaml
