@@ -24,7 +24,7 @@ dataloader:
   shuffle: true
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 12
+n_obs_steps: 1
 horizon: 24
 dataset_obs_steps: ${n_obs_steps}
 new_type_dataloader: true
@@ -41,7 +41,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 12_random_sprinkle_resnet_init
+  name: 2_constant
   project: t_pushing_attention_unet
   resume: true
   tags:
@@ -116,24 +116,22 @@ policy:
   target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
-  initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_attention_dataset.PlanarPushingAttentionDataset
     shape_meta: ${shape_meta}
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
-    min_obs_steps: 2
+    min_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 11
+    pad_before: 1
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
       max_train_episodes: 160
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
-    training_mode: "random_sprinkle"
-    random_sprinkle_prob: 0.2
+    training_mode: "random"
     progressive_steps: 1
   name: scene_image
   shape_meta: ${shape_meta} # not used?
