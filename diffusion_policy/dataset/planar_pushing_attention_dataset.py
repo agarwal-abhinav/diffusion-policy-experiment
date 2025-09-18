@@ -52,6 +52,7 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         horizon=24,
         n_obs_steps=16,
         min_obs_steps=1,  # NEW: minimum observation steps
+        max_obs_steps=None, # NEW: maximum observation steps (if None, use n_obs_steps)
         pad_before=0,
         pad_after=0,
         seed=42,
@@ -72,7 +73,7 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         
         # NEW: Dataset-level variable observation parameters
         self.min_obs_steps = min_obs_steps
-        self.max_obs_steps = n_obs_steps
+        self.max_obs_steps = max_obs_steps if max_obs_steps is not None else n_obs_steps
         self.training_mode = training_mode  # 'random' or 'progressive'
         self.progressive_steps = progressive_steps
         self.training_step = 0
