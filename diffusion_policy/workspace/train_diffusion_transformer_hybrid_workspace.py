@@ -73,6 +73,8 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
         self.global_step = 0
         self.epoch = 0
 
+        self.new_type_dataloader = getattr(cfg, 'new_type_dataloader', False)
+
     def run(self):
         cfg = copy.deepcopy(self.cfg)
 
@@ -203,6 +205,9 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                        if self.new_type_dataloader: 
+                            for key in dataset.rgb_keys: 
+                                batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                         if train_sampling_batch is None:
                             train_sampling_batch = batch
 
@@ -271,6 +276,9 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                                     leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                                 for batch_idx, batch in enumerate(tepoch):
                                     batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                                    if self.new_type_dataloader: 
+                                        for key in dataset.rgb_keys: 
+                                            batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                                     if val_sampling_batches[dataset_idx] is None: 
                                         val_sampling_batches[dataset_idx] = batch
                                     loss = self.model.compute_loss(batch)
