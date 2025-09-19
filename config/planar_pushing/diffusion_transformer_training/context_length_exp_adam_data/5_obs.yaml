@@ -16,7 +16,7 @@ checkpoint:
       monitor_key: val_ddim_mse_0
 dataloader:
   batch_size: 64
-  num_workers: 1
+  num_workers: 8
   shuffle: true
   pin_memory: true
   persistent_workers: false
@@ -157,7 +157,7 @@ training:
   eval_mse_DDPM: true
 val_dataloader:
   batch_size: 64
-  num_workers: 1
+  num_workers: 8
   shuffle: False
   pin_memory: True
   persistent_workers: False
