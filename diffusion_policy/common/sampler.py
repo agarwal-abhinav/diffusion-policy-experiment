@@ -228,6 +228,8 @@ class ImprovedDatasetSampler(SequenceSampler):
                 datagram['target'] = data[0].astype(np.float32)
             else: 
                 datagram[key] = data.astype(np.float32)
+            if key == 'action': 
+                datagram['action'] = data.astype(np.float32)
         return datagram
 
 
