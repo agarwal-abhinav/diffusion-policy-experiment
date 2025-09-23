@@ -46,7 +46,11 @@ class DiffusionTransformerHybridImagePolicy(BaseImagePolicy):
             time_as_cond=True,
             obs_as_cond=True,
             pred_action_steps_only=False,
+            inference_loading=False,
             # parameters passed to step
+            # extra parameters 
+            initialize_obs_encoder=None, 
+            freeze_self_trained_obs_encoder=False,
             **kwargs):
         super().__init__()
 
@@ -160,6 +164,15 @@ class DiffusionTransformerHybridImagePolicy(BaseImagePolicy):
         )
 
         self.obs_encoder = obs_encoder
+        if inference_loading == False: 
+            if initialize_obs_encoder is not None: 
+                print(f"Initialize obs encoder with {initialize_obs_encoder}")
+                state_dict = torch.load(initialize_obs_encoder, map_location='cpu')
+                self.obs_encoder.load_state_dict(state_dict, strict=True)
+
+                if freeze_self_trained_obs_encoder: 
+                    for param in self.obs_encoder.parameters(): 
+                        param.requires_grad = False
         self.model = model
         self.noise_scheduler = noise_scheduler
 

@@ -26,9 +26,9 @@ echo "[submit_training.sh] Running training code..."
 echo "[submit_training.sh] Date: $DATE"
 echo "[submit_training.sh] Time: $TIME"
 
-CONFIG_DIR=config/robomimic/tool_hang/basic_training/
-CONFIG_NAME=16_obs.yaml
-HYDRA_RUN_DIR=data/outputs/robomimic/basic_training/16_obs
+CONFIG_DIR=config/robomimic/tool_hang/2_encoder_basic_freeze/
+CONFIG_NAME=5_obs.yaml
+HYDRA_RUN_DIR=data/outputs/robomimic/tool_hang/2_encoder_basic_freeze/5_obs
 
 # CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size/robomimic_resnet18_freeze/
 # CONFIG_NAME=1_obs.yaml
