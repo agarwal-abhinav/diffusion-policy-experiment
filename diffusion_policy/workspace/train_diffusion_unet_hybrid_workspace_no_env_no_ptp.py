@@ -425,7 +425,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             val_sampling_batch = val_sampling_batches[dataset_idx]
                             val_batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
                             val_obs_dict = {key: val_batch[key] for key in val_batch.keys() if key != 'action'}
-                            val_gt_action = val_sampling_batch['action']
+                            val_gt_action = val_sampling_batch['action'][:, -self.model.n_action_steps:, ...]
                             
                             # Evaluate MSE when diffusing with DDPM
                             if cfg.training.eval_mse_DDPM:

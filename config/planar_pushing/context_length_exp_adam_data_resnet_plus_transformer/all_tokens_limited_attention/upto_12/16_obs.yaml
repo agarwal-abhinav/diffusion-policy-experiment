@@ -1,6 +1,6 @@
 # config for target conditioned experiments with image obs
 
-_target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env_no_ptp.TrainDiffusionUnetHybridWorkspaceNoEnv
+_target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env.TrainDiffusionUnetHybridWorkspaceNoEnv
 checkpoint:
   - save_last_ckpt: true
     save_last_snapshot: false
@@ -22,6 +22,7 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
+dataset_obs_steps: 10
 new_type_dataloader: true
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
@@ -31,14 +32,14 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 2
+horizon: 24
 keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
   mode: online
-  name: test
-  project: spring_mass_image_based_basic
+  name: 16_initial
+  project: t_pushing_resnet_plus_transform_all_tokens
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -48,9 +49,9 @@ logging:
 multi_run:
   run_dir: data/outputs/2023.02.12/train_diffusion_unet_hybrid_pusher
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
-n_action_steps: 1
+n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 1
+n_obs_steps: 16
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -65,29 +66,41 @@ past_action_visible: false
 shape_meta:
   action:
     shape:
-    - 1
+    - 2
   obs:
-    image:
+    agent_pos:
       shape:
       - 3
-      - 64
-      - 64
+      type: low_dim
+    overhead_camera:
+      shape:
+      - 3
+      - 128
+      - 128
+      type: rgb
+    wrist_camera:
+      shape:
+      - 3
+      - 128
+      - 128
       type: rgb
 policy:
-  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy_no_ptp.DiffusionUnetHybridImageTargetedPolicy
+  _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy_resnet_and_transformer.DiffusionUnetHybridImageTargetedPolicy
   cond_predict_scale: true
   crop_shape:
-  - 60
-  - 60
-  diffusion_step_embed_dim: 64
+  - 112
+  - 112
+  diffusion_step_embed_dim: 128
   down_dims:
-  - 128
+  - 256
+  - 512
+  - 1024
   eval_fixed_crop: true
-  horizon: ${horizon}
-  kernel_size: 1
-  n_action_steps: ${n_action_steps}
+  horizon: 24
+  kernel_size: 5
+  n_action_steps: 8
   n_groups: 8
-  n_obs_steps: ${n_obs_steps}
+  n_obs_steps: 16
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
@@ -100,32 +113,35 @@ policy:
   num_inference_steps: 100
   obs_as_global_cond: true
   obs_encoder_group_norm: true
-  use_target_cond: false
-  # target_dim: 0
+  use_target_cond: true
+  target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
-  # initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
+  # max_obs_steps_for_ablation: 16
+  use_all_tokens_for_conditioning: true
+  process_all_inputs_together: false
+  apply_limited_attention: 12
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
     shape_meta: ${shape_meta}
-    horizon: ${horizon}
-    n_obs_steps: ${n_obs_steps}
-    pad_after: 0
-    pad_before: 0
+    horizon: 24
+    n_obs_steps: 16
+    pad_after: 7
+    pad_before: 15
     seed: 42
     zarr_configs:
-    - path: "data/spring_mass/basic_100_image_based_obs_${n_obs_steps}.zarr"
-      max_train_episodes: 90
+    - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
+      max_train_episodes: 160
       sampling_weight: null
-      val_ratio: 0.1 # 10 / 100 trajectories
+      val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
   shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing
 training:
   checkpoint_every: 5
   debug: false
-  device: cuda:0
+  device: cuda
   gradient_accumulate_every: 1
   lr_scheduler: cosine
   lr_warmup_steps: 500
@@ -142,9 +158,6 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
-  total_train_steps: 100000
-  use_variable_lr: false  # Enable variable learning rate for encoder
-  encoder_lr_scale: 0.1  # Encoder gets 1/10th the learning rate
 # val_dataloader smaller than train_dataloader
 # since some datasets are very small
 val_dataloader:
@@ -154,4 +167,3 @@ val_dataloader:
   pin_memory: true
   drop_last: true
   shuffle: true
-dataset_obs_steps: ${n_obs_steps}

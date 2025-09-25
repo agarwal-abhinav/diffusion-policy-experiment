@@ -37,8 +37,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: test
-  project: spring_mass_image_based_basic
+  name: 1_obs
+  project: spring_mass_image_based
   resume: true
   tags:
   - train_diffusion_unet_hybrid

@@ -273,7 +273,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
                 generator=generator,
                 **kwargs
                 ).prev_sample
-        
+                    
         # finally make sure conditioning is enforced
         trajectory[condition_mask] = condition_data[condition_mask]        
 
@@ -296,7 +296,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             ntarget = self.normalizer['target'].normalize(obs_dict['target'])
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
-        T = self.horizon
+        T = self.n_action_steps
         Da = self.action_dim
         Do = self.obs_feature_dim
         To = self.n_obs_steps

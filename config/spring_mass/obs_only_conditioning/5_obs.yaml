@@ -31,14 +31,14 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 2
+horizon: 6
 keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
   mode: online
-  name: test
-  project: spring_mass_image_based_basic
+  name: 5_obs
+  project: spring_mass_image_based
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -50,7 +50,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 1
 n_latency_steps: 0
-n_obs_steps: 1
+n_obs_steps: 5
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
