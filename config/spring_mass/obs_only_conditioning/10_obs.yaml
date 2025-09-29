@@ -116,9 +116,9 @@ task:
     seed: 42
     zarr_configs:
     - path: "data/spring_mass/basic_100_image_based_obs_${n_obs_steps}.zarr"
-      max_train_episodes: 10
+      max_train_episodes: 5
       sampling_weight: null
-      val_ratio: 0.1 # 10 / 100 trajectories
+      val_ratio: 0.05 # 10 / 100 trajectories
   name: scene_image
   shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing

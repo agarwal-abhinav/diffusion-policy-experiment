@@ -115,8 +115,8 @@ task:
     pad_before: 0
     seed: 42
     zarr_configs:
-    - path: "data/spring_mass/basic_100_image_based_obs_${n_obs_steps}.zarr"
-      max_train_episodes: 5
+    - path: "data/spring_mass_noisy/basic_100_image_based_obs_${n_obs_steps}.zarr"
+      max_train_episodes: 10
       sampling_weight: null
       val_ratio: 0.05 # 10 / 100 trajectories
   name: scene_image

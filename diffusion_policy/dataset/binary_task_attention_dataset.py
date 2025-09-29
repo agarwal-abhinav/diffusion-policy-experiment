@@ -44,19 +44,40 @@ class BinaryTaskDataset(BaseImageDataset):
         zarr_configs,
         shape_meta,
         use_one_hot_encoding=False,
-        horizon=1,
-        n_obs_steps=None,
+        horizon=24,
+        n_obs_steps=16,
+        min_obs_steps=1, # NEW: 
+        max_obs_steps=None, #NEW 
         pad_before=0,
         pad_after=0,
         seed=42,
         val_ratio=0.0,
         color_jitter=None,
         low_pass_on_wrist=False, 
-        low_pass_on_overhead=False
+        low_pass_on_overhead=False, 
+        training_mode='random', 
+        progressive_steps=10000, 
+        random_sprinkle_prob=0.1
     ):
         
         super().__init__()
         self._validate_zarr_configs(zarr_configs)
+        if training_mode == 'random_sprinkle':
+            assert random_sprinkle_prob is not None
+            self.random_sprinkle_prob = random_sprinkle_prob
+        
+        # NEW: Dataset-level variable observation parameters
+        self.min_obs_steps = min_obs_steps
+        self.max_obs_steps = max_obs_steps if max_obs_steps is not None else n_obs_steps
+        self.training_mode = training_mode  # 'random' or 'progressive'
+        self.progressive_steps = progressive_steps
+        self.training_step = 0
+        self.current_max = min_obs_steps
+
+        # Validation
+        assert min_obs_steps >= 1, "min_obs_steps must be >= 1"
+        assert min_obs_steps <= n_obs_steps, "min_obs_steps must be <= n_obs_steps"
+        assert horizon >= n_obs_steps, "horizon must be >= n_obs_steps"
 
         self.low_pass_on_wrist = low_pass_on_wrist
         if low_pass_on_wrist: 
@@ -82,6 +103,7 @@ class BinaryTaskDataset(BaseImageDataset):
                 self.rgb_keys.append(key)
             
         keys = self.rgb_keys + ['state', 'action', 'target']
+        self.keys = keys
 
         # trick for saving ram
         key_first_k = dict()
@@ -154,7 +176,8 @@ class BinaryTaskDataset(BaseImageDataset):
                     pad_before=pad_before, 
                     pad_after=pad_after,
                     episode_mask=train_mask,
-                    key_first_k=key_first_k
+                    key_first_k=key_first_k, 
+                    keys=keys
                 )
             )
             
@@ -215,13 +238,21 @@ class BinaryTaskDataset(BaseImageDataset):
         #     pad_after=self.pad_after,
         #     episode_mask=self.val_masks[index]
         # )]
+        val_key_first_k = dict()
+        if self.n_obs_steps is not None:
+            for key in self.rgb_keys + ['state', 'action', 'target']:
+                val_key_first_k[key] = self.n_obs_steps
+        val_key_first_k['action'] = self.horizon
+
         val_set.samplers = [ImprovedDatasetSampler(
             replay_buffer=self.replay_buffers[index], 
             sequence_length=self.horizon,
             shape_meta=self.shape_meta,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
-            episode_mask=self.val_masks[index]
+            episode_mask=self.val_masks[index], 
+            keys=self.rgb_keys + ['state', 'action', 'target'],
+            key_first_k=val_key_first_k
         )]
         return val_set
     
@@ -279,6 +310,25 @@ class BinaryTaskDataset(BaseImageDataset):
             length += len(sampler)
         return length
     
+    def _get_obs_steps(self) -> int:
+        """
+        Get number of observation steps based on training mode.
+        
+        Returns:
+            Number of observation steps to use for this sample
+        """
+        if self.training_mode == 'random':
+            # Random sampling between min and max for each sample
+            return torch.randint(self.min_obs_steps, self.max_obs_steps + 1, (1,)).item()
+        elif self.training_mode == 'random_sprinkle': 
+            # Random sampling with sprinkling: mostly max_obs_steps, some random
+            if random.random() < self.random_sprinkle_prob:
+                return torch.randint(self.min_obs_steps, self.max_obs_steps, (1,)).item()
+            else:
+                return self.max_obs_steps
+        elif self.training_mode == 'progressive':
+            raise NotImplementedError("Progressive mode not implemented yet")
+    
     def _validate_zarr_configs(self, zarr_configs):
         num_null_sampling_weights = 0
         N = len(zarr_configs)
@@ -306,6 +356,14 @@ class BinaryTaskDataset(BaseImageDataset):
         # then sample a sequence from that dataset
         # Note that this implementation does not guarantee that each unique
         # sequence is sampled on every epoch!
+
+        num_obs_steps = self._get_obs_steps()
+
+        key_first_k = dict()
+
+        for key in self.keys: 
+            key_first_k[key] = num_obs_steps
+        key_first_k['action'] = self.horizon
         
         # Get sample
         if self.num_datasets == 1:
@@ -315,14 +373,21 @@ class BinaryTaskDataset(BaseImageDataset):
         else:
             # sampler_idx = np.random.choice(self.num_datasets, p=self.sample_probabilities)
             if idx < len(self.samplers[0]): 
-                data = self.samplers[0].sample_data(idx)
+                data = self.samplers[0].sample_data(idx, key_first_k_override=key_first_k)
                 sampler_idx = 0
             else: 
-                data = self.samplers[1].sample_data(idx % len(self.samplers[0]))
+                data = self.samplers[1].sample_data(idx % len(self.samplers[0]), key_first_k_override=key_first_k)
                 sampler_idx = 1
         
         # Process sample
+
         torch_data = dict_apply(data, torch.from_numpy)
+
+        torch_data['sample_metadata'] = {
+            'num_obs_steps': num_obs_steps, 
+            'max_obs_steps': self.max_obs_steps,
+            'min_obs_steps': self.min_obs_steps,
+        }
         return torch_data
 
 if __name__ == "__main__":

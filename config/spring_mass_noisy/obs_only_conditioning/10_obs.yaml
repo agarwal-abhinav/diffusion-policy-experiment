@@ -31,13 +31,13 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 17
+horizon: 11
 keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
   mode: online
-  name: 16_obs
+  name: 10_obs
   project: spring_mass_image_based
   resume: true
   tags:
@@ -50,7 +50,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 1
 n_latency_steps: 0
-n_obs_steps: 16
+n_obs_steps: 10
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -115,8 +115,8 @@ task:
     pad_before: 0
     seed: 42
     zarr_configs:
-    - path: "data/spring_mass/basic_100_image_based_obs_${n_obs_steps}.zarr"
-      max_train_episodes: 5
+    - path: "data/spring_mass_noisy/basic_100_image_based_obs_${n_obs_steps}.zarr"
+      max_train_episodes: 10
       sampling_weight: null
       val_ratio: 0.05 # 10 / 100 trajectories
   name: scene_image
