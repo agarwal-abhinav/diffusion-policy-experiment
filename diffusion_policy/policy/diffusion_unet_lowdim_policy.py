@@ -63,7 +63,7 @@ class DiffusionUnetLowdimPolicy(BaseLowdimPolicy):
         self.num_inference_steps = num_inference_steps
 
         print("Diffusion params: %e" % sum(p.numel() for p in self.model.parameters()))
-        print("Global condition dim: %e" % self.model.global_cond_dim)
+        # print("Global condition dim: %e" % self.model.global_cond_dim)
     
     # ========= inference  ============
     def conditional_sample(self, 
