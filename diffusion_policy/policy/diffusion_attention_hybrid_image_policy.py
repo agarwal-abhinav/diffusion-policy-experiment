@@ -363,7 +363,7 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
 
     def predict_action(self, obs_dict: Dict[str, torch.Tensor], 
                       num_obs_tokens: Optional[int] = None,
-                      use_DDIM=False) -> Dict[str, torch.Tensor]:
+                      use_DDIM=False, use_custom_inference_tokens=None) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs"
         - if use_target_cond is true, obs_dict must also include "target"
@@ -382,13 +382,25 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
+        if use_custom_inference_tokens is not None: 
+            To = min(To, use_custom_inference_tokens)
         T = self.horizon
         Da = self.action_dim
         
         # Determine number of observation tokens to use
         if num_obs_tokens is None:
-            # assume it is not training but rather sampling 
-            num_obs_tokens = torch.ones(B, dtype=torch.long, device=value.device) * self.max_obs_steps
+            # assume it is not training but rather sampling
+            if use_custom_inference_tokens is not None:
+                def shifting_tokens(tensor):
+                    new_tensor = tensor.new_zeros(tensor.shape)
+                    new_tensor[:, :use_custom_inference_tokens, ...] = tensor[:, -use_custom_inference_tokens:, ...]
+                    return new_tensor 
+                
+                nobs = dict_apply(nobs, shifting_tokens)
+                num_obs_tokens = torch.ones(B, dtype=torch.long, device=value.device) * use_custom_inference_tokens
+            else:
+                num_obs_tokens = torch.ones(B, dtype=torch.long, device=value.device) * self.max_obs_steps
+            # num_obs_tokens = torch.ones(B, dtype=torch.long, device=value.device) * self.max_obs_steps
         
         # num_obs_tokens = min(num_obs_tokens, To)  # Can't use more tokens than available
         

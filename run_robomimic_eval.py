@@ -70,6 +70,8 @@ def main():
     print(f"LOW_LEVEL = {low_level}")
     print(f"Output root = {out_base}")
 
+    ckpts = ckpts[::-1]
+
     for i, ckpt in enumerate(ckpts, 1):
         name = checkpoint_name(ckpt)
         outdir = out_base / name
