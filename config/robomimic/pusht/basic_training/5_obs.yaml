@@ -110,7 +110,7 @@ task:
     horizon: ${horizon}
     max_train_episodes: 100
     pad_after: 7
-    pad_before: 1
+    pad_before: 4
     seed: 42
     val_ratio: 0.02
     zarr_path: data/pusht/pusht_cchi_v7_replay.zarr
@@ -121,7 +121,7 @@ task:
     max_steps: 300
     n_action_steps: ${n_action_steps}
     n_envs: null
-    n_obs_steps: 2
+    n_obs_steps: ${n_obs_steps}
     n_test: 50
     n_test_vis: 4
     n_train: 6
