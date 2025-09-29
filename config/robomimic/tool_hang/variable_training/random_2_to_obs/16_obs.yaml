@@ -20,7 +20,7 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
-# new_type_dataloader: true
+new_type_dataloader: true
 horizon: 24 
 n_obs_steps: 16
 n_action_steps: 8
