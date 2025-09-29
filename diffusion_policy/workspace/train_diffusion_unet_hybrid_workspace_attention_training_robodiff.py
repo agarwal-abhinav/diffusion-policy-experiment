@@ -18,17 +18,13 @@ import random
 import wandb
 import tqdm
 import numpy as np
-import dill
 import shutil
-import torch
 from torch.nn.parallel import DataParallel
 from torch.cuda.amp import GradScaler, autocast
-from einops import rearrange, reduce
-import torch.nn.functional as F
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
-# from diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy import DiffusionUnetHybridImageTargetedPolicy
+from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import DiffusionUnetHybridImagePolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
-# from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
+from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
 from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
@@ -37,20 +33,18 @@ from diffusion_policy.model.common.lr_scheduler import get_scheduler
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
-class DataParallelWrapper(DataParallel):
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
+# class DataParallelWrapper(DataParallel):
+#     def __getattr__(self, name):
+#         try:
+#             return super().__getattr__(name)
+#         except AttributeError:
+#             return getattr(self.module, name)
         
-class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
+class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
     include_keys = ['global_step', 'epoch']
 
     def __init__(self, cfg: OmegaConf, output_dir=None):
         super().__init__(cfg, output_dir=output_dir)
-        # This environment does not support impainting or local conditioning
-        assert cfg.policy.obs_as_global_cond is True
 
         # set seed
         seed = cfg.training.seed
@@ -59,15 +53,15 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         random.seed(seed)
 
         # configure model
+        self.model: DiffusionUnetHybridImagePolicy = hydra.utils.instantiate(cfg.policy)
         num_GPU = torch.cuda.device_count()
-        self.model = hydra.utils.instantiate(cfg.policy)
-        if num_GPU > 0:
+        if num_GPU > 0: 
             self.model = self.model.to(torch.device("cuda"))
-        else:
+        else: 
             self.model = self.model.to(torch.device("cpu"))
 
         print(f"Running on {num_GPU} GPU(s).")
-        self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
+        # self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
 
         # load pretrained model if finetuning
         if 'pretrained_checkpoint' in cfg and cfg.pretrained_checkpoint is not None:
@@ -78,14 +72,15 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         else:
             print("Initializing model using default parameters.")
 
-        self.ema_model = None
+        self.ema_model: DiffusionUnetHybridImagePolicy = None
         if cfg.training.use_ema:
             self.ema_model = copy.deepcopy(self.model)
 
         # configure training state with variable learning rates
         self.encoder_lr_scale = getattr(cfg.training, 'encoder_lr_scale', 1.0)
         self.use_variable_lr = getattr(cfg.training, 'use_variable_lr', False)
-        
+
+        # configure training state
         if self.use_variable_lr and hasattr(self.model, 'obs_encoder'):
             # Check if this is MC3 encoder by looking for the specific policy class
             # is_mc3_model = 'r3d' in self.model.__class__.__module__
@@ -122,12 +117,11 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             self.optimizer = hydra.utils.instantiate(
                 cfg.optimizer, params=self.model.parameters())
 
+        self.new_type_dataloader = getattr(cfg, 'new_type_dataloader', False)
         # configure training state
         self.global_step = 0
         self.epoch = 0
 
-        self.new_type_dataloader = getattr(cfg, 'new_type_dataloader', False)
-        
         # configure mixed precision training
         self.use_amp = getattr(cfg.training, 'use_amp', False)
         self.scaler = GradScaler() if self.use_amp else None
@@ -142,11 +136,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             if lastest_ckpt_path.is_file():
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
-                # self.epoch is loaded with the last completed epoch
-                # the current epoch is the next epoch (hence += 1)
                 self.epoch += 1
 
-        # configure dataset and save normalizer
+        # configure dataset
         dataset: BaseImageDataset
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
@@ -154,14 +146,12 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         normalizer = dataset.get_normalizer()
         torch.save(normalizer, os.path.join(self.output_dir, 'normalizer.pt'))
 
-        # configure validation datasets
-        self.num_datasets = dataset.get_num_datasets()
-        self.sample_probabilities = dataset.get_sample_probabilities()
-        val_dataloaders = []
-        for i in range(self.num_datasets):
-            val_dataset = dataset.get_validation_dataset(i)
-            val_dataloaders.append(DataLoader(val_dataset, **cfg.val_dataloader))
-        self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloaders)
+        # configure validation dataset
+        val_dataset = dataset.get_validation_dataset()
+        val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+
+        self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloader)
+
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
@@ -189,22 +179,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             last_epoch=self.global_step-1
         )
 
-        from collections import defaultdict
-
-        if getattr(cfg.policy, "rescale_encoder_gradients", False) == True:
-            hooks_by_param = defaultdict(list)
-            for name, p in self.model.obs_encoder.named_parameters():
-                # getattr will return {} if no hooks were registered
-                hooks = getattr(p, '_backward_hooks', {})
-                if hooks:
-                    hooks_by_param[name] = list(hooks.items())
-
-            # Print a report
-            for name, hook_list in hooks_by_param.items():
-                print(f"Param {name} has {len(hook_list)} hook(s):")
-                for hook_id, fn in hook_list:
-                    print(f"  id={hook_id}, fn={fn}")
-
         # configure ema
         ema: EMAModel = None
         if cfg.training.use_ema:
@@ -212,6 +186,12 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 cfg.ema,
                 model=self.ema_model)
 
+        # configure env
+        # env_runner: BaseImageRunner
+        # env_runner = hydra.utils.instantiate(
+        #     cfg.task.env_runner,
+        #     output_dir=self.output_dir)
+        # assert isinstance(env_runner, BaseImageRunner)
 
         # configure logging
         wandb_run = wandb.init(
@@ -248,7 +228,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 save_last_ckpt = save_last_ckpt or ckpt_cfg.save_last_ckpt
                 save_last_snapshot = save_last_snapshot or ckpt_cfg.save_last_snapshot
 
-
         # device transfer
         device = torch.device(cfg.training.device)
         self.model.to(device)
@@ -257,7 +236,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         optimizer_to(self.optimizer, device)
 
         # save batch for sampling
-        val_sampling_batches = [None] * self.num_datasets
+        train_sampling_batch = None
+        val_sampling_batch = None
 
         if cfg.training.debug:
             cfg.training.num_epochs = 2
@@ -270,9 +250,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
 
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
-        resume_epoch = self.epoch
         with JsonLogger(log_path) as json_logger:
-            for local_epoch_idx in range(resume_epoch, cfg.training.num_epochs):
+            for local_epoch_idx in range(cfg.training.num_epochs):
                 step_log = dict()
                 # ========= train for this epoch ==========
                 train_losses = list()
@@ -282,49 +261,31 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         # device transfer
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                         if self.new_type_dataloader: 
-                            # this is done to maintain validity for older code
                             for key in dataset.rgb_keys: 
                                 batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
-                        batch_size = batch['action'].shape[0]
-                        # print(f"Outside batch size: {batch_size}")
-                        
-                        # construct noisy trajectory
-                        trajectory = self.model.normalizer['action'].normalize(batch['action'])
-                        noise = torch.randn(trajectory.shape, device=trajectory.device)
-                        # Sample a random timestep for each image
-                        timesteps = torch.randint(
-                            0, self.model.noise_scheduler.config.num_train_timesteps, 
-                            (batch_size,), device=trajectory.device
-                        ).long()
-                        # Add noise to the clean images according to the noise magnitude at each timestep
-                        # (this is the forward diffusion process)
-                        noisy_trajectory = self.model.noise_scheduler.add_noise(
-                            trajectory, noise, timesteps)
-                        
-                        # Forward pass with optional mixed precision
-                        if self.use_amp:
-                            with autocast(dtype=torch.float16):
-                                pred = self.model(batch, noisy_trajectory, timesteps)
-                                raw_loss = self.compute_loss(trajectory, noise, pred)
+                        # if train_sampling_batch is None:
+                        #     train_sampling_batch = batch
+                        # compute loss
+                        if self.use_amp: 
+                            with autocast(dtype=torch.float16): 
+                                raw_loss = self.model.compute_loss(batch)
                                 loss = raw_loss / cfg.training.gradient_accumulate_every
-                        else:
-                            pred = self.model(batch, noisy_trajectory, timesteps)
-                            raw_loss = self.compute_loss(trajectory, noise, pred)
+                                # loss.backward()
+                        else: 
+                            raw_loss = self.model.compute_loss(batch)
                             loss = raw_loss / cfg.training.gradient_accumulate_every
-                        
-                        # Backward pass with optional mixed precision
-                        if self.use_amp:
-                            self.scaler.scale(loss).backward()
-                        else:
                             loss.backward()
+                        
+                        if self.use_amp: 
+                            self.scaler.scale(loss).backward()
 
                         # step optimizer
                         if self.global_step % cfg.training.gradient_accumulate_every == 0:
-                            if self.use_amp:
+                            if self.use_amp: 
                                 self.scaler.step(self.optimizer)
                                 self.scaler.update()
                                 self.optimizer.zero_grad()
-                            else:
+                            else: 
                                 self.optimizer.step()
                                 self.optimizer.zero_grad()
                             lr_scheduler.step()
@@ -343,9 +304,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             'epoch': self.epoch,
                             'lr': lr_scheduler.get_last_lr()[0]
                         }
-                        if 'sample_metadata' in batch.keys():
-                            dataset.set_training_step(self.global_step)
-                            step_log['current_level'] = dataset.current_max
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:
@@ -357,9 +315,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         if (cfg.training.max_train_steps is not None) \
                             and batch_idx >= (cfg.training.max_train_steps-1):
                             break
-                    # End of batch
-                # End of epoch
-                        
 
                 # at the end of each epoch
                 # replace train_loss with epoch average
@@ -381,90 +336,53 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 # run validation
                 if (self.epoch % cfg.training.val_every) == 0:
                     with torch.no_grad():
-                        val_loss_per_dataset = []
-                        for dataset_idx in range(self.num_datasets):
-                            val_dataloader = val_dataloaders[dataset_idx]
-                            val_losses = list()
-                            with tqdm.tqdm(val_dataloader, desc=f"Dataset {dataset_idx} validation, epoch {self.epoch}", 
-                                    leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
-                                for batch_idx, batch in enumerate(tepoch):
-                                    batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                                    if self.new_type_dataloader: 
-                                        # this is done to maintain validity for older code
-                                        for key in dataset.rgb_keys: 
-                                            batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
-                                    if val_sampling_batches[dataset_idx] is None:
-                                        val_sampling_batches[dataset_idx] = batch
-                                    loss = self.model.compute_loss(batch)
-                                    val_losses.append(loss)
-                                    if (cfg.training.max_val_steps is not None) \
-                                        and batch_idx >= (cfg.training.max_val_steps-1):
-                                        break
-                            # End of validation loss computation loop
+                        val_losses = list()
+                        with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
+                                leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                            for batch_idx, batch in enumerate(tepoch):
+                                batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                                if self.new_type_dataloader: 
+                                    for key in dataset.rgb_keys: 
+                                        batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
+                                if val_sampling_batch is None: 
+                                    val_sampling_batch = batch
+                                loss = self.model.compute_loss(batch)
+                                val_losses.append(loss)
+                                if (cfg.training.max_val_steps is not None) \
+                                    and batch_idx >= (cfg.training.max_val_steps-1):
+                                    break
+                        if len(val_losses) > 0:
+                            val_loss = torch.mean(torch.tensor(val_losses)).item()
+                            # log epoch average validation loss
+                            step_log['val_loss'] = val_loss
 
-                            if len(val_losses) > 0:
-                                val_loss = torch.mean(torch.tensor(val_losses)).item()
-                                val_loss_per_dataset.append(val_loss)
-                                # log epoch average validation loss
-                                step_log[f'val_loss_{dataset_idx}'] = val_loss
-                        # End val_dataloader loop
-
-                        # Compute overall_val_loss
-                        overall_val_loss = 0
-                        for i in range(self.num_datasets):
-                            overall_val_loss += self.sample_probabilities[i] * val_loss_per_dataset[i]
-                        step_log['val_loss'] = overall_val_loss
-
-                # run diffusion sampling on a _single_ validation batch from each dataset
-                if (self.epoch % cfg.training.sample_every) == 0 and cfg.training.log_val_mse:
+                # run diffusion sampling on a training batch
+                if (self.epoch % cfg.training.sample_every) == 0:
                     with torch.no_grad():
-                        val_ddpm_action_mses = []
-                        val_ddim_action_mses = []
-                        for dataset_idx in range(self.num_datasets):
-                            # Get the validation batch for this dataset
-                            val_sampling_batch = val_sampling_batches[dataset_idx]
-                            val_batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                            val_obs_dict = {key: val_batch[key] for key in val_batch.keys() if key != 'action'}
-                            val_gt_action = val_sampling_batch['action']
-                            
-                            # Evaluate MSE when diffusing with DDPM
-                            if cfg.training.eval_mse_DDPM:
-                                if 'sample_metadata' in val_batch.keys(): 
-                                    result = policy.predict_action(val_obs_dict, use_DDIM=False, num_obs_tokens=val_batch['sample_metadata']['num_obs_steps'])
-                                else: 
-                                    result = policy.predict_action(val_obs_dict, use_DDIM=False)
-                                pred_action = result['action_pred']
-                                mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
-                                step_log[f'val_ddpm_mse_{dataset_idx}'] = mse.item()
-                                val_ddpm_action_mses.append(mse.item())
+                        # sample trajectory from training set, and evaluate difference
+                        batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
+                        val_obs_dict = {key: batch[key] for key in batch.keys() if key != 'action'}
+                        gt_action = batch['action']
 
-                            # Evaluate MSE when diffusing with DDIM
-                            if cfg.training.eval_mse_DDIM:
-                                if 'sample_metadata' in val_batch.keys(): 
-                                    result = policy.predict_action(val_obs_dict, use_DDIM=True, num_obs_tokens=val_batch['sample_metadata']['num_obs_steps'])
-                                else: 
-                                    result = policy.predict_action(val_obs_dict, use_DDIM=True)
-                                pred_action = result['action_pred']
-                                mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
-                                step_log[f'val_ddim_mse_{dataset_idx}'] = mse.item()
-                                val_ddim_action_mses.append(mse.item())
+                        if cfg.training.eval_mse_DDPM: 
+                            result = policy.predict_action(val_obs_dict, use_DDIM=False)
+                            pred_action = result['action_pred']
+                            mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                            step_log[f'val_ddpm_mse'] = mse.item()
                         
-                        # Compute weighted val action MSEs
-                        if cfg.training.eval_mse_DDPM:
-                            val_ = 0
-                            for i in range(self.num_datasets):
-                                val_ += self.sample_probabilities[i] * val_ddpm_action_mses[i]
-                            step_log['val_ddpm_mse'] = val_
                         if cfg.training.eval_mse_DDIM:
-                            val_ = 0
-                            for i in range(self.num_datasets):
-                                val_ += self.sample_probabilities[i] * val_ddim_action_mses[i]
-                            step_log['val_ddim_mse'] = val_
-
-
-                        del val_batch
+                            result = policy.predict_action(val_obs_dict, use_DDIM=True)
+                            pred_action = result['action_pred']
+                            mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                            step_log[f'val_ddim_mse'] = mse.item()
+                        
+                        # result = policy.predict_action(obs_dict)
+                        # pred_action = result['action_pred']
+                        # mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                        # step_log['train_action_mse_error'] = mse.item()
+                        del batch
                         del val_obs_dict
-                        del val_gt_action
+                        del gt_action
                         del result
                         del pred_action
                         del mse
@@ -509,44 +427,6 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 self.global_step += 1
                 self.epoch += 1
     
-    def compute_loss(self, trajectory, noise, pred):
-        pred_type = self.model.noise_scheduler.config.prediction_type 
-        if pred_type == 'epsilon':
-            target = noise
-        elif pred_type == 'sample':
-            target = trajectory
-        else:
-            raise ValueError(f"Unsupported prediction type {pred_type}")
-        
-        loss = F.mse_loss(pred, target, reduction='none')
-        loss = reduce(loss, 'b ... -> b (...)', 'mean')
-        loss = loss.mean()
-        return loss
-    
-    def _print_dataset_diagnostics(self, cfg, dataset, train_dataloader, val_dataloaders):
-        print()
-        print("============= Dataset Diagnostics =============")
-        print(f"Number of datasets: {self.num_datasets}")
-        print(f"Sample probabilities: {self.sample_probabilities}")
-        print(f"[Training] Number of batches: {len(train_dataloader)}")
-        for i in range(self.num_datasets):
-            print(f"[Val {i}] Number of batches: {len(val_dataloaders[i])}")
-        print()
-
-        for i in range(self.num_datasets):
-            val_dataset = dataset.get_validation_dataset(i)
-            print(f"Dataset {i}: {dataset.zarr_paths[i]}")
-            print("------------------------------------------------")
-            print(f"Number of training demonstrations: {np.sum(dataset.train_masks[i])}")
-            print(f"Number of validation demonstrations: {np.sum(dataset.val_masks[i])}")
-            print(f"Number of training samples: {len(dataset.samplers[i])}")
-            print(f"Number of validation samples: {len(val_dataset)}")
-            print(f"Approx. number of training batches: {len(dataset.samplers[i]) // cfg.dataloader.batch_size}")
-            print(f"Approx. number of validation batches: {len(val_dataset) // cfg.val_dataloader.batch_size}")
-            print(f"Sample probability: {self.sample_probabilities[i]}")
-            print()
-        print("================================================")
-
     def _get_protected_paths(self, topk_manager_idx, topk_managers):
         """
         Returns the paths that should not be deleted by topk_manager
@@ -574,14 +454,33 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 protected_paths.remove(path)
         
         return protected_paths
-                
+    
+    def _print_dataset_diagnostics(self, cfg, dataset, train_dataloader, val_dataloader): 
+        print()
+        print("============= Dataset Diagnostics =============")
+        print(f"[Training] Number of batches: {len(train_dataloader)}")
+        print(f'[Validation] Number of batches: {len(val_dataloader)}')
+        print()
+
+        val_dataset = dataset.get_validation_dataset()
+        print(f"Dataset: {dataset.dataset_path}")
+        print("------------------------------------------------")
+        print(f"Number of training demonstrations: {np.sum(dataset.train_mask)}")
+        print(f"Number of validation demonstrations: {np.sum(dataset.val_mask)}")
+        print(f"Number of training samples: {len(dataset.sampler)}")
+        print(f"Number of validation samples: {len(val_dataset)}")
+        print(f"Approx. number of training batches: {len(dataset.sampler) // cfg.dataloader.batch_size}")
+        print(f"Approx. number of validation batches: {len(val_dataset) // cfg.val_dataloader.batch_size}")
+        print()
+    print("================================================")
+
 
 @hydra.main(
     version_base=None,
     config_path=str(pathlib.Path(__file__).parent.parent.joinpath("config")), 
     config_name=pathlib.Path(__file__).stem)
 def main(cfg):
-    workspace = TrainDiffusionUnetHybridWorkspaceNoEnv(cfg)
+    workspace = TrainDiffusionUnetHybridWorkspace(cfg)
     workspace.run()
 
 if __name__ == "__main__":
