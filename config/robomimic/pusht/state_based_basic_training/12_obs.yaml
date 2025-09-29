@@ -36,8 +36,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: 2023.01.16-20.10.02_train_diffusion_unet_lowdim_pusht_lowdim
-  project: diffusion_policy_debug
+  name: 12_obs_basic
+  project: diffusion_paper_push_t_state
   resume: true
   tags:
   - train_diffusion_unet_lowdim
@@ -48,7 +48,7 @@ multi_run:
   wandb_name_base: 2023.01.16-20.10.02_train_diffusion_unet_lowdim_pusht_lowdim
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 2
+n_obs_steps: 12
 name: train_diffusion_unet_lowdim
 obs_as_global_cond: true
 obs_as_local_cond: false
@@ -74,7 +74,7 @@ policy:
     - 256
     - 512
     - 1024
-    global_cond_dim: 40
+    global_cond_dim: 240
     input_dim: 2
     kernel_size: 5
     local_cond_dim: null
@@ -104,7 +104,7 @@ task:
     horizon: ${horizon}
     max_train_episodes: 100
     pad_after: 7
-    pad_before: 1
+    pad_before: 11
     seed: 42
     val_ratio: 0.02
     zarr_path: data/pusht/pusht_cchi_v7_replay.zarr

@@ -10,7 +10,7 @@ if __name__ == "__main__":
 import os
 import hydra
 import torch
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, ListConfig
 import pathlib
 from torch.utils.data import DataLoader
 import copy
@@ -87,6 +87,16 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
         if cfg.training.use_ema:
             self.ema_model.set_normalizer(normalizer)
 
+        training_steps = getattr(cfg.training, 'total_train_steps', None)
+        if training_steps is not None: 
+            assert cfg.training.gradient_accumulate_every == 1, "Gradient accumulation not supported with total_train_steps"
+            single_epoch_steps = len(train_dataloader)
+            num_epochs = int(training_steps // single_epoch_steps)
+            if training_steps % single_epoch_steps != 0:
+                num_epochs += 1
+            print(f"Training for {num_epochs} epochs to achieve {training_steps} steps.")
+            cfg.training.num_epochs = num_epochs
+
         # configure lr scheduler
         lr_scheduler = get_scheduler(
             cfg.training.lr_scheduler,
@@ -120,10 +130,26 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
         )
 
         # configure checkpoint
-        topk_manager = TopKCheckpointManager(
-            save_dir=os.path.join(self.output_dir, 'checkpoints'),
-            **cfg.checkpoint.topk
-        )
+        if not isinstance(cfg.checkpoint, ListConfig):
+            # configure single checkpoint manager
+            topk_managers = [TopKCheckpointManager(
+                save_dir=os.path.join(self.output_dir, 'checkpoints'),
+                **cfg.checkpoint.topk
+            )]
+            save_last_ckpt = cfg.checkpoint.save_last_ckpt
+            save_last_snapshot = cfg.checkpoint.save_last_snapshot
+        else:
+            # configure multiple checkpoint managers
+            topk_managers = []
+            save_last_ckpt = False
+            save_last_snapshot = False
+            for ckpt_cfg in cfg.checkpoint:
+                topk_managers.append(TopKCheckpointManager(
+                    save_dir=os.path.join(self.output_dir, 'checkpoints'),
+                    **ckpt_cfg.topk
+                ))
+                save_last_ckpt = save_last_ckpt or ckpt_cfg.save_last_ckpt
+                save_last_snapshot = save_last_snapshot or ckpt_cfg.save_last_snapshot
 
         # device transfer
         if cfg.training.device == "mps": 
@@ -143,6 +169,7 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
 
         # save batch for sampling
         train_sampling_batch = None
+        val_sampling_batch = None
 
         if cfg.training.debug:
             cfg.training.num_epochs = 2
@@ -228,6 +255,8 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                                 if cfg.training.device == "mps": 
                                     batch = dict_apply(batch, lambda x: x.to(torch.float32))
                                 batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                                if val_sampling_batch is None:
+                                    val_sampling_batch = batch
                                 loss = self.model.compute_loss(batch)
                                 val_losses.append(loss)
                                 if (cfg.training.max_val_steps is not None) \
@@ -242,11 +271,12 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                 if (self.epoch % cfg.training.sample_every) == 0:
                     with torch.no_grad():
                         # sample trajectory from training set, and evaluate difference
-                        batch = train_sampling_batch
+                        batch = val_sampling_batch
                         if cfg.training.device == "mps": 
                             batch = dict_apply(batch, lambda x: x.to(torch.float32))
-                        obs_dict = {'obs': batch['obs'],
-                                    'target': batch['target']}
+                        obs_dict = {key: batch[key] for key in batch.keys() if key != 'action'}
+                        # obs_dict = {'obs': batch['obs'],
+                        #             'target': batch['target']}
                         gt_action = batch['action']
                         
                         result = policy.predict_action(obs_dict)
@@ -259,7 +289,7 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                             pred_action = result['action_pred']
                         mse = torch.nn.functional.mse_loss(pred_action, gt_action)
                         # log
-                        step_log['train_action_mse_error'] = mse.item()
+                        step_log['val_ddpm_mse'] = mse.item()
                         # release RAM
                         del batch
                         del obs_dict
@@ -271,9 +301,9 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                 # checkpoint
                 if (self.epoch % cfg.training.checkpoint_every) == 0:
                     # checkpointing
-                    if cfg.checkpoint.save_last_ckpt:
+                    if save_last_ckpt:
                         self.save_checkpoint()
-                    if cfg.checkpoint.save_last_snapshot:
+                    if save_last_snapshot:
                         self.save_snapshot()
 
                     # sanitize metric names
@@ -285,11 +315,19 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                     # We can't copy the last checkpoint here
                     # since save_checkpoint uses threads.
                     # therefore at this point the file might have been empty!
-                    topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
+                    topk_ckpt_paths = []
+                    for i, topk_manager in enumerate(topk_managers):
+                        protected_ckpts = self._get_protected_paths(i, topk_managers)
+                        ckpt_path = topk_manager.get_ckpt_path(metric_dict, protected_ckpts)
+                        topk_ckpt_paths.append(ckpt_path)
 
-                    if topk_ckpt_path is not None:
-                        self.save_checkpoint(path=topk_ckpt_path)
+                    for i, topk_ckpt_path in enumerate(topk_ckpt_paths):
+                        if topk_ckpt_path is not None:
+                            self.save_checkpoint(path=topk_ckpt_path)
+                            break
                 # ========= eval end for this epoch ==========
+                if self.epoch == cfg.training.num_epochs-1:
+                    self.save_checkpoint()
                 policy.train()
 
                 # end of epoch
@@ -298,6 +336,33 @@ class TrainDiffusionUnetLowdimWorkspaceNoEnv(BaseWorkspace):
                 json_logger.log(step_log)
                 self.global_step += 1
                 self.epoch += 1
+    def _get_protected_paths(self, topk_manager_idx, topk_managers):
+        """
+        Returns the paths that should not be deleted by topk_manager
+        """
+        if len(topk_managers) == 1:
+            return set()
+        
+        topk_manager = topk_managers[topk_manager_idx]
+
+        protected_paths = set()
+        for manager in topk_managers:
+            protected_paths.update(manager.get_path_value_map().keys())
+        
+        # Remove the paths that can be deleted
+        # If a ckpt is ONLY being tracked by topk_manager, it can be deleted
+        for path in topk_manager.get_path_value_map().keys():
+            protected = False
+            for i, manager in enumerate(topk_managers):
+                if i == topk_manager_idx:
+                    continue
+                if path in manager.get_path_value_map().keys():
+                    protected = True
+                    break
+            if not protected:
+                protected_paths.remove(path)
+        
+        return protected_paths
 
     def _print_dataset_diagnostics(self, cfg, dataset, train_dataloader, val_dataloader):
         print()

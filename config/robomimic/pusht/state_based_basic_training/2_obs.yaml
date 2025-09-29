@@ -36,8 +36,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: 2023.01.16-20.10.02_train_diffusion_unet_lowdim_pusht_lowdim
-  project: diffusion_policy_debug
+  name: 2_obs_basic
+  project: diffusion_paper_push_t_state
   resume: true
   tags:
   - train_diffusion_unet_lowdim
