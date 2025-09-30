@@ -28,17 +28,17 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=12_obs.yaml
 # HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_variable_training/random_sprinkle_2_to_obs_resnet_init/12_obs
 
-CONFIG_DIR=config/planar_pushing/diffusion_transformer_training/context_length_exp_adam_data/robomimic_resnet18_init/
-CONFIG_NAME=1_obs.yaml
-HYDRA_RUN_DIR=data/outputs/diffusion_transformer_training/context_length_exp_adam_data/robomimic_resnet18_init/1_obs
+# CONFIG_DIR=config/planar_pushing/diffusion_transformer_training/context_length_exp_adam_data/robomimic_resnet18_init/
+# CONFIG_NAME=1_obs.yaml
+# HYDRA_RUN_DIR=data/outputs/diffusion_transformer_training/context_length_exp_adam_data/robomimic_resnet18_init/1_obs
 
 # CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size/
 # CONFIG_NAME=5_obs.yaml
 # HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_constant_model_size/5_obs
 
-# CONFIG_DIR=config/grasp_two_bins_flat/same_middle_same_return/basic_training
-# CONFIG_NAME=22_obs.yaml
-# HYDRA_RUN_DIR=data/outputs/grasp_two_bins_flat/same_middle_same_return/basic_training/22_obs
+CONFIG_DIR=config/grasp_two_bins_flat/same_middle_same_return/attention_training/constant_obs_steps_baseline
+CONFIG_NAME=22_obs.yaml
+HYDRA_RUN_DIR=data/outputs/grasp_two_bins_flat/same_middle_same_return/attention_training/constant_obs_steps_baseline/22_obs
 
 # CONFIG_DIR=config/grasp_two_bins_flat/resnet_plus_transformer/cls_token_only/
 # CONFIG_NAME=24_obs.yaml

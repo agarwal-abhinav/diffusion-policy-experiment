@@ -135,8 +135,7 @@ task:
       max_train_episodes: 50
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
-    training_mode: "random_sprinkle"
-    random_sprinkle_prob: 0.2
+    training_mode: "random"
     progressive_steps: 1
   name: scene_image
   shape_meta: ${shape_meta} # not used?
