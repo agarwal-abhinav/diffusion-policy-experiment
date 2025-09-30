@@ -343,9 +343,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             'epoch': self.epoch,
                             'lr': lr_scheduler.get_last_lr()[0]
                         }
-                        if 'sample_metadata' in batch.keys():
-                            dataset.set_training_step(self.global_step)
-                            step_log['current_level'] = dataset.current_max
+                        # if 'sample_metadata' in batch.keys():
+                        #     dataset.set_training_step(self.global_step)
+                        #     step_log['current_level'] = dataset.current_max
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:
