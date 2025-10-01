@@ -30,9 +30,9 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=16_obs.yaml
 # HYDRA_RUN_DIR=data/outputs/robomimic/square/variable_training/random_2_to_obs/16_obs
 
-CONFIG_DIR=config/robomimic/pusht/state_based_basic_training/
-CONFIG_NAME=1_obs.yaml
-HYDRA_RUN_DIR=data/outputs/robomimic/pusht/state_based_basic_training/1_obs
+CONFIG_DIR=config/robomimic/square/variable_training/random_sprinkle_2_to_obs/
+CONFIG_NAME=2_obs.yaml
+HYDRA_RUN_DIR=data/outputs/robomimic/square/variable_training/random_sprinkle_2_to_obs/2_obs
 
 # CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size/robomimic_resnet18_freeze/
 # CONFIG_NAME=1_obs.yaml
