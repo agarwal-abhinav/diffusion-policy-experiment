@@ -369,13 +369,17 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         - if use_target_cond is true, obs_dict must also include "target"
         result: must include "action" key
         """
-        assert 'obs' in obs_dict
+        if self.training: 
+            assert 'obs' in obs_dict
         if self.use_target_cond:
             assert 'target' in obs_dict
         assert 'past_action' not in obs_dict # not implemented yet
         
         # normalize input
-        nobs = self.normalizer.normalize(obs_dict['obs'])
+        if self.training: 
+            nobs = self.normalizer.normalize(obs_dict['obs'])
+        else: 
+            nobs = self.normalizer.normalize(obs_dict)
         ntarget = None
         if self.use_target_cond:
             ntarget = self.normalizer['target'].normalize(obs_dict['target'])

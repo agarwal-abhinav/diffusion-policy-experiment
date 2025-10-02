@@ -361,7 +361,7 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
                     with torch.no_grad():
                         # sample trajectory from training set, and evaluate difference
                         batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                        val_obs_dict = {key: batch[key] for key in batch.keys() if key != 'action'}
+                        val_obs_dict = {key: batch['obs'][key] for key in batch['obs'].keys() if key != 'action'}
                         gt_action = batch['action']
 
                         if cfg.training.eval_mse_DDPM: 
