@@ -124,7 +124,7 @@ task:
     horizon: 32
     n_obs_steps: 22
     pad_after: 7
-    pad_before: 23
+    pad_before: 21
     seed: 42
     zarr_configs:
     - path: data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_3_right_diff_return_diff_center_1_second_total.zarr
