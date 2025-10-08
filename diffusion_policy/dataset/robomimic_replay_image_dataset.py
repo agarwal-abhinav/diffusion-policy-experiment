@@ -144,14 +144,15 @@ class RobomimicReplayImageDataset(BaseImageDataset):
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
+        val_set.train_mask = self.val_mask
         val_set.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer, 
             sequence_length=self.horizon,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
-            episode_mask=~self.train_mask
+            episode_mask=val_set.train_mask,
             )
-        val_set.train_mask = ~self.train_mask
+        # val_set.train_mask = ~self.train_mask
         return val_set
 
     def get_normalizer(self, **kwargs) -> LinearNormalizer:
