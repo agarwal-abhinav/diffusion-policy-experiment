@@ -21,8 +21,8 @@ dataloader:
   pin_memory: true
   shuffle: true
 # new_type_dataloader: true
-horizon: 24 
-n_obs_steps: 2
+horizon: 24
+n_obs_steps: 16
 n_action_steps: 8
 dataset_obs_steps: ${n_obs_steps}
 shape_meta:
@@ -67,7 +67,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 2_obs
+  name: 16_obs
   project: square_resnet18_init
   resume: true
   tags:
@@ -119,7 +119,7 @@ policy:
   obs_as_global_cond: true
   obs_encoder_group_norm: true
   shape_meta: ${shape_meta}
-  initialize_obs_encoder: data/outputs/robomimic/square/basic_training/2_obs/latest_ckpt_obs_encoder.pth
+  initialize_obs_encoder: data/outputs/robomimic/square_100/basic_training/5_obs/epoch_260_obs_encoder.pth
   freeze_self_trained_obs_encoder: true
 task:
   abs_action: true
@@ -130,12 +130,13 @@ task:
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 1
+    pad_before: 15
     rotation_rep: rotation_6d
     seed: 42
     shape_meta: ${shape_meta}
     use_cache: true
     val_ratio: 0.02
+    max_train_episodes: 100
   dataset_path: data/robomimic/square/ph/image_abs.hdf5
   dataset_type: ph
   env_runner:
