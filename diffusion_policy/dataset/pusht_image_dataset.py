@@ -33,6 +33,8 @@ class PushTImageDataset(BaseImageDataset):
             mask=train_mask, 
             max_n=max_train_episodes, 
             seed=seed)
+        
+        self.dataset_path = zarr_path
 
         self.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer, 
@@ -44,6 +46,7 @@ class PushTImageDataset(BaseImageDataset):
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
+        self.val_mask = ~train_mask
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)

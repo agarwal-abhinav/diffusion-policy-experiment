@@ -143,6 +143,7 @@ training:
   max_train_steps: null
   max_val_steps: null
   num_epochs: 200 # 70 for 50, 2000; 200 for 50, 500
+  total_train_steps: 200000
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}

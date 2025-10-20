@@ -33,16 +33,16 @@ logging:
   project: dit_planar_pushing
   resume: True
   mode: online
-  name: CL_12_more_data
+  name: CL_12
   tags: ["${name}", "${task_name}"]
   id: null
   group: null
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
   wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
-horizon: 64
+horizon: 24
 n_obs_steps: 12
-n_action_steps: 4
+n_action_steps: 8
 n_latency_steps: 0
 dataset_obs_steps: ${n_obs_steps}
 past_action_visible: false
@@ -107,12 +107,13 @@ policy:
   causal_attn: true
   time_as_cond: true # if false, use BERT like encoder only arch, time as input
   obs_as_cond: ${obs_as_cond}
+  initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn_transformer.pth
 
   # # scheduler.step params
   # predict_epsilon: true
 task:
   dataset:
-    _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
+    _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
     shape_meta: ${shape_meta}
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
@@ -121,11 +122,12 @@ task:
     seed: 42
     zarr_configs:
     - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
-      max_train_episodes: 320
+      max_train_episodes: 160
       sampling_weight: null
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
   shape_meta: ${shape_meta} # not used?
+new_type_dataloader: true
 training:
   device: "cuda:0"
   seed: 42

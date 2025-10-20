@@ -19,6 +19,7 @@ import wandb
 import tqdm
 import numpy as np
 import shutil
+from torch.nn.parallel import DataParallel
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_transformer_hybrid_image_policy import DiffusionTransformerHybridImagePolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
@@ -30,6 +31,13 @@ from diffusion_policy.model.diffusion.ema_model import EMAModel
 from diffusion_policy.model.common.lr_scheduler import get_scheduler
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
+
+class DataParallelWrapper(DataParallel):
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
 
 class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
     include_keys = ['global_step', 'epoch']
@@ -45,7 +53,15 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
 
         # configure model
         self.model: DiffusionTransformerHybridImagePolicy = hydra.utils.instantiate(cfg.policy)
+        num_GPU = torch.cuda.device_count()
+        if num_GPU > 0: 
+            self.model = self.model.to(torch.device("cuda"))
+        else: 
+            self.model = self.model.to(torch.device("cpu"))
 
+        print(f"Running on {num_GPU} GPU(s).")
+        self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
+        
         self.ema_model: DiffusionTransformerHybridImagePolicy = None
         if cfg.training.use_ema:
             self.ema_model = copy.deepcopy(self.model)
@@ -56,6 +72,8 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
         # configure training state
         self.global_step = 0
         self.epoch = 0
+
+        self.new_type_dataloader = getattr(cfg, 'new_type_dataloader', False)
 
     def run(self):
         cfg = copy.deepcopy(self.cfg)
@@ -187,6 +205,9 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                        if self.new_type_dataloader: 
+                            for key in dataset.rgb_keys: 
+                                batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                         if train_sampling_batch is None:
                             train_sampling_batch = batch
 
@@ -255,6 +276,9 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                                     leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                                 for batch_idx, batch in enumerate(tepoch):
                                     batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                                    if self.new_type_dataloader: 
+                                        for key in dataset.rgb_keys: 
+                                            batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                                     if val_sampling_batches[dataset_idx] is None: 
                                         val_sampling_batches[dataset_idx] = batch
                                     loss = self.model.compute_loss(batch)

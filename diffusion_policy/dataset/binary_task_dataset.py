@@ -278,59 +278,6 @@ class BinaryTaskDataset(BaseImageDataset):
         for sampler in self.samplers:
             length += len(sampler)
         return length
-
-    def _sample_to_data(self, sample, sampler_idx):
-        target = sample['target'][0].astype(np.float32)
-        agent_pos = sample['state'].astype(np.float32)
-
-        data = {
-            'obs': {
-                'agent_pos': agent_pos, # T_obs, 3
-            },
-            'target': target, # 3
-            'action': sample['action'].astype(np.float32) # T, 2
-        }
-
-        if self.use_one_hot_encoding:
-            if self.one_hot_encoding is None:
-                data['one_hot_encoding'] = np.zeros(self.num_datasets).astype(np.float32)
-                data['one_hot_encoding'][sampler_idx] = 1
-            else:
-                data['one_hot_encoding'] = self.one_hot_encoding
-
-        # Add images to data
-        if self.color_jitter is None:
-            for key in self.rgb_keys:
-                data['obs'][key] = np.moveaxis(sample[key],-1,1)/255.0
-                if self.low_pass_on_wrist and key == 'wrist_camera':
-                    data['obs'][key] = low_pass_filter(
-                        torch.from_numpy(data['obs'][key]),
-                        self.wrist_kernel.to(dtype=torch.float64)
-                    ).numpy()
-                if self.low_pass_on_overhead and key == 'overhead_camera': 
-                    data['obs'][key] = low_pass_filter(
-                        torch.from_numpy(data['obs'][key]), 
-                        self.overhead_kernel.to(dtype=torch.float64)
-                    ).numpy()
-                del sample[key]
-        else:
-            # Stack images and apply color jitter to ensure
-            # all cameras have consistent color jitter
-            keys = self.rgb_keys
-            length = sample[keys[0]].shape[0]
-            
-            imgs = np.moveaxis(np.vstack([sample[key] for key in keys]),-1,1)/255.0
-            for i in range(3):
-                scale = np.random.uniform(0.75, 1.25) # TODO: these are hardcoded
-                imgs[:,i,:,:] = np.clip(scale*imgs[:,i,:,:], 0, 1)
-            
-            # imgs = np.vstack([sample[key] for key in keys])
-            imgs = self.transforms(torch.from_numpy(imgs)).numpy()
-            for i, key in enumerate(keys):
-                data['obs'][key] = imgs[i*length:(i+1)*length]
-                del sample[key]
-
-        return data
     
     def _validate_zarr_configs(self, zarr_configs):
         num_null_sampling_weights = 0
@@ -354,11 +301,6 @@ class BinaryTaskDataset(BaseImageDataset):
         if num_null_sampling_weights not in [0, N]:
             raise ValueError("Either all or none of the zarr_configs must have a sampling_weight")
     
-    # def _normalize_sample_probabilities(self, sample_probabilities):
-    #     total = np.sum(sample_probabilities)
-    #     assert total > 0, "Sum of sampling weights must be greater than 0"
-    #     return sample_probabilities / total
-    
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         # To sample a sequence, first sample a dataset,
         # then sample a sequence from that dataset
@@ -378,11 +320,8 @@ class BinaryTaskDataset(BaseImageDataset):
             else: 
                 data = self.samplers[1].sample_data(idx % len(self.samplers[0]))
                 sampler_idx = 1
-            # sampler = self.samplers[sampler_idx]
-            # sample = sampler.sample_sequence(idx % len(sampler))
         
         # Process sample
-        # data = self._sample_to_data(sample, sampler_idx)
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 

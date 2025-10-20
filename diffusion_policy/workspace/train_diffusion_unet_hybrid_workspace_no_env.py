@@ -26,7 +26,7 @@ from torch.cuda.amp import GradScaler, autocast
 from einops import rearrange, reduce
 import torch.nn.functional as F
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
-from diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy import DiffusionUnetHybridImageTargetedPolicy
+# from diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy import DiffusionUnetHybridImageTargetedPolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 # from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
@@ -78,7 +78,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         else:
             print("Initializing model using default parameters.")
 
-        self.ema_model: DiffusionUnetHybridImageTargetedPolicy = None
+        self.ema_model = None
         if cfg.training.use_ema:
             self.ema_model = copy.deepcopy(self.model)
 
@@ -343,6 +343,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             'epoch': self.epoch,
                             'lr': lr_scheduler.get_last_lr()[0]
                         }
+                        # if 'sample_metadata' in batch.keys():
+                        #     dataset.set_training_step(self.global_step)
+                        #     step_log['current_level'] = dataset.current_max
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:
@@ -426,15 +429,21 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             
                             # Evaluate MSE when diffusing with DDPM
                             if cfg.training.eval_mse_DDPM:
-                                result = policy.predict_action(val_obs_dict, use_DDIM=False)
+                                if 'sample_metadata' in val_batch.keys(): 
+                                    result = policy.predict_action(val_obs_dict, use_DDIM=False, num_obs_tokens=val_batch['sample_metadata']['num_obs_steps'])
+                                else: 
+                                    result = policy.predict_action(val_obs_dict, use_DDIM=False)
                                 pred_action = result['action_pred']
                                 mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
                                 step_log[f'val_ddpm_mse_{dataset_idx}'] = mse.item()
                                 val_ddpm_action_mses.append(mse.item())
-                            
-                            # Evaluate MSE when diffusing with DDPM
+
+                            # Evaluate MSE when diffusing with DDIM
                             if cfg.training.eval_mse_DDIM:
-                                result = policy.predict_action(val_obs_dict, use_DDIM=True)
+                                if 'sample_metadata' in val_batch.keys(): 
+                                    result = policy.predict_action(val_obs_dict, use_DDIM=True, num_obs_tokens=val_batch['sample_metadata']['num_obs_steps'])
+                                else: 
+                                    result = policy.predict_action(val_obs_dict, use_DDIM=True)
                                 pred_action = result['action_pred']
                                 mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
                                 step_log[f'val_ddim_mse_{dataset_idx}'] = mse.item()

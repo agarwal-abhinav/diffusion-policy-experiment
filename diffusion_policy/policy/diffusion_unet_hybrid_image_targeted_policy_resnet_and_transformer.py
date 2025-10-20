@@ -78,6 +78,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             max_obs_steps_for_ablation=None, 
             use_all_tokens_for_conditioning=False,
             num_attention_layers=8,
+            apply_limited_attention=None, 
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -298,9 +299,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             )
         else: 
             # assert num_cls_tokens > 0 and use_all_tokens_for_conditioning == False, "not setup yet"
+            if apply_limited_attention is not None: 
+                obs_steps_for_attention = apply_limited_attention
+            else: 
+                obs_steps_for_attention = n_obs_steps
             self.resnet_post_processer = AllFeedEmbeddingTransformer(
                 obs_keys=list(shape_meta['obs'].keys()), 
-                context_length=n_obs_steps, 
+                context_length=obs_steps_for_attention, 
                 input_slicing_indices=input_slicing_indices,
                 num_cls_tokens=num_cls_tokens, 
                 num_layers=num_attention_layers
@@ -337,6 +342,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         self.one_hot_encoding_dim = one_hot_encoding_dim
         self.use_target_cond = use_target_cond
         self.kwargs = kwargs
+        self.apply_limited_attention = apply_limited_attention
 
         if num_inference_steps is None:
             num_inference_steps = noise_scheduler.config.num_train_timesteps
@@ -439,7 +445,11 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(B, -1)
             global_cond = global_cond.view(B, self.n_obs_steps, self.obs_feature_dim)
-            global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
+            if self.apply_limited_attention: 
+                global_cond = torch.cat([global_cond[:, :self.n_obs_steps-self.apply_limited_attention, :], 
+                                         self.resnet_post_processer(global_cond[:, -self.apply_limited_attention:, :], mask=self.transformer_mask)], dim=1)
+            else: 
+                global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
 
             if self.use_all_tokens_for_conditioning: 
                 global_cond = global_cond.reshape(B, -1)
@@ -518,7 +528,11 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
-            global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
+            if self.apply_limited_attention: 
+                global_cond = torch.cat([global_cond[:, :self.n_obs_steps-self.apply_limited_attention, :], 
+                                         self.resnet_post_processer(global_cond[:, -self.apply_limited_attention:, :], mask=self.transformer_mask)], dim=1)
+            else: 
+                global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
 
             if self.use_all_tokens_for_conditioning: 
                 global_cond = global_cond.reshape(batch_size, -1)
@@ -608,7 +622,11 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
-            global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
+            if self.apply_limited_attention: 
+                global_cond = torch.cat([global_cond[:, :self.n_obs_steps-self.apply_limited_attention, :], 
+                                         self.resnet_post_processer(global_cond[:, -self.apply_limited_attention:, :], mask=self.transformer_mask)], dim=1)
+            else: 
+                global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
 
             if self.use_all_tokens_for_conditioning: 
                 global_cond = global_cond.reshape(batch_size, -1)
@@ -670,7 +688,11 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             # reshape back to B, Do
             global_cond = nobs_features.reshape(batch_size, -1)
             global_cond = global_cond.view(batch_size, self.n_obs_steps, self.obs_feature_dim)
-            global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
+            if self.apply_limited_attention: 
+                global_cond = torch.cat([global_cond[:, :self.n_obs_steps-self.apply_limited_attention, :], 
+                                         self.resnet_post_processer(global_cond[:, -self.apply_limited_attention:, :], mask=self.transformer_mask)], dim=1)
+            else: 
+                global_cond = self.resnet_post_processer(global_cond, mask=self.transformer_mask)
 
             if self.use_all_tokens_for_conditioning: 
                 global_cond = global_cond.reshape(batch_size, -1)

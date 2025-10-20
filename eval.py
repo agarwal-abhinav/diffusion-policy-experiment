@@ -30,7 +30,8 @@ def main(checkpoint, output_dir, device):
     # load checkpoint
     payload = torch.load(open(checkpoint, 'rb'), pickle_module=dill)
     cfg = payload['cfg']
-    cfg.task.env_runner.n_test = 100
+    cfg.task.env_runner.n_test = 200
+    cfg.task.env_runner.n_obs_steps = cfg.n_obs_steps
     cls = hydra.utils.get_class(cfg._target_)
     workspace = cls(cfg, output_dir=output_dir)
     workspace: BaseWorkspace

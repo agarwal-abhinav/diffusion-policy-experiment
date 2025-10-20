@@ -19,6 +19,7 @@ import wandb
 import tqdm
 import numpy as np
 import shutil
+from torch.nn.parallel import DataParallel
 from torch.cuda.amp import GradScaler, autocast
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import DiffusionUnetHybridImagePolicy
@@ -32,6 +33,13 @@ from diffusion_policy.model.common.lr_scheduler import get_scheduler
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
+# class DataParallelWrapper(DataParallel):
+#     def __getattr__(self, name):
+#         try:
+#             return super().__getattr__(name)
+#         except AttributeError:
+#             return getattr(self.module, name)
+        
 class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
     include_keys = ['global_step', 'epoch']
 
@@ -46,6 +54,14 @@ class TrainDiffusionUnetHybridWorkspace(BaseWorkspace):
 
         # configure model
         self.model: DiffusionUnetHybridImagePolicy = hydra.utils.instantiate(cfg.policy)
+        num_GPU = torch.cuda.device_count()
+        if num_GPU > 0: 
+            self.model = self.model.to(torch.device("cuda"))
+        else: 
+            self.model = self.model.to(torch.device("cpu"))
+
+        print(f"Running on {num_GPU} GPU(s).")
+        # self.model = DataParallelWrapper(self.model, device_ids=range(num_GPU))
 
         # load pretrained model if finetuning
         if 'pretrained_checkpoint' in cfg and cfg.pretrained_checkpoint is not None:

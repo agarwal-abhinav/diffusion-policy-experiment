@@ -50,6 +50,8 @@ class PushTLowdimDataset(BaseLowdimDataset):
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
+        self.zarr_path = zarr_path
+        self.val_mask = val_mask
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)

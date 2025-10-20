@@ -20,7 +20,7 @@ from diffusion_policy.model.common.normalizer import LinearNormalizer, SingleFie
 from diffusion_policy.model.common.rotation_transformer import RotationTransformer
 from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, Jpeg2k
 from diffusion_policy.common.replay_buffer import ReplayBuffer
-from diffusion_policy.common.sampler import SequenceSampler, get_val_mask, ImprovedDatasetSampler
+from diffusion_policy.common.sampler import SequenceSampler, get_val_mask, ImprovedDatasetSampler, downsample_mask
 from diffusion_policy.common.normalize_util import (
     robomimic_abs_action_only_normalizer_from_stat,
     robomimic_abs_action_only_dual_arm_normalizer_from_stat,
@@ -44,7 +44,8 @@ class RobomimicReplayImageDataset(BaseImageDataset):
             use_legacy_normalizer=False,
             use_cache=False,
             seed=42,
-            val_ratio=0.0
+            val_ratio=0.0, 
+            max_train_episodes=None
         ):
         rotation_transformer = RotationTransformer(
             from_rep='axis_angle', to_rep=rotation_rep)
@@ -113,6 +114,10 @@ class RobomimicReplayImageDataset(BaseImageDataset):
             val_ratio=val_ratio,
             seed=seed)
         train_mask = ~val_mask
+        train_mask = downsample_mask(
+            mask=train_mask, 
+            max_n=max_train_episodes, 
+            seed=seed)
         sampler = SequenceSampler(
             replay_buffer=replay_buffer, 
             sequence_length=horizon,
@@ -139,14 +144,15 @@ class RobomimicReplayImageDataset(BaseImageDataset):
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
+        val_set.train_mask = self.val_mask
         val_set.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer, 
             sequence_length=self.horizon,
             pad_before=self.pad_before, 
             pad_after=self.pad_after,
-            episode_mask=~self.train_mask
+            episode_mask=val_set.train_mask,
             )
-        val_set.train_mask = ~self.train_mask
+        # val_set.train_mask = ~self.train_mask
         return val_set
 
     def get_normalizer(self, **kwargs) -> LinearNormalizer:

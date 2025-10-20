@@ -48,6 +48,8 @@ python eval.py --checkpoint <path_to_checkpoint.ckpt> --output_dir <output_dir> 
 python -m pytest tests/
 # Or run specific tests
 python tests/test_replay_buffer.py
+# Run individual test functions directly
+cd tests && python test_replay_buffer.py
 ```
 
 ## Project Architecture
@@ -147,3 +149,65 @@ The codebase includes extensive real robot capabilities:
 **Analysis Tools**:
 - `experiments/`: Embedding computation and nearest neighbor experiments
 - `scripts/save_embeddings.py`: Extract and save model embeddings for analysis
+
+**Cluster Submission**: For HPC/cluster environments, batch job submission scripts are available:
+- `submit_training.sh`: Submit training jobs to cluster with GPU allocation
+- `submit_data_generation.sh`: Submit data generation jobs
+- `desktop_to_supercloud.sh`/`supercloud_to_desktop.sh`: Data transfer utilities for cluster workflows
+
+## Key File Locations
+
+**Main Entry Points**:
+- `train.py`: Primary training script using Hydra configuration system
+- `eval.py`: Standalone evaluation script for pre-trained checkpoints
+- `ray_train_multirun.py`: Multi-seed training with Ray distributed computing
+
+**Configuration Structure**:
+- `config/`: Contains all Hydra configuration files organized by task/method hierarchies
+- `diffusion_policy/config/`: Core policy and workspace configurations
+- Task-specific configs: `config/<task_name>/` (e.g., `config/planar_pushing/`, `config/grasp_two_bins/`)
+- Method configs: Various `.yaml` files in subdirectories for different approaches
+
+**Core Implementation Architecture**:
+- `diffusion_policy/workspace/`: All workspace implementations (training/eval lifecycle)
+- `diffusion_policy/policy/`: Policy implementations with inference and training logic
+- `diffusion_policy/dataset/`: Dataset adapters that convert data to unified interfaces
+- `diffusion_policy/env_runner/`: Environment execution and evaluation logic
+- `diffusion_policy/model/`: Neural network architectures (UNets, Transformers, etc.)
+
+## Configuration System Details
+
+**Basic Training Pattern**:
+```bash
+python train.py --config-dir=config/<path> --config-name=<config>.yaml \
+    hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_<desc>'
+```
+
+**Common Config Overrides**:
+- `training.seed=42` - Set random seed for reproducibility
+- `training.device=cuda:0` - Specify GPU device
+- `task.dataset.zarr_path=<path>` - Override dataset location
+- `training.use_ema=true` - Enable exponential moving average
+- `task.env_runner.n_test=100` - Set number of evaluation episodes
+
+**Configuration Composition**: Configs are hierarchical and composable. The `_target_` field in YAML files points to the Python class to instantiate.
+
+## Development Guidelines
+
+**File Creation Policy**: 
+- NEVER create files unless absolutely necessary for achieving the specific goal
+- ALWAYS prefer editing existing files over creating new ones
+- NEVER proactively create documentation files unless explicitly requested
+
+**Architecture Compliance**:
+- Follow the existing workspace pattern when adding new methods
+- Maintain the O(N+M) complexity design for tasks and methods
+- New tasks require: Dataset, EnvRunner, and config file
+- New methods require: Policy, Workspace, and config file
+- Use existing implementations as templates
+
+**Code Quality**:
+- Use existing test files in `tests/` as examples for new functionality
+- Test changes against the configuration system before committing
+- Verify training and evaluation pipelines work with new code
+- Follow the existing code style and patterns found in the codebase

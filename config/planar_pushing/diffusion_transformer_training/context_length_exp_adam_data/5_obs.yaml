@@ -16,7 +16,7 @@ checkpoint:
       monitor_key: val_ddim_mse_0
 dataloader:
   batch_size: 64
-  num_workers: 1
+  num_workers: 8
   shuffle: true
   pin_memory: true
   persistent_workers: false
@@ -40,9 +40,9 @@ logging:
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
   wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
-horizon: 64
+horizon: 24
 n_obs_steps: 5
-n_action_steps: 4
+n_action_steps: 8
 n_latency_steps: 0
 dataset_obs_steps: ${n_obs_steps}
 past_action_visible: false
@@ -112,7 +112,7 @@ policy:
   # predict_epsilon: true
 task:
   dataset:
-    _target_: diffusion_policy.dataset.planar_pushing_dataset.PlanarPushingDataset
+    _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
     shape_meta: ${shape_meta}
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
@@ -126,6 +126,7 @@ task:
       val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
   shape_meta: ${shape_meta} # not used?
+new_type_dataloader: true
 training:
   device: "cuda:0"
   seed: 42
@@ -156,7 +157,7 @@ training:
   eval_mse_DDPM: true
 val_dataloader:
   batch_size: 64
-  num_workers: 1
+  num_workers: 8
   shuffle: False
   pin_memory: True
   persistent_workers: False

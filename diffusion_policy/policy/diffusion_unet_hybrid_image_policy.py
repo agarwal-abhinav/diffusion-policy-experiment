@@ -164,6 +164,7 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
                 if freeze_self_trained_obs_encoder: 
                     for param in self.obs_encoder.parameters(): 
                         param.requires_grad = False
+                    print("Freeze self-trained obs encoder. Param grad is ", param.requires_grad)
         self.model = model
         self.noise_scheduler = noise_scheduler
 
