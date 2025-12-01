@@ -134,6 +134,7 @@ task:
     shape_meta: ${shape_meta}
     use_cache: true
     val_ratio: 0.02
+    max_train_episodes: 100
   dataset_path: data/robomimic/lift/ph/image_abs.hdf5
   dataset_type: ph
   env_runner:

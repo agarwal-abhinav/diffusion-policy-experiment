@@ -30,9 +30,10 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=2_obs.yaml
 # HYDRA_RUN_DIR=data/outputs/robomimic/tool_hang/2_encoder_basic_freeze/2_obs
 
-POLICY_PATH=data/outputs/robomimic/square_100/resnet18_init/16_obs/
+POLICY_PATH=data/outputs/robomimic/lift/2_obs_100_data/
 
-python run_robomimic_eval.py --path $POLICY_PATH
+# python run_robomimic_eval.py --path $POLICY_PATH
+python run_robomimic_eval.py --path $POLICY_PATH --eval-script eval_1.py --output-root data/eval_output/robomimic_eval/lift_1
 
 # python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 # 	hydra.run.dir=$HYDRA_RUN_DIR
