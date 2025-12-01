@@ -118,7 +118,7 @@ policy:
   pretrained_encoder: false
 task:
   dataset:
-    _target_: diffusion_policy.dataset.binary_task_attention_dataset.BinaryTaskDataset
+    _target_: diffusion_policy.dataset.binary_task_dataset.BinaryTaskDataset
     shape_meta: ${shape_meta}
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
@@ -134,8 +134,6 @@ task:
       max_train_episodes: 47
       sampling_weight: null
       val_ratio: 0.06 # 3 / 50 trajectories
-    training_mode: "random"
-    progressive_steps: 1
   name: scene_image
   shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing

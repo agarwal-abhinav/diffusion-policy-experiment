@@ -5,7 +5,8 @@
 # SOURCE_DIR="data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_2_left_same_return_same_center_1_second_total.zarr"
 # SOURCE_DIR="data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth"
 # SOURCE_DIR="data/outputs/context_length_exp_adam_data_variable_training/random_sprinkle_2_to_obs_resnet_init/16_obs"
-SOURCE_DIR="data/pusht"
+# SOURCE_DIR="data/pusht"
+SOURCE_DIR="data/kuka_long_context_different_returns"
 # Target directory on the target computer
 TARGET_USER="aagarwal2"
 TARGET_HOST="txe1-login.mit.edu"
