@@ -32,13 +32,13 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 40
+horizon: 24
 keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
   mode: online
-  name: 30_constant_resnet_long_traj_double
+  name: 5_constant_resnet_long_traj_double
   project: long_context_pushing_debug
   resume: true
   tags:
@@ -51,7 +51,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 30
+n_obs_steps: 5
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -124,17 +124,17 @@ task:
     n_obs_steps: ${n_obs_steps}
     min_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 29
+    pad_before: 4
     seed: 42
     zarr_configs:
     - path: data/kuka_long_context_different_returns/start_bin_0.zarr
-      max_train_episodes: 47
+      max_train_episodes: 50
       sampling_weight: null
-      val_ratio: 0.06 # 3 / 50 trajectories
+      val_ratio: 0.06 # 10 / 160 trajectories
     - path: data/kuka_long_context_different_returns/start_bin_4.zarr
-      max_train_episodes: 47
+      max_train_episodes: 50
       sampling_weight: null
-      val_ratio: 0.06 # 3 / 50 trajectories
+      val_ratio: 0.06 # 10 / 160 trajectories
     training_mode: "random"
     progressive_steps: 1
   name: scene_image
@@ -155,7 +155,7 @@ training:
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
   seed: 42
-  tqdm_interval_sec: 30.0
+  tqdm_interval_sec: 10.0
   use_ema: true
   val_every: 1
   log_val_mse: true

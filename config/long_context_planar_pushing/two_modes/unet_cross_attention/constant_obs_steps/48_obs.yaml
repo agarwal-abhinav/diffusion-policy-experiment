@@ -32,13 +32,13 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 40
+horizon: 64
 keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
   mode: online
-  name: 30_constant_resnet_long_traj_double
+  name: 48_constant_resnet_long_traj_double
   project: long_context_pushing_debug
   resume: true
   tags:
@@ -51,7 +51,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 30
+n_obs_steps: 48
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -124,7 +124,7 @@ task:
     n_obs_steps: ${n_obs_steps}
     min_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 29
+    pad_before: 47
     seed: 42
     zarr_configs:
     - path: data/kuka_long_context_different_returns/start_bin_0.zarr
