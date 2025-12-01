@@ -123,7 +123,7 @@ task:
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 29
+    pad_before: 9
     seed: 42
     zarr_configs:
     - path: data/kuka_long_context_different_returns/start_bin_0.zarr
