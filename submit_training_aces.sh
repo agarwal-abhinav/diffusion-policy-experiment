@@ -28,8 +28,8 @@ wandb offline
 ##CONFIG_NAME=16_obs.yaml
 ##HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_resnet_plus_transformer/all_tokens_limited_attention/upto_12/16_obs
 
-CONFIG_DIR=config/long_context_planar_pushing/two_modes/unet_cross_attention/constant_obs_steps/
+CONFIG_DIR=config/long_context_planar_pushing/two_modes/unet_film/
 CONFIG_NAME=60_obs.yaml
-HYDRA_RUN_DIR=data/outputs/long_context_planar_pushing/two_modes/unet_cross_attention/constant_obs_steps/60_obs
+HYDRA_RUN_DIR=data/outputs/long_context_planar_pushing/two_modes/unet_film/60_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME hydra.run.dir=$HYDRA_RUN_DIR
