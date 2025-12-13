@@ -32,7 +32,7 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 72
+horizon: 60
 keypoint_visible_rate: 1.0
 logging:
   group: null
