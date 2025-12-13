@@ -51,7 +51,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 48
+n_obs_steps: 60
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
