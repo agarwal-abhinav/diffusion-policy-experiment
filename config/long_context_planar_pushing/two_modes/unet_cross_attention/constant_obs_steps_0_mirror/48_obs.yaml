@@ -128,11 +128,11 @@ task:
     seed: 42
     zarr_configs:
     - path: data/kuka_long_context_different_returns/start_bin_0_via_mirror.zarr
-      max_train_episodes: 47
+      max_train_episodes: 25
       sampling_weight: null
       val_ratio: 0.06 # 3 / 50 trajectories
     - path: data/kuka_long_context_different_returns/start_bin_4.zarr
-      max_train_episodes: 47
+      max_train_episodes: 25
       sampling_weight: null
       val_ratio: 0.06 # 3 / 50 trajectories
     training_mode: "random"
