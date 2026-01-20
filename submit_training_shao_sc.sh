@@ -24,9 +24,9 @@ echo "[submit_training.sh] Running training code..."
 echo "[submit_training.sh] Date: $DATE"
 echo "[submit_training.sh] Time: $TIME"
 
-CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_variable_training/constant_obs_steps_resnet_init/
-CONFIG_NAME=1_obs.yaml
-HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_variable_training/constant_obs_steps_resnet_init/1_obs
+# CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_variable_training/constant_obs_steps_resnet_init/
+# CONFIG_NAME=1_obs.yaml
+# HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_variable_training/constant_obs_steps_resnet_init/1_obs
 
 # CONFIG_DIR=config/planar_pushing/context_length_exp_adam_data_constant_model_size/robomimic_resnet18_freeze/
 # CONFIG_NAME=1_obs.yaml
@@ -43,6 +43,10 @@ HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_variable_training/consta
 # CONFIG_DIR=config/canonical_planar_pushing/initial_training/
 # CONFIG_NAME=20_obs_h_32.yaml
 # HYDRA_RUN_DIR=data/outputs/canonical_planar_pushing/initial_training/20_obs_h_32
+
+CONFIG_DIR=config/iros/planar_pushing/data_experiments/unet_cross_attention/data_320
+CONFIG_NAME=20_obs.yaml
+HYDRA_RUN_DIR=data/outputs/iros/planar_pushing/data_experiments/unet_cross_attention/data_320/20_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
