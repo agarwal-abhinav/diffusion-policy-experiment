@@ -36,17 +36,21 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=5_obs.yaml
 # HYDRA_RUN_DIR=data/outputs/context_length_exp_adam_data_constant_model_size/5_obs
 
-CONFIG_DIR=config/grasp_two_bins_flat/attention_training/random_4_to_obs
-CONFIG_NAME=22_obs.yaml
-HYDRA_RUN_DIR=data/outputs/grasp_two_bins_flat/attention_training/random_4_to_obs/22_obs
+# CONFIG_DIR=config/grasp_two_bins_flat/attention_training/random_4_to_obs
+# CONFIG_NAME=22_obs.yaml
+# HYDRA_RUN_DIR=data/outputs/grasp_two_bins_flat/attention_training/random_4_to_obs/22_obs
 
-# CONFIG_DIR=config/grasp_two_bins_flat/resnet_plus_transformer/cls_token_only/
-# CONFIG_NAME=24_obs.yaml
-# HYDRA_RUN_DIR=data/outputs/grasp_two_bins_flat/resnet_plus_transformer/cls_token_only/24_obs
+# CONFIG_DIR=config/grasp_two_bins_flat_green/attention_training/constant_obs_steps_baseline/
+# CONFIG_NAME=30_obs.yaml
+# HYDRA_RUN_DIR=data/outputs/grasp_two_bins_flat_green/attention_training/constant_obs_steps_baseline/30_obs
 
 # CONFIG_DIR=config/canonical_planar_pushing/initial_training/
 # CONFIG_NAME=20_obs_h_32.yaml
 # HYDRA_RUN_DIR=data/outputs/canonical_planar_pushing/initial_training/20_obs_h_32
+
+CONFIG_DIR=config/long_context_planar_pushing/single_mode/unet_cross_attention/0_via_mirror/constant_obs_steps
+CONFIG_NAME=10_obs.yaml
+HYDRA_RUN_DIR=data/outputs/long_context_planar_pushing/single_mode/unet_cross_attention/0_via_mirror/constant_obs_steps/10_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR

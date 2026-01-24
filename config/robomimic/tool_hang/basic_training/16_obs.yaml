@@ -175,7 +175,7 @@ training:
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
   seed: 42
-  tqdm_interval_sec: 30.0
+  tqdm_interval_sec: 10.0
   use_ema: true
   val_every: 1
   eval_mse_DDIM: true 
