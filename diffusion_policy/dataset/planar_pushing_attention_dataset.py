@@ -62,7 +62,8 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         low_pass_on_overhead=False,
         training_mode='random',  # 'random' or 'progressive' 
         progressive_steps=10000,  # Steps for progressive training mode
-        random_sprinkle_prob=0.1  # Probability of sprinkling random obs in 'random_sprinkle' mode
+        random_sprinkle_prob=0.1,  # Probability of sprinkling random obs in 'random_sprinkle' mode
+        use_same_train_masks_across_datasets=False
     ):
         
         super().__init__()
@@ -149,15 +150,23 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
                 dataset_val_ratio = zarr_config['val_ratio']
             else:
                 dataset_val_ratio = val_ratio
-            val_mask = get_val_mask(
-                n_episodes=n_episodes, 
-                val_ratio=dataset_val_ratio,
-                seed=seed)
-            train_mask = ~val_mask
-            train_mask = downsample_mask(
-                mask=train_mask, 
-                max_n=max_train_episodes, 
-                seed=seed)
+            
+            if use_same_train_masks_across_datasets and i > 0: 
+                # Use the same train/val masks as the first dataset
+                val_mask = copy.deepcopy(self.val_masks[0])
+                train_mask = copy.deepcopy(self.train_masks[0])
+
+                print("Using SAME train/ val masks. Make sure MATCHING DATASET LENGTHS!")
+            else:
+                val_mask = get_val_mask(
+                    n_episodes=n_episodes, 
+                    val_ratio=dataset_val_ratio,
+                    seed=seed)
+                train_mask = ~val_mask
+                train_mask = downsample_mask(
+                    mask=train_mask, 
+                    max_n=max_train_episodes, 
+                    seed=seed)
             
             self.train_masks.append(train_mask)
             self.val_masks.append(val_mask)

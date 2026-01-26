@@ -1,19 +1,34 @@
 #!/bin/bash
 
-# Usage
-# LLsub ./submit_training.sh -s 20 -g volta:1
+#SBATCH --job-name=2_mode_60_obs_d_48 
+#SBATCH --time=40:00:00 
+#SBATCH --cpus-per-task=16 
+#SBATCH --mem=64G 
+#SBATCH --output=submit_training_locomotion.sh.log-%j
+#SBATCH --account=locomotion 
+#SBATCH --partition=locomotion-h200 
+#SBATCH --qos=locomotion-main
+#SBATCH --gres=gpu:1
 
 # Initialize and Load Modules
 echo "[submit_training.sh] Loading modules and virtual environment"
-source /etc/profile
-module load anaconda/2023b
 
-# Assume current directory is gcs-diffusion
-source .robodiff/bin/activate || echo "Training with anaconda/2023b module instead of venv"
+echo "NODE: $SLURMD_NODENAME"
+echo "JOB:  $SLURM_JOB_ID"
+echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+nvidia-smi -L
+
+# Exporting home directory, sourcing conda, and activating conda environment 
+export HOME=/data/scratch-oc40/abhi_ag/
+source $HOME/python_environments/miniconda3/etc/profile.d/conda.sh
+export PYTHONNOUSERSITE=1
+
+# activate the conda environment 
+conda activate gcs-diffusion-training
 
 # Set wandb to offline since Supercloud has no internet access
-echo "[submit_training.sh] Setting wandb to offline"
-wandb offline
+# echo "[submit_training.sh] Setting wandb to offline"
+# wandb offline
 
 # Export date, time, environment variables
 DATE=`date +"%Y.%m.%d"`
@@ -64,9 +79,17 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=5_obs.yaml
 # HYDRA_RUN_DIR=data/outputs/long_context_planar_pushing/single_mode/unet_film/4_original/constant_obs_steps_25_data/5_obs
 
-CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4
-CONFIG_NAME=8_obs.yaml
-HYDRA_RUN_DIR=data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/8_obs
+# CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4
+# CONFIG_NAME=8_obs.yaml
+# HYDRA_RUN_DIR=data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/8_obs
+
+# CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4
+# CONFIG_NAME=80_obs.yaml
+# HYDRA_RUN_DIR=/data/scratch-oc40/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/80_obs
+
+CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_48/mode_4_0
+CONFIG_NAME=60_obs.yaml
+HYDRA_RUN_DIR=/data/scratch-oc40/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_48/mode_4_0/60_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
