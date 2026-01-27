@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=2_mode_60_obs_d_48 
+#SBATCH --job-name=2_mode_72_obs_d_48 
 #SBATCH --time=40:00:00 
 #SBATCH --cpus-per-task=16 
 #SBATCH --mem=64G 
@@ -19,8 +19,10 @@ echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 nvidia-smi -L
 
 # Exporting home directory, sourcing conda, and activating conda environment 
-export HOME=/data/scratch-oc40/abhi_ag/
-source $HOME/python_environments/miniconda3/etc/profile.d/conda.sh
+# currently home is set to where it should be and python is installed in scratch 
+# porting this python to new home is the next goal 
+export HOME=/data/locomotion/abhi_ag/
+source /data/scratch-oc40/abhi_ag/python_environments/miniconda3/etc/profile.d/conda.sh
 export PYTHONNOUSERSITE=1
 
 # activate the conda environment 
@@ -85,11 +87,11 @@ echo "[submit_training.sh] Time: $TIME"
 
 # CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4
 # CONFIG_NAME=80_obs.yaml
-# HYDRA_RUN_DIR=/data/scratch-oc40/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/80_obs
+# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/80_obs
 
 CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_48/mode_4_0
-CONFIG_NAME=60_obs.yaml
-HYDRA_RUN_DIR=/data/scratch-oc40/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_48/mode_4_0/60_obs
+CONFIG_NAME=72_obs.yaml
+HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_48/mode_4_0/72_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
