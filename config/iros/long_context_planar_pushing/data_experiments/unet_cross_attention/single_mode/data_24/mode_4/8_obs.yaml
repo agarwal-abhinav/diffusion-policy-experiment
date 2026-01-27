@@ -128,11 +128,11 @@ task:
     pad_before: 7
     seed: 42
     zarr_configs:
-    - path: data/iros/long_context_planar_pushing/start_bin_4.zarr
+    - path: data/iros/long_context_planar_pushing/start_bin_4_sorted.zarr
       max_train_episodes: 12
       sampling_weight: null
       val_ratio: 0.1 # 4 / 40 trajectories
-    - path: data/iros/long_context_planar_pushing/start_bin_4_via_mirror.zarr
+    - path: data/iros/long_context_planar_pushing/start_bin_4_via_mirror_sorted_reversed.zarr
       max_train_episodes: 12
       sampling_weight: null
       val_ratio: 0.1 # 4 / 40 trajectories
