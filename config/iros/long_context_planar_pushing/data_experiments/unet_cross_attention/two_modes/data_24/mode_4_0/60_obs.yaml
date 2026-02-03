@@ -24,8 +24,8 @@ dataloader:
   shuffle: true
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 8
-horizon: 24
+n_obs_steps: 60
+horizon: 76
 dataset_obs_steps: ${n_obs_steps}
 new_type_dataloader: true
 ema:
@@ -41,8 +41,8 @@ logging:
   group: null
   id: null
   mode: online
-  name: mode_4_unet_cross_obs_8_data_24
-  project: long_context_pushing_iros_single_mode
+  name: unet_cross_obs_60_data_24
+  project: long_context_pushing_iros_two_modes
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -125,17 +125,26 @@ task:
     n_obs_steps: ${n_obs_steps}
     min_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 7
+    pad_before: 59
     seed: 42
+    use_same_train_masks_across_datasets: true
     zarr_configs:
     - path: data/iros/long_context_planar_pushing/start_bin_4_sorted.zarr
-      max_train_episodes: 12
+      max_train_episodes: 6
       sampling_weight: null
-      val_ratio: 0.1 # 4 / 40 trajectories
+      val_ratio: 0.05 # 4 / 40 trajectories
     - path: data/iros/long_context_planar_pushing/start_bin_4_via_mirror_sorted_reversed.zarr
-      max_train_episodes: 12
+      max_train_episodes: 6
       sampling_weight: null
-      val_ratio: 0.1 # 4 / 40 trajectories
+      val_ratio: 0.05 # 4 / 40 trajectories
+    - path: data/iros/long_context_planar_pushing/start_bin_0_sorted_reversed.zarr 
+      max_train_episodes: 6
+      sampling_weight: null 
+      val_ratio: 0.05 # 2 / 40 trajectories
+    - path: data/iros/long_context_planar_pushing/start_bin_0_via_mirror_sorted.zarr 
+      max_train_episodes: 6
+      sampling_weight: null 
+      val_ratio: 0.05 # 2 / 40 trajectories
     training_mode: "random"
     progressive_steps: 1
   name: scene_image
