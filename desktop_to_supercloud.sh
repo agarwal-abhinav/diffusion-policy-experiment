@@ -7,11 +7,11 @@
 # SOURCE_DIR="data/outputs/context_length_exp_adam_data_variable_training/random_sprinkle_2_to_obs_resnet_init/16_obs"
 # SOURCE_DIR="data/pusht"
 # SOURCE_DIR="data/diffusion_experiments/grasp_two_bins/two_bins_flat_data_3_right_diff_return_diff_center_1_second_total.zarr"
-SOURCE_DIR="/home/abhinav/RLG_new/drake_learning_tasks/data/kuka_pusher_long_context_different_returns/start_bin_0_via_mirror.zarr"
+SOURCE_DIR="/home/abhinav/RLG_new/drake_learning_tasks/data/iros_push_data/start_bin_4_via_mirror.zarr"
 # Target directory on the target computer
 TARGET_USER="aagarwal2"
 TARGET_HOST="txe1-login.mit.edu"
-TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/kuka_long_context_different_returns/"
+TARGET_DIR="/home/gridsan/aagarwal2/RLG/gcs-diffusion/data/iros/long_context_planar_pushing"
 
 # TARGET_USER="schia"
 # TARGET_HOST="txe1-login.mit.edu"
