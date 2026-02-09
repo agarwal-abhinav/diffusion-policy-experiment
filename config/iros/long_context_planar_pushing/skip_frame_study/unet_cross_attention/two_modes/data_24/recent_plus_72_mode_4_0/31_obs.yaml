@@ -128,6 +128,7 @@ task:
     pad_before: 71
     seed: 42
     use_same_train_masks_across_datasets: true
+    continuous_till: 31
     zarr_configs:
     - path: data/iros/long_context_planar_pushing/start_bin_4_sorted.zarr
       max_train_episodes: 6
