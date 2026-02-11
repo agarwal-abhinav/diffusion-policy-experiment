@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --job-name=2_mode_31_obs_d_24_recent_plus_72 
+#SBATCH --job-name=2_mode_80_obs_d_24
 #SBATCH --time=40:00:00 
 #SBATCH --cpus-per-task=10 
-#SBATCH --mem=40G 
+#SBATCH --mem=60G 
 #SBATCH --output=submit_training_locomotion.sh.log-%j
 #SBATCH --account=locomotion 
 #SBATCH --partition=locomotion-h200 
@@ -47,14 +47,13 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=80_obs.yaml
 # HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/80_obs
 
-# CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_48/mode_4_0
-# CONFIG_NAME=80_obs.yaml
-# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_48/mode_4_0/80_obs
+CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_24/mode_4_0
+CONFIG_NAME=80_obs.yaml
+HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_24/mode_4_0/80_obs
 
-CONFIG_DIR=config/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_24/recent_plus_72_mode_4_0
-CONFIG_NAME=31_obs.yaml
-HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_24/recent_plus_72_mode_4_0/31_obs
-
+# CONFIG_DIR=config/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/recent_plus_72_mode_4_0
+# CONFIG_NAME=31_obs.yaml
+# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/recent_plus_72_mode_4_0/31_obs
 
 # CONFIG_DIR=config/iros/long_context_grasping/data_experiments/unet_cross_attention/two_modes_diff_center_diff_return/data_12/
 # CONFIG_NAME=24_obs.yaml

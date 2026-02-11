@@ -66,7 +66,7 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         progressive_steps=10000,  # Steps for progressive training mode
         random_sprinkle_prob=0.1,  # Probability of sprinkling random obs in 'random_sprinkle' mode
         use_same_train_masks_across_datasets=False, 
-        continuous_till=3,
+        skip_every=2,
     ):
         
         super().__init__()
@@ -82,7 +82,7 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         self.progressive_steps = progressive_steps
         self.training_step = 0
         self.current_max = min_obs_steps
-        self.continuous_till = continuous_till
+        self.skip_every = skip_every
         assert self.min_obs_steps == self.max_obs_steps, "For now, only support fixed obs steps (set min_obs_steps = max_obs_steps). Progressive curriculum not implemented yet."
 
         # Validation
@@ -415,12 +415,20 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
             sampler = self.samplers[sampler_idx]
             data = sampler.sample_data(idx % len(sampler), key_first_k_override=key_first_k)
 
-        # ImprovedDatasetSampler handles everything - just pass through data directly
-        def keep_rows_first_and_last_R(arr): 
-            start = max(1, num_obs_steps - self.continuous_till)
-            return np.concatenate([arr[:1], arr[start:]], axis=0)
+        # ImprovedDatasetSampler handles everything - just pass through data directl
         
-        output_data = dict_apply(data, keep_rows_first_and_last_R)  # No processing needed!
+        def keep_every_k_from_H_np(arr):
+            """
+            arr: numpy array of shape (N, ...)
+            """
+            idx1 = np.arange(num_obs_steps - 1, -1, -self.skip_every)[::-1]
+            idx2 = np.arange(num_obs_steps, arr.shape[0])
+
+            idx = np.concatenate([idx1, idx2])
+            return arr[idx]
+        
+        del data['target']
+        output_data = dict_apply(data, keep_every_k_from_H_np)  # No processing needed!
 
         # Add one-hot encoding if needed
         if self.use_one_hot_encoding:
@@ -434,10 +442,11 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         torch_data = dict_apply(output_data, torch.from_numpy)
         
         # Add metadata including actual observation length used
+        num_obs_effective = (num_obs_steps - 1) // self.skip_every + 1
         torch_data['sample_metadata'] = {
-            'num_obs_steps': self.continuous_till + 1,  # Actual obs steps for this sample
-            'max_obs_steps': self.continuous_till + 1,
-            'min_obs_steps': self.continuous_till + 1,
+            'num_obs_steps': num_obs_effective,  # Actual obs steps for this sample
+            'max_obs_steps': num_obs_effective,
+            'min_obs_steps': num_obs_effective,
             # 'horizon': self.horizon,
             # 'sampler_idx': sampler_idx,
             # 'training_mode': self.training_mode
@@ -554,7 +563,7 @@ if __name__ == "__main__":
         min_obs_steps=20,
         pad_before=1,
         pad_after=71,
-        continuous_till=3,
+        skip_every=2,
         seed=42,
         val_ratio=0.05,
     )
