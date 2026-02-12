@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=2_mode_40_obs_d_24_constant_then_skip_second_frame
+#SBATCH --job-name=2_mode_40_obs_d_48_constant_then_skip_second_frame
 #SBATCH --time=23:59:00 
 #SBATCH --cpus-per-task=26
 #SBATCH --mem=64G 
@@ -69,9 +69,9 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=3_obs.yaml
 # HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/recent_plus_72_mode_4_0/3_obs
 
-CONFIG_DIR=config/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_24/constant_then_skip_second_frame_mode_4_0
+CONFIG_DIR=config/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/constant_then_skip_second_frame_mode_4_0
 CONFIG_NAME=40_obs.yaml
-HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_24/constant_then_skip_second_frame_mode_4_0/40_obs
+HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/constant_then_skip_second_frame_mode_4_0/40_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
