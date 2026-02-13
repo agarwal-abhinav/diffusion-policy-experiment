@@ -56,9 +56,9 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=5_obs.yaml
 # HYDRA_RUN_DIR=data/outputs/long_context_planar_pushing/two_modes/unet_cross_attention/constant_obs_steps_0_mirror_25_each/5_obs
 
-# CONFIG_DIR=config/iros/planar_pushing/data_experiments/unet_cross_attention/data_80
-# CONFIG_NAME=1_obs.yaml
-# HYDRA_RUN_DIR=data/outputs/iros/planar_pushing/data_experiments/unet_cross_attention/data_80/1_obs
+CONFIG_DIR=config/iros/planar_pushing/resnet18_init/unet_cross_attention/data_160
+CONFIG_NAME=16_obs.yaml
+HYDRA_RUN_DIR=data/outputs/iros/planar_pushing/resnet18_init/unet_cross_attention/data_160/16_obs
 
 # CONFIG_DIR=config/long_context_planar_pushing/single_mode/unet_cross_attention/4_original/constant_obs_steps
 # CONFIG_NAME=5_obs.yaml
@@ -68,9 +68,13 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=8_obs.yaml
 # HYDRA_RUN_DIR=data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_48/mode_4/8_obs
 
-CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_72/mode_4_0
-CONFIG_NAME=4_obs.yaml
-HYDRA_RUN_DIR=data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_72/mode_4_0/4_obs
+# CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_72/mode_4_0
+# CONFIG_NAME=4_obs.yaml
+# HYDRA_RUN_DIR=data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_72/mode_4_0/4_obs
+
+# CONFIG_DIR=config/iros/long_context_grasping/data_experiments/unet_cross_attention/two_modes_diff_center_diff_return/data_48/
+# CONFIG_NAME=8_obs.yaml 
+# HYDRA_RUN_DIR=data/outputs/iros/long_context_grasping/data_experiments/unet_cross_attention/two_modes_diff_center_diff_return/data_48/8_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
