@@ -44,9 +44,9 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=20_obs_h_32.yaml
 # HYDRA_RUN_DIR=data/outputs/canonical_planar_pushing/initial_training/20_obs_h_32
 
-CONFIG_DIR=config/iros/planar_pushing/data_experiments/unet_cross_attention/data_320
+CONFIG_DIR=config/iros/planar_pushing/data_experiments/unet_cross_attention/data_80
 CONFIG_NAME=20_obs.yaml
-HYDRA_RUN_DIR=data/outputs/iros/planar_pushing/data_experiments/unet_cross_attention/data_320/20_obs
+HYDRA_RUN_DIR=data/outputs/iros/planar_pushing/data_experiments/unet_cross_attention/data_80/20_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
