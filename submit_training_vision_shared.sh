@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --job-name=2_mode_40_obs_d_48_constant_then_skip_second_frame
+#SBATCH --job-name=film_2_mode_32_obs_d_96
 #SBATCH --time=23:59:00 
 #SBATCH --cpus-per-task=26
-#SBATCH --mem=64G 
+#SBATCH --mem=70G 
 #SBATCH --output=submit_training_vision_shared.sh.log-%j
 #SBATCH --account=locomotion 
 #SBATCH --partition=csail-shared-h200
@@ -57,9 +57,13 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=60_obs.yaml
 # HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/60_obs
 
-# CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_96/mode_4_0
-# CONFIG_NAME=32_obs.yaml
-# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/two_modes/data_96/mode_4_0/32_obs
+CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_film/two_modes/data_96/mode_4_0
+CONFIG_NAME=32_obs.yaml
+HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_film/two_modes/data_96/mode_4_0/32_obs
+
+# CONFIG_DIR=config/iros/long_context_planar_pushing/resnet18_init/unet_cross_attention/two_modes/data_24/mode_4_0
+# CONFIG_NAME=4_obs.yaml
+# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/resnet18_init/unet_cross_attention/two_modes/data_24/mode_4_0/4_obs
 
 # CONFIG_DIR=config/iros/long_context_grasping/data_experiments/unet_cross_attention/two_modes_diff_center_diff_return/data_24/
 # CONFIG_NAME=20_obs.yaml
@@ -69,9 +73,9 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=3_obs.yaml
 # HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/recent_plus_72_mode_4_0/3_obs
 
-CONFIG_DIR=config/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/constant_then_skip_second_frame_mode_4_0
-CONFIG_NAME=40_obs.yaml
-HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/constant_then_skip_second_frame_mode_4_0/40_obs
+# CONFIG_DIR=config/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/constant_then_skip_second_frame_mode_4_0
+# CONFIG_NAME=40_obs.yaml
+# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/constant_then_skip_second_frame_mode_4_0/40_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR

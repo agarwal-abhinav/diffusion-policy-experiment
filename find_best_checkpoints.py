@@ -50,26 +50,26 @@ def analyze_best_epochs(entity, project, run_id):
     # Fetch specific columns. 
     # We use a large 'samples' number to ensure we get all steps if the run is long.
     # wandb usually samples history, but for exact epoch finding, we want the full set.
-    history = run.history(keys=["epoch", "val_loss", "val_ddim_mse"], samples=100000)
+    history = run.history(keys=["epoch", "val_loss_0", "val_ddim_mse_0"], samples=100000)
     
     # Drop rows where metrics might be NaN (e.g. if logged at different steps)
     df = pd.DataFrame(history)
     
     # Ensure we actually have data
-    if "val_loss" not in df.columns:
+    if "val_loss_0" not in df.columns:
         print("Error: 'val_loss' not found in run history.")
         return
 
     # 1. Best val_loss
     print("\n--- Top 5 Epochs by Lowest Validation Loss ---")
-    best_loss = df.sort_values("val_loss", ascending=True).dropna(subset=["val_loss"]).head(5)
-    print(best_loss[["epoch", "val_loss"]].to_string(index=False))
+    best_loss = df.sort_values("val_loss_0", ascending=True).dropna(subset=["val_loss_0"]).head(5)
+    print(best_loss[["epoch", "val_loss_0"]].to_string(index=False))
 
     # 2. Best val_ddim_mse (Check if it exists first)
-    if "val_ddim_mse" in df.columns:
+    if "val_ddim_mse_0" in df.columns:
         print("\n--- Top 5 Epochs by Lowest val_ddim_mse ---")
-        best_mse = df.sort_values("val_ddim_mse", ascending=True).dropna(subset=["val_ddim_mse"]).head(5)
-        print(best_mse[["epoch", "val_ddim_mse"]].to_string(index=False))
+        best_mse = df.sort_values("val_ddim_mse_0", ascending=True).dropna(subset=["val_ddim_mse_0"]).head(5)
+        print(best_mse[["epoch", "val_ddim_mse_0"]].to_string(index=False))
     else:
         print("\nWarning: 'val_ddim_mse' not found in logs.")
 

@@ -52,7 +52,8 @@ class PlanarPushingDataset(BaseImageDataset):
         val_ratio=0.0,
         color_jitter=None,
         low_pass_on_wrist=False, 
-        low_pass_on_overhead=False
+        low_pass_on_overhead=False, 
+        use_same_train_masks_across_datasets=False
     ):
         
         super().__init__()
@@ -120,17 +121,24 @@ class PlanarPushingDataset(BaseImageDataset):
                 dataset_val_ratio = zarr_config['val_ratio']
             else:
                 dataset_val_ratio = val_ratio
-            val_mask = get_val_mask(
-                n_episodes=n_episodes, 
-                val_ratio=dataset_val_ratio,
-                seed=seed)
-            train_mask = ~val_mask
-            # Note max_train_episodes is the max number of training episodes
-            # not the total number of train and val episodes!
-            train_mask = downsample_mask(
-                mask=train_mask, 
-                max_n=max_train_episodes, 
-                seed=seed)
+            
+            if use_same_train_masks_across_datasets and i > 0: 
+                val_mask = copy.deepcopy(self.val_masks[0])
+                train_mask = copy.deepcopy(self.train_masks[0])
+
+                print("Using SAME train/ val masks. Make sure MATCHING DATASET LENGTHS!")
+            else: 
+                val_mask = get_val_mask(
+                    n_episodes=n_episodes, 
+                    val_ratio=dataset_val_ratio,
+                    seed=seed)
+                train_mask = ~val_mask
+                # Note max_train_episodes is the max number of training episodes
+                # not the total number of train and val episodes!
+                train_mask = downsample_mask(
+                    mask=train_mask, 
+                    max_n=max_train_episodes, 
+                    seed=seed)
             
             self.train_masks.append(train_mask)
             self.val_masks.append(val_mask)
