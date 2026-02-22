@@ -103,8 +103,8 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
         self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloaders)
 
         # configure validation dataset
-        val_dataset = dataset.get_validation_dataset()
-        val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+        # val_dataset = dataset.get_validation_dataset()
+        # val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
 
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:

@@ -62,7 +62,7 @@ class TransformerForDiffusion(ModuleAttrMixin):
                 encoder_layer = nn.TransformerEncoderLayer(
                     d_model=n_emb,
                     nhead=n_head,
-                    dim_feedforward=4*n_emb,
+                    dim_feedforward=6*n_emb,
                     dropout=p_drop_attn,
                     activation='gelu',
                     batch_first=True,
@@ -82,7 +82,7 @@ class TransformerForDiffusion(ModuleAttrMixin):
             decoder_layer = nn.TransformerDecoderLayer(
                 d_model=n_emb,
                 nhead=n_head,
-                dim_feedforward=4*n_emb,
+                dim_feedforward=6*n_emb,
                 dropout=p_drop_attn,
                 activation='gelu',
                 batch_first=True,

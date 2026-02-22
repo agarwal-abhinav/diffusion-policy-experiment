@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --job-name=film_2_mode_80_obs_d_48
-#SBATCH --time=44:00:00 
-#SBATCH --cpus-per-task=10 
-#SBATCH --mem=70G 
+#SBATCH --job-name=4_mode_80_obs_d_192
+#SBATCH --time=55:00:00 
+#SBATCH --cpus-per-task=20 
+#SBATCH --mem=90G 
 #SBATCH --output=submit_training_locomotion.sh.log-%j
 #SBATCH --account=locomotion 
 #SBATCH --partition=locomotion-h200 
@@ -47,9 +47,13 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=80_obs.yaml
 # HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/80_obs
 
-CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_film/two_modes/data_48/mode_4_0
+# CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/dit_cross_attention/two_modes/data_24/mode_4_0
+# CONFIG_NAME=32_obs.yaml
+# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/dit_cross_attention/two_modes/data_24/mode_4_0/32_obs
+
+CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/four_modes/data_192/mode_4_0
 CONFIG_NAME=80_obs.yaml
-HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_film/two_modes/data_48/mode_4_0/80_obs
+HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/four_modes/data_192/mode_4_0/80_obs
 
 # CONFIG_DIR=config/iros/long_context_planar_pushing/resnet18_init/unet_cross_attention/two_modes/data_24/mode_4_0
 # CONFIG_NAME=80_obs.yaml
@@ -60,8 +64,8 @@ HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros
 # HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/skip_frame_study/unet_cross_attention/two_modes/data_48/recent_plus_72_mode_4_0/31_obs
 
 # CONFIG_DIR=config/iros/long_context_grasping/data_experiments/unet_cross_attention/two_modes_diff_center_diff_return/data_12/
-# CONFIG_NAME=24_obs.yaml
-# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_grasping/data_experiments/unet_cross_attention/two_modes_diff_center_diff_return/data_12/24_obs
+# CONFIG_NAME=20_obs.yaml
+# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_grasping/data_experiments/unet_cross_attention/two_modes_diff_center_diff_return/data_12/20_obs
 
 python train.py --config-dir=$CONFIG_DIR --config-name=$CONFIG_NAME \
 	hydra.run.dir=$HYDRA_RUN_DIR
