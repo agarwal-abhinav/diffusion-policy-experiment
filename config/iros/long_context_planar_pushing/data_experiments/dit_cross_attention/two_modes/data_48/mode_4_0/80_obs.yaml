@@ -168,7 +168,7 @@ training:
   tqdm_interval_sec: 30.0
   eval_mse_DDIM: true
   eval_mse_DDPM: true
-  total_train_steps: 200000
+  total_train_steps: 500000
 val_dataloader:
   batch_size: 64
   num_workers: 8

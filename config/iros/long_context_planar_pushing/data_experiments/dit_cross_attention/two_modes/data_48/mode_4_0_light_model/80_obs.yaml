@@ -33,15 +33,15 @@ logging:
   project: long_context_pushing_iros_two_modes
   resume: True
   mode: online
-  name: dit_cross_attention_obs_32_data_48
+  name: dit_light_cross_attention_obs_80_data_48
   tags: ["${name}", "${task_name}"]
   id: null
   group: null
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
   wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
-horizon: 48
-n_obs_steps: 32
+horizon: 96
+n_obs_steps: 80
 n_action_steps: 8
 n_latency_steps: 0
 dataset_obs_steps: ${n_obs_steps}
@@ -98,10 +98,10 @@ policy:
   obs_encoder_group_norm: true
   eval_fixed_crop: true
 
-  n_layer: 16
+  n_layer: 8
   n_cond_layers: 0  # >0: use transformer encoder for cond, otherwise use MLP
-  n_head: 8
-  n_emb: 576
+  n_head: 4
+  n_emb: 256
   p_drop_emb: 0.0
   p_drop_attn: 0.3
   causal_attn: true
@@ -117,7 +117,7 @@ task:
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 31
+    pad_before: 79
     seed: 42
     use_same_train_masks_across_datasets: true
     zarr_configs:
@@ -168,7 +168,7 @@ training:
   tqdm_interval_sec: 30.0
   eval_mse_DDIM: true
   eval_mse_DDPM: true
-  total_train_steps: 500000
+  total_train_steps: 200000
 val_dataloader:
   batch_size: 64
   num_workers: 8
