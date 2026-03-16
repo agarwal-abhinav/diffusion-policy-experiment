@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: variable_progressive_vit_d_cls_mid_data_48
+  name: variable_progressive_vit_d_cls_mid_dino_data_48
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -91,13 +91,13 @@ shape_meta:
 policy:
   _target_: diffusion_policy.policy.diffusion_vit_attention_hybrid_image_policy.DiffusionViTAttentionHybridImagePolicy
   vit_variant: "D"
-  vit_model_name: "vit_small_patch16_224"
+  vit_model_name: "vit_small_patch16_224.dino"
   vit_pretrained: true
   vit_freeze: false
   temporal_every_k: 4
   temporal_num_heads: 6
   max_frames: 100
-  imagenet_norm: false
+  imagenet_norm: true
   crop_shape:
   - 112
   - 112

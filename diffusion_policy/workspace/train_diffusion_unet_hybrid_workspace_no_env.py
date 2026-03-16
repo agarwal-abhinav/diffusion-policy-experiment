@@ -22,7 +22,7 @@ import dill
 import shutil
 import torch
 from torch.nn.parallel import DataParallel
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from einops import rearrange, reduce
 import torch.nn.functional as F
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
@@ -87,37 +87,57 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         self.use_variable_lr = getattr(cfg.training, 'use_variable_lr', False)
         
         if self.use_variable_lr and hasattr(self.model, 'obs_encoder'):
-            # Check if this is MC3 encoder by looking for the specific policy class
-            # is_mc3_model = 'r3d' in self.model.__class__.__module__
-            
-            # if is_mc3_model:
-            print(f"Using variable learning rate: encoder LR = {cfg.optimizer.lr * self.encoder_lr_scale:.6f}, rest = {cfg.optimizer.lr:.6f}")
-            
-            # Separate parameters for encoder and rest of model
-            encoder_params = list(self.model.obs_encoder.parameters())
-            encoder_param_ids = {id(p) for p in encoder_params}
-            
-            other_params = [p for p in self.model.parameters() if id(p) not in encoder_param_ids]
-            
-            # Create parameter groups with different learning rates
+            obs_enc = self.model.obs_encoder
+            base_lr = cfg.optimizer.lr
+            enc_lr = base_lr * self.encoder_lr_scale
+
+            # Collect ViT backbone params (low LR) vs temporal/other params (full LR)
+            vit_params = []
+            if hasattr(obs_enc, 'vit_encoders'):
+                seen_ids = set()
+                for key in obs_enc.rgb_keys:
+                    vit = obs_enc.vit_encoders[key]
+                    if hasattr(vit, 'temporal_layers'):
+                        # VideoViTEncoder (D/E): only spatial parts get low LR
+                        for p in vit.patch_embed.parameters():
+                            if id(p) not in seen_ids:
+                                vit_params.append(p); seen_ids.add(id(p))
+                        if id(vit.cls_token) not in seen_ids:
+                            vit_params.append(vit.cls_token); seen_ids.add(id(vit.cls_token))
+                        if id(vit.pos_embed) not in seen_ids:
+                            vit_params.append(vit.pos_embed); seen_ids.add(id(vit.pos_embed))
+                        for p in vit.blocks.parameters():
+                            if id(p) not in seen_ids:
+                                vit_params.append(p); seen_ids.add(id(p))
+                        for p in vit.norm.parameters():
+                            if id(p) not in seen_ids:
+                                vit_params.append(p); seen_ids.add(id(p))
+                    else:
+                        # Standard timm ViT (A/B/C): all params get low LR
+                        for p in vit.parameters():
+                            if id(p) not in seen_ids:
+                                vit_params.append(p); seen_ids.add(id(p))
+
+            vit_param_ids = {id(p) for p in vit_params}
+            other_params = [p for p in self.model.parameters()
+                           if id(p) not in vit_param_ids]
+
+            n_vit = sum(p.numel() for p in vit_params if p.requires_grad)
+            n_other = sum(p.numel() for p in other_params if p.requires_grad)
+            print(f"Variable LR: ViT backbone ({n_vit:,} params) LR={enc_lr:.6f}, "
+                  f"rest ({n_other:,} params) LR={base_lr:.6f}")
+
             param_groups = [
-                {'params': encoder_params, 'lr': cfg.optimizer.lr * self.encoder_lr_scale},
-                {'params': other_params, 'lr': cfg.optimizer.lr}
+                {'params': vit_params, 'lr': enc_lr},
+                {'params': other_params, 'lr': base_lr}
             ]
-            
-            # Create optimizer with parameter groups
+
             import torch.optim as optim
-            optimizer_class = getattr(optim, cfg.optimizer._target_.split('.')[-1])  # Extract class name
-            
+            optimizer_class = getattr(optim, cfg.optimizer._target_.split('.')[-1])
             optimizer_kwargs = dict(cfg.optimizer)
             optimizer_kwargs.pop('_target_')
-            optimizer_kwargs.pop('lr')  # Remove base lr since we're setting per group
-            
+            optimizer_kwargs.pop('lr')
             self.optimizer = optimizer_class(param_groups, **optimizer_kwargs)
-            # else:
-            #     print("Variable LR requested but not MC3 model - using standard optimizer")
-            #     self.optimizer = hydra.utils.instantiate(
-            #         cfg.optimizer, params=self.model.parameters())
         else:
             self.optimizer = hydra.utils.instantiate(
                 cfg.optimizer, params=self.model.parameters())
@@ -130,7 +150,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         
         # configure mixed precision training
         self.use_amp = getattr(cfg.training, 'use_amp', False)
-        self.scaler = GradScaler() if self.use_amp else None
+        self.scaler = GradScaler("cuda") if self.use_amp else None
         print(f"Mixed precision training: {'enabled' if self.use_amp else 'disabled'}")
 
     def run(self):
@@ -320,7 +340,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
 
                         # Compute loss via policy (handles dynamic prediction horizon)
                         if self.use_amp:
-                            with autocast(dtype=torch.float16):
+                            with autocast("cuda", dtype=torch.float16):
                                 raw_loss = self.model.compute_loss(batch)
                                 loss = raw_loss / cfg.training.gradient_accumulate_every
                         else:

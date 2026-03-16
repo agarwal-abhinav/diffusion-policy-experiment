@@ -490,10 +490,25 @@ class ViTObsEncoder(ModuleAttrMixin):
                 self.vit_encoders[key] = copy.deepcopy(base_vit)
 
         # Freeze ViT if requested
+        # For D/E (VideoViTEncoder): freeze spatial blocks but keep temporal
+        # layers trainable so they can learn temporal relationships.
         if vit_freeze:
             for key in rgb_keys:
-                for param in self.vit_encoders[key].parameters():
-                    param.requires_grad = False
+                encoder = self.vit_encoders[key]
+                if _is_video_vit and isinstance(encoder, VideoViTEncoder):
+                    # Freeze spatial components
+                    for param in encoder.patch_embed.parameters():
+                        param.requires_grad = False
+                    encoder.cls_token.requires_grad = False
+                    encoder.pos_embed.requires_grad = False
+                    for param in encoder.blocks.parameters():
+                        param.requires_grad = False
+                    for param in encoder.norm.parameters():
+                        param.requires_grad = False
+                    # temporal_layers, temporal_pos_embed stay trainable
+                else:
+                    for param in encoder.parameters():
+                        param.requires_grad = False
 
         # --- Per-camera projection (A-small) ---
         self.projectors = nn.ModuleDict()
