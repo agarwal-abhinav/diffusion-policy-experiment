@@ -29,7 +29,7 @@ from diffusion_policy.workspace.base_workspace import BaseWorkspace
 # from diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy import DiffusionUnetHybridImageTargetedPolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 # from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
-from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
+from diffusion_policy.common.checkpoint_util import TopKCheckpointManager, IntervalCheckpointManager, CheckpointManagers
 from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.model.diffusion.ema_model import EMAModel
@@ -136,6 +136,54 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
     def run(self):
         cfg = copy.deepcopy(self.cfg)
 
+        # configure checkpoint managers BEFORE resume so their state
+        # gets restored from the checkpoint (backward compatible —
+        # old checkpoints without manager state are handled gracefully)
+        ckpt_save_dir = os.path.join(self.output_dir, 'checkpoints')
+        if not isinstance(cfg.checkpoint, ListConfig):
+            topk_managers = [TopKCheckpointManager(
+                save_dir=ckpt_save_dir,
+                **cfg.checkpoint.topk
+            )]
+            save_last_ckpt = cfg.checkpoint.save_last_ckpt
+            save_last_snapshot = cfg.checkpoint.save_last_snapshot
+        else:
+            topk_managers = []
+            save_last_ckpt = False
+            save_last_snapshot = False
+            for ckpt_cfg in cfg.checkpoint:
+                topk_managers.append(TopKCheckpointManager(
+                    save_dir=ckpt_save_dir,
+                    **ckpt_cfg.topk
+                ))
+                save_last_ckpt = save_last_ckpt or ckpt_cfg.save_last_ckpt
+                save_last_snapshot = save_last_snapshot or ckpt_cfg.save_last_snapshot
+
+        # interval checkpoint manager (optional, backward compatible)
+        # Configured via top-level 'checkpoint_interval' key in config
+        interval_cfg = getattr(cfg, 'checkpoint_interval', None)
+
+        interval_manager = None
+        if interval_cfg is not None:
+            total_steps = getattr(cfg.training, 'total_train_steps', None)
+            if total_steps is None:
+                print("Warning: interval checkpoints require total_train_steps in config. Skipping.")
+            else:
+                interval_manager = IntervalCheckpointManager(
+                    save_dir=ckpt_save_dir,
+                    total_training_steps=total_steps,
+                    **interval_cfg,
+                )
+                print(f"Interval checkpoints: {interval_manager.num_checkpoints} "
+                      f"checkpoints over last {interval_manager.last_n_steps} steps "
+                      f"(at steps {sorted(interval_manager.save_steps)})")
+
+        # Store on self so BaseWorkspace.save_checkpoint auto-persists state
+        self.checkpoint_managers = CheckpointManagers(
+            topk_managers=topk_managers,
+            interval_manager=interval_manager,
+        )
+
         # resume training
         if cfg.training.resume:
             lastest_ckpt_path = self.get_checkpoint_path()
@@ -225,28 +273,11 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             }
         )
 
-        # configure checkpoint
+        # checkpoint config validation
         assert cfg.training.checkpoint_every % cfg.training.val_every == 0
-        if not isinstance(cfg.checkpoint, ListConfig):
-            # configure single checkpoint manager
-            topk_managers = [TopKCheckpointManager(
-                save_dir=os.path.join(self.output_dir, 'checkpoints'),
-                **cfg.checkpoint.topk
-            )]
-            save_last_ckpt = cfg.checkpoint.save_last_ckpt
-            save_last_snapshot = cfg.checkpoint.save_last_snapshot
-        else:
-            # configure multiple checkpoint managers
-            topk_managers = []
-            save_last_ckpt = False
-            save_last_snapshot = False
-            for ckpt_cfg in cfg.checkpoint:
-                topk_managers.append(TopKCheckpointManager(
-                    save_dir=os.path.join(self.output_dir, 'checkpoints'),
-                    **ckpt_cfg.topk
-                ))
-                save_last_ckpt = save_last_ckpt or ckpt_cfg.save_last_ckpt
-                save_last_snapshot = save_last_snapshot or ckpt_cfg.save_last_snapshot
+        # Retrieve managers from self (created before resume, state may be restored)
+        topk_managers = self.checkpoint_managers.topk_managers
+        interval_manager = self.checkpoint_managers.interval_manager
 
 
         # device transfer
@@ -286,30 +317,14 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             for key in dataset.rgb_keys: 
                                 batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                         batch_size = batch['action'].shape[0]
-                        # print(f"Outside batch size: {batch_size}")
-                        
-                        # construct noisy trajectory
-                        trajectory = self.model.normalizer['action'].normalize(batch['action'])
-                        noise = torch.randn(trajectory.shape, device=trajectory.device)
-                        # Sample a random timestep for each image
-                        timesteps = torch.randint(
-                            0, self.model.noise_scheduler.config.num_train_timesteps, 
-                            (batch_size,), device=trajectory.device
-                        ).long()
-                        # Add noise to the clean images according to the noise magnitude at each timestep
-                        # (this is the forward diffusion process)
-                        noisy_trajectory = self.model.noise_scheduler.add_noise(
-                            trajectory, noise, timesteps)
-                        
-                        # Forward pass with optional mixed precision
+
+                        # Compute loss via policy (handles dynamic prediction horizon)
                         if self.use_amp:
                             with autocast(dtype=torch.float16):
-                                pred = self.model(batch, noisy_trajectory, timesteps)
-                                raw_loss = self.compute_loss(trajectory, noise, pred)
+                                raw_loss = self.model.compute_loss(batch)
                                 loss = raw_loss / cfg.training.gradient_accumulate_every
                         else:
-                            pred = self.model(batch, noisy_trajectory, timesteps)
-                            raw_loss = self.compute_loss(trajectory, noise, pred)
+                            raw_loss = self.model.compute_loss(batch)
                             loss = raw_loss / cfg.training.gradient_accumulate_every
                         
                         # Backward pass with optional mixed precision
@@ -343,9 +358,10 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             'epoch': self.epoch,
                             'lr': lr_scheduler.get_last_lr()[0]
                         }
-                        # if 'sample_metadata' in batch.keys():
-                        #     dataset.set_training_step(self.global_step)
-                        #     step_log['current_level'] = dataset.current_max
+                        if hasattr(dataset, 'set_training_step'):
+                            dataset.set_training_step(self.global_step)
+                            if hasattr(dataset, 'current_max'):
+                                step_log['current_level'] = dataset.current_max
 
                         is_last_batch = (batch_idx == (len(train_dataloader)-1))
                         if not is_last_batch:
@@ -426,26 +442,29 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                             val_batch = dict_apply(val_sampling_batch, lambda x: x.to(device, non_blocking=True))
                             val_obs_dict = {key: val_batch[key] for key in val_batch.keys() if key != 'action'}
                             val_gt_action = val_batch['action']
-                            
+
                             # Evaluate MSE when diffusing with DDPM
                             if cfg.training.eval_mse_DDPM:
-                                if 'sample_metadata' in val_batch.keys(): 
+                                if 'sample_metadata' in val_batch.keys():
                                     result = policy.predict_action(val_obs_dict, use_DDIM=False, num_obs_tokens=val_batch['sample_metadata']['num_obs_steps'])
-                                else: 
+                                else:
                                     result = policy.predict_action(val_obs_dict, use_DDIM=False)
-                                pred_action = result['action_pred']
-                                mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
+                                # Compare on extracted action window (robust to dynamic pred horizon)
+                                pred_action = result['action']
+                                val_action = self._extract_gt_action_window(val_gt_action, val_batch, policy)
+                                mse = torch.nn.functional.mse_loss(pred_action, val_action)
                                 step_log[f'val_ddpm_mse_{dataset_idx}'] = mse.item()
                                 val_ddpm_action_mses.append(mse.item())
 
                             # Evaluate MSE when diffusing with DDIM
                             if cfg.training.eval_mse_DDIM:
-                                if 'sample_metadata' in val_batch.keys(): 
+                                if 'sample_metadata' in val_batch.keys():
                                     result = policy.predict_action(val_obs_dict, use_DDIM=True, num_obs_tokens=val_batch['sample_metadata']['num_obs_steps'])
-                                else: 
+                                else:
                                     result = policy.predict_action(val_obs_dict, use_DDIM=True)
-                                pred_action = result['action_pred']
-                                mse = torch.nn.functional.mse_loss(pred_action, val_gt_action)
+                                pred_action = result['action']
+                                val_action = self._extract_gt_action_window(val_gt_action, val_batch, policy)
+                                mse = torch.nn.functional.mse_loss(pred_action, val_action)
                                 step_log[f'val_ddim_mse_{dataset_idx}'] = mse.item()
                                 val_ddim_action_mses.append(mse.item())
                         
@@ -482,7 +501,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                     for key, value in step_log.items():
                         new_key = key.replace('/', '_')
                         metric_dict[new_key] = value
-                    
+
                     # We can't copy the last checkpoint here
                     # since save_checkpoint uses threads.
                     # therefore at this point the file might have been empty!
@@ -496,6 +515,13 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         if topk_ckpt_path is not None:
                             self.save_checkpoint(path=topk_ckpt_path)
                             break
+
+                    # interval checkpoints (evenly spaced over last N steps)
+                    if interval_manager is not None:
+                        interval_path = interval_manager.get_ckpt_path(metric_dict)
+                        if interval_path is not None:
+                            self.save_checkpoint(path=interval_path)
+                            print(f"Saved interval checkpoint at step {self.global_step}")
                 # last epoch => save last checkpoint
                 if self.epoch == cfg.training.num_epochs-1:
                     self.save_checkpoint()
@@ -523,6 +549,25 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         loss = loss.mean()
         return loss
     
+    def _extract_gt_action_window(self, val_gt_action, val_batch, policy):
+        """Extract the n_action_steps ground truth window matching predict_action output."""
+        n_past = getattr(policy, 'n_past_action_steps', None)
+        n_action_steps = policy.n_action_steps
+        if 'sample_metadata' in val_batch and n_past is not None:
+            # Per-sample: To varies
+            num_obs = val_batch['sample_metadata']['num_obs_steps']
+            To = num_obs[0].item()  # assume uniform in val batch
+            past_in_pred = min(n_past, To)
+        else:
+            To = getattr(policy, 'max_obs_steps', policy.n_obs_steps)
+            past_in_pred = To
+            if n_past is not None:
+                past_in_pred = min(n_past, To)
+        # In the full action tensor, current action is at To-1
+        start = To - 1
+        end = start + n_action_steps
+        return val_gt_action[:, start:end]
+
     def _print_dataset_diagnostics(self, cfg, dataset, train_dataloader, val_dataloaders):
         print()
         print("============= Dataset Diagnostics =============")

@@ -60,7 +60,7 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         color_jitter=None,
         low_pass_on_wrist=False, 
         low_pass_on_overhead=False,
-        training_mode='random',  # 'random' or 'progressive' 
+        training_mode='random',  # 'random', 'random_sprinkle', 'progressive', or 'reverse_progressive'
         progressive_steps=10000,  # Steps for progressive training mode
         random_sprinkle_prob=0.1,  # Probability of sprinkling random obs in 'random_sprinkle' mode
         use_same_train_masks_across_datasets=False
@@ -311,40 +311,33 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
     def _get_obs_steps(self) -> int:
         """
         Get number of observation steps based on training mode.
-        
+
         Returns:
             Number of observation steps to use for this sample
         """
         if self.training_mode == 'random':
             # Random sampling between min and max for each sample
             return torch.randint(self.min_obs_steps, self.max_obs_steps + 1, (1,)).item()
-        elif self.training_mode == 'random_sprinkle': 
+        elif self.training_mode == 'random_sprinkle':
             # Random sampling with sprinkling: mostly max_obs_steps, some random
             if random.random() < self.random_sprinkle_prob:
-                return torch.randint(self.min_obs_steps, self.max_obs_steps, (1,)).item()
+                return torch.randint(self.min_obs_steps, self.max_obs_steps + 1, (1,)).item()
             else:
                 return self.max_obs_steps
         elif self.training_mode == 'progressive':
-            raise NotImplementedError("Progressive mode not implemented yet")
-            # Progressive curriculum: start with min_obs_steps, gradually increase
-            current_max = self.min_obs_steps + (self.training_step // self.progressive_steps) 
-            print(f"Current max obs steps: {current_max}")
+            current_max = self.min_obs_steps + int(
+                (self.max_obs_steps - self.min_obs_steps) *
+                min(1.0, self.training_step / max(1, self.progressive_steps)))
+            current_max = min(current_max, self.max_obs_steps)
             self.current_max = current_max
-            if self.current_max > self.max_obs_steps:
-                self.current_max = self.max_obs_steps
-            return torch.randint(self.min_obs_steps, self.current_max + 1, (1,)).item()
-            # if self.training_step < self.progressive_steps:
-            #     progress = self.training_step / self.progressive_steps
-            #     current_max = self.min_obs_steps + progress * (self.max_obs_steps - self.min_obs_steps)
-            #     current_max = int(current_max)
-            #     if current_max > self.max_obs_steps:
-            #         current_max = self.max_obs_steps
-            #     self.current_max = current_max
-            #     # Sample randomly up to current curriculum level
-            #     return torch.randint(self.min_obs_steps, current_max + 1, (1,)).item()
-            # else:
-            #     # After curriculum completion, use full random range
-            #     return torch.randint(self.min_obs_steps, self.max_obs_steps + 1, (1,)).item()
+            return torch.randint(self.min_obs_steps, current_max + 1, (1,)).item()
+        elif self.training_mode == 'reverse_progressive':
+            current_max = self.max_obs_steps - int(
+                (self.max_obs_steps - self.min_obs_steps) *
+                min(1.0, self.training_step / max(1, self.progressive_steps)))
+            current_max = max(current_max, self.min_obs_steps)
+            self.current_max = current_max
+            return torch.randint(self.min_obs_steps, current_max + 1, (1,)).item()
         else:
             raise ValueError(f"Unknown training_mode: {self.training_mode}")
     

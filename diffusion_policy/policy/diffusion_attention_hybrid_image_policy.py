@@ -55,6 +55,7 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
             initialize_obs_encoder=None, 
             freeze_self_trained_obs_encoder=False, 
             inference_loading=False,
+            n_past_action_steps=None,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -237,6 +238,26 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         self.max_global_tokens = n_obs_steps
         self.kwargs = kwargs
 
+        # --- Prediction horizon ---
+        self._unet_alignment = 4
+        self.n_past_action_steps = n_past_action_steps
+        self.n_future = horizon - n_obs_steps
+
+        if n_past_action_steps is not None:
+            # Static prediction horizon (when context length is fixed)
+            prediction_horizon = n_past_action_steps + self.n_future
+            assert prediction_horizon >= n_action_steps, \
+                f"prediction_horizon ({prediction_horizon}) must be >= " \
+                f"n_action_steps ({n_action_steps})"
+            self.prediction_horizon = prediction_horizon
+            self._action_offset = horizon - prediction_horizon
+            print(f"Prediction horizon: {prediction_horizon} "
+                  f"(past={n_past_action_steps}, future={self.n_future}, "
+                  f"offset={self._action_offset})")
+        else:
+            self.prediction_horizon = horizon
+            self._action_offset = 0
+
         if num_inference_steps is None:
             num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps
@@ -246,7 +267,23 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         # if project_obs_embedding:
         #     print("Vision projector params: %e" % sum(p.numel() for p in self.obs_embedding_projector.parameters()))
 
-    def _prepare_variable_length_conditioning(self, obs_dict: Dict[str, torch.Tensor], 
+    # ========= UNet alignment helpers ============
+
+    def _pad_to_unet(self, x):
+        """Pad sequence dim to be divisible by UNet alignment. Returns (padded, orig_len)."""
+        T = x.shape[1]
+        remainder = T % self._unet_alignment
+        if remainder == 0:
+            return x, T
+        pad_len = self._unet_alignment - remainder
+        x = F.pad(x, (0, 0, 0, pad_len))
+        return x, T
+
+    def _unpad_from_unet(self, x, orig_len):
+        """Remove padding added by _pad_to_unet."""
+        return x[:, :orig_len, :]
+
+    def _prepare_variable_length_conditioning(self, obs_dict: Dict[str, torch.Tensor],
                                             num_obs_tokens: int) -> tuple:
         """
         Prepare variable-length observation conditioning with consistent temporal positioning.
@@ -334,31 +371,37 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
             scheduler.set_timesteps(self.num_inference_steps)
 
         trajectory = torch.randn(
-            size=condition_data.shape, 
+            size=condition_data.shape,
             dtype=condition_data.dtype,
             device=condition_data.device,
             generator=generator)
 
+        # Pad for UNet alignment if needed
+        trajectory, orig_len = self._pad_to_unet(trajectory)
+        condition_data_pad, _ = self._pad_to_unet(condition_data)
+        condition_mask_pad, _ = self._pad_to_unet(condition_mask.float())
+        condition_mask_pad = condition_mask_pad.bool()
+
         for t in scheduler.timesteps:
             # 1. apply conditioning
-            trajectory[condition_mask] = condition_data[condition_mask]
+            trajectory[condition_mask_pad] = condition_data_pad[condition_mask_pad]
 
             # 2. predict model output with attention-based conditioning
-            model_output = model(trajectory, t, 
+            model_output = model(trajectory, t,
                 global_cond=global_cond, global_mask=global_mask,
                 target_cond=target_cond, local_cond=local_cond,
                 temporal_positions=temporal_positions)
 
             # 3. compute previous image: x_t -> x_t-1
             trajectory = scheduler.step(
-                model_output, t, trajectory, 
+                model_output, t, trajectory,
                 generator=generator,
                 **kwargs
                 ).prev_sample
-        
-        # finally make sure conditioning is enforced
-        trajectory[condition_mask] = condition_data[condition_mask]        
 
+        # finally make sure conditioning is enforced
+        trajectory[condition_mask_pad] = condition_data_pad[condition_mask_pad]
+        trajectory = self._unpad_from_unet(trajectory, orig_len)
         return trajectory
 
     def predict_action(self, obs_dict: Dict[str, torch.Tensor], 
@@ -382,39 +425,42 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
-        if use_custom_inference_tokens is not None: 
+        if use_custom_inference_tokens is not None:
             To = min(To, use_custom_inference_tokens)
-        T = self.horizon
         Da = self.action_dim
-        
+
         # Determine number of observation tokens to use
         if num_obs_tokens is None:
-            # assume it is not training but rather sampling
             if use_custom_inference_tokens is not None:
                 def shifting_tokens(tensor):
                     new_tensor = tensor.new_zeros(tensor.shape)
                     new_tensor[:, :use_custom_inference_tokens, ...] = tensor[:, -use_custom_inference_tokens:, ...]
-                    return new_tensor 
-                
+                    return new_tensor
+
                 nobs = dict_apply(nobs, shifting_tokens)
                 num_obs_tokens = torch.ones(B, dtype=torch.long, device=value.device) * use_custom_inference_tokens
             else:
                 num_obs_tokens = torch.ones(B, dtype=torch.long, device=value.device) * self.max_obs_steps
-            # num_obs_tokens = torch.ones(B, dtype=torch.long, device=value.device) * self.max_obs_steps
-        
-        # num_obs_tokens = min(num_obs_tokens, To)  # Can't use more tokens than available
-        
+
+        # Compute dynamic prediction horizon
+        if self.n_past_action_steps is not None:
+            past_in_pred = min(self.n_past_action_steps, To)
+            T = past_in_pred + self.n_future
+            T = math.ceil(T / self._unet_alignment) * self._unet_alignment
+        else:
+            T = self.prediction_horizon
+            past_in_pred = To
+
         # build input
         device = self.device
         dtype = self.dtype
 
         # Prepare variable-length conditioning
         global_cond, global_mask, temporal_positions = self._prepare_batch_and_apply_obs_encoding(nobs, num_obs_tokens)
-        
+
         # Append one hot encoding if needed
         if self.one_hot_encoding_dim > 0:
             one_hot_encoding = obs_dict['one_hot_encoding']
-            # Expand one-hot to match number of observation tokens
             one_hot_expanded = one_hot_encoding.unsqueeze(1).expand(-1, num_obs_tokens, -1)
             global_cond = torch.cat([global_cond, one_hot_expanded], dim=-1)
 
@@ -425,11 +471,11 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         # handle target conditioning
         target_cond = None
         if self.use_target_cond:
-            target_cond = ntarget.reshape(B, -1) # B, D_t
+            target_cond = ntarget.reshape(B, -1)
 
         # run sampling
         nsample = self.conditional_sample(
-            cond_data, 
+            cond_data,
             cond_mask,
             local_cond=None,
             global_cond=global_cond,
@@ -438,16 +484,16 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
             temporal_positions=temporal_positions,
             use_DDIM=use_DDIM,
             **self.kwargs)
-        
+
         # unnormalize prediction
         naction_pred = nsample[...,:Da]
         action_pred = self.normalizer['action'].unnormalize(naction_pred)
 
-        # get action
-        start = To - 1
+        # Current action is at position past_in_pred - 1 in the prediction
+        start = past_in_pred - 1
         end = start + self.n_action_steps
-        action = action_pred[:,start:end]
-        
+        action = action_pred[:, start:end]
+
         result = {
             'action': action,
             'action_pred': action_pred,
@@ -488,10 +534,47 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         if self.use_target_cond:
             target_cond = ntarget.reshape(batch_size, -1) # B, D_t
 
-        # Predict the noise residual
-        return self.model(noisy_trajectory, timesteps, 
+        # Pad for UNet alignment if needed
+        noisy_trajectory, orig_len = self._pad_to_unet(noisy_trajectory)
+        pred = self.model(noisy_trajectory, timesteps,
             local_cond=None, global_cond=global_cond, global_mask=global_mask,
             target_cond=target_cond, temporal_positions=temporal_positions)
+        return self._unpad_from_unet(pred, orig_len)
+
+    def _build_dynamic_trajectory(self, nactions, num_obs_steps):
+        """
+        Build per-sample trajectory for dynamic prediction horizon.
+
+        For each sample with context length To:
+          pred_len = min(n_past_action_steps, To) + n_future
+          offset   = To - min(n_past_action_steps, To)
+          trajectory[i] = nactions[i, offset : offset + pred_len]
+
+        Shorter samples are right-padded to the batch max (rounded to UNet alignment).
+        Returns trajectory, loss_mask (True for valid positions).
+        """
+        B = nactions.shape[0]
+        Da = nactions.shape[2]
+        device = nactions.device
+
+        To = num_obs_steps  # (B,)
+        past_in_pred = torch.clamp(To, max=self.n_past_action_steps)
+        pred_lens = past_in_pred + self.n_future
+        offsets = To - past_in_pred
+
+        max_pred = pred_lens.max().item()
+        padded_pred = math.ceil(max_pred / self._unet_alignment) * self._unet_alignment
+
+        trajectory = nactions.new_zeros((B, padded_pred, Da))
+        loss_mask = torch.zeros((B, padded_pred, Da), dtype=torch.bool, device=device)
+
+        for i in range(B):
+            pl = pred_lens[i].item()
+            off = offsets[i].item()
+            trajectory[i, :pl, :] = nactions[i, off:off + pl, :]
+            loss_mask[i, :pl, :] = True
+
+        return trajectory, loss_mask
 
     def compute_loss(self, batch):
         # normalize input
@@ -502,50 +585,51 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         if self.use_target_cond:
             ntarget = self.normalizer['target'].normalize(batch['target'])
         batch_size = nactions.shape[0]
-        horizon = nactions.shape[1]
 
-        # Check if batch has pre-computed observation lengths (from dataset)
-        global_cond, global_mask, temporal_positions = self._prepare_batch_and_apply_obs_encoding(nobs, batch['sample_metadata']['num_obs_steps'])
+        num_obs_steps = batch['sample_metadata']['num_obs_steps']
+        global_cond, global_mask, temporal_positions = self._prepare_batch_and_apply_obs_encoding(nobs, num_obs_steps)
 
         # append one hot encoding
         if self.one_hot_encoding_dim > 0:
             one_hot_encoding = batch['one_hot_encoding']
-            one_hot_expanded = one_hot_encoding.unsqueeze(1).expand(-1, num_obs_tokens, -1)
+            one_hot_expanded = one_hot_encoding.unsqueeze(1).expand(-1, global_cond.shape[1], -1)
             global_cond = torch.cat([global_cond, one_hot_expanded], dim=-1)
-        
+
         # handle target conditioning
         target_cond = None
         if self.use_target_cond:
-            target_cond = ntarget.reshape(batch_size, -1) # B, D_t
+            target_cond = ntarget.reshape(batch_size, -1)
 
-        # trajectory for training is just the actions (no obs concatenation)
-        trajectory = nactions
+        # Build trajectory (per-sample dynamic or static)
+        if self.n_past_action_steps is not None:
+            trajectory, dynamic_loss_mask = self._build_dynamic_trajectory(
+                nactions, num_obs_steps)
+        else:
+            trajectory = nactions
+            dynamic_loss_mask = None
 
         # generate impainting mask
         condition_mask = self.mask_generator(trajectory.shape)
 
-        # Sample noise that we'll add to the actions
         noise = torch.randn(trajectory.shape, device=trajectory.device)
-        bsz = trajectory.shape[0]
-        # Sample a random timestep for each sample
         timesteps = torch.randint(
-            0, self.noise_scheduler.config.num_train_timesteps, 
-            (bsz,), device=trajectory.device
+            0, self.noise_scheduler.config.num_train_timesteps,
+            (batch_size,), device=trajectory.device
         ).long()
-        # Add noise to the clean actions according to the noise magnitude at each timestep
         noisy_trajectory = self.noise_scheduler.add_noise(
             trajectory, noise, timesteps)
-        
+
         # compute loss mask
         loss_mask = ~condition_mask
+        if dynamic_loss_mask is not None:
+            loss_mask = loss_mask & dynamic_loss_mask
 
-        # apply conditioning (not used since we don't condition on actions)
-        # noisy_trajectory[condition_mask] = trajectory[condition_mask]
-        
-        # Predict the noise residual
-        pred = self.model(noisy_trajectory, timesteps, 
+        # Pad for UNet alignment if needed
+        noisy_trajectory, orig_len = self._pad_to_unet(noisy_trajectory)
+        pred = self.model(noisy_trajectory, timesteps,
             local_cond=None, global_cond=global_cond, global_mask=global_mask,
             target_cond=target_cond, temporal_positions=temporal_positions)
+        pred = self._unpad_from_unet(pred, orig_len)
 
         pred_type = self.noise_scheduler.config.prediction_type 
         if pred_type == 'epsilon':
