@@ -20,7 +20,7 @@ checkpoint_interval:
   last_n_steps: 30000
   num_checkpoints: 3
 dataloader:
-  batch_size: 64
+  batch_size: 8
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: frozen_vit_a_full_dino_obs_80_data_48
+  name: finetune_vit_e_dino_obs_80_data_48
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -90,10 +90,13 @@ shape_meta:
       type: rgb
 policy:
   _target_: diffusion_policy.policy.diffusion_vit_attention_hybrid_image_policy.DiffusionViTAttentionHybridImagePolicy
-  vit_variant: "A-full"
+  vit_variant: "E"
   vit_model_name: "vit_small_patch16_224.dino"
   vit_pretrained: true
-  vit_freeze: true
+  vit_freeze: false
+  temporal_every_k: 4
+  temporal_num_heads: 6
+  max_frames: 100
   imagenet_norm: true
   crop_shape:
   - 112
@@ -159,7 +162,7 @@ training:
   checkpoint_every: 3
   debug: false
   device: cuda
-  gradient_accumulate_every: 1
+  gradient_accumulate_every: 8
   lr_scheduler: cosine
   lr_warmup_steps: 500
   max_train_steps: null
@@ -176,9 +179,10 @@ training:
   eval_mse_DDPM: true
   eval_mse_DDIM: true
   total_train_steps: 200000
-  use_amp: false
+  use_variable_lr: true
+  encoder_lr_scale: 0.1
 val_dataloader:
-  batch_size: 64
+  batch_size: 8
   num_workers: 8
   persistent_workers: false
   pin_memory: true
