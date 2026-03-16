@@ -20,7 +20,7 @@ checkpoint_interval:
   last_n_steps: 30000
   num_checkpoints: 3
 dataloader:
-  batch_size: 32
+  batch_size: 64
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: frozen_vit_b_per_stream_dino_obs_80_data_48
+  name: frozen_vitB_b_per_stream_dino_obs_80_data_48
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -91,12 +91,12 @@ shape_meta:
 policy:
   _target_: diffusion_policy.policy.diffusion_vit_attention_hybrid_image_policy.DiffusionViTAttentionHybridImagePolicy
   vit_variant: "B-per-stream"
-  vit_model_name: "vit_small_patch16_224.dino"
+  vit_model_name: "vit_base_patch16_224.dino"
   vit_pretrained: true
   vit_freeze: true
   imagenet_norm: true
   temporal_depth: 4
-  temporal_num_heads: 6
+  temporal_num_heads: 12
   max_frames: 100
   crop_shape:
   - 112
@@ -181,7 +181,7 @@ training:
   total_train_steps: 200000
   use_amp: false
 val_dataloader:
-  batch_size: 32
+  batch_size: 64
   num_workers: 8
   persistent_workers: false
   pin_memory: true
