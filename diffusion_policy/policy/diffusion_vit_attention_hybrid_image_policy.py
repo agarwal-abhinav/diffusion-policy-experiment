@@ -271,15 +271,15 @@ class DiffusionViTAttentionHybridImagePolicy(BaseImagePolicy):
         # --- Video ViT path (D, E) ---
         if self.obs_encoder.is_video_vit:
             # VideoViTEncoder needs constant T per batch with padding mask.
-            # Flatten (B, N, ...) -> (B*N, ...) and pass T=N.
-            T = N
-            x_flat = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
-            padding_mask = ~left_mask  # (B, N), True for padded
+            # Trim to n_obs_steps to avoid processing NaN-padded frames.
+            T = self.n_obs_steps
+            nobs_trimmed = dict_apply(nobs, lambda x: x[:, :T])
+            x_flat = dict_apply(nobs_trimmed, lambda x: x.reshape(-1, *x.shape[2:]))
+            padding_mask = ~left_mask[:, :T]  # (B, T), True for padded
             embeddings = self.obs_encoder.forward_video(
-                x_flat, T, key_padding_mask=padding_mask)  # (B*N, D)
-            embeddings_full = embeddings.reshape(B, N, -1)
-            embeddings_full = embeddings_full[:, :self.n_obs_steps, :]
-            global_mask = left_mask[:, :self.n_obs_steps]
+                x_flat, T, key_padding_mask=padding_mask)  # (B*T, D)
+            embeddings_full = embeddings.reshape(B, T, -1)
+            global_mask = left_mask[:, :T]
 
         # --- Per-stream temporal path (B-per-stream, C-per-stream) ---
         elif self.obs_encoder._per_stream:

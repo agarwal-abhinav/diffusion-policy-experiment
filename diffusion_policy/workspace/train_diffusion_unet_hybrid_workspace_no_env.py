@@ -289,8 +289,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             self.ema_model.set_normalizer(normalizer)
 
         training_steps = getattr(cfg.training, 'total_train_steps', None)
-        if training_steps is not None: 
-            assert cfg.training.gradient_accumulate_every == 1, "Gradient accumulation not supported with total_train_steps"
+        if training_steps is not None:
             single_epoch_steps = len(train_dataloader)
             num_epochs = int(training_steps // single_epoch_steps)
             if training_steps % single_epoch_steps != 0:

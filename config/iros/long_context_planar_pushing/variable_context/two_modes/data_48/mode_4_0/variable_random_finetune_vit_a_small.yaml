@@ -160,7 +160,7 @@ training:
   checkpoint_every: 3
   debug: false
   device: cuda
-  gradient_accumulate_every: 8
+  gradient_accumulate_every: 4
   lr_scheduler: cosine
   lr_warmup_steps: 500
   max_train_steps: null

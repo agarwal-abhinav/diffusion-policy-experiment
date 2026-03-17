@@ -21,6 +21,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import timm
+from torch.utils.checkpoint import checkpoint as grad_checkpoint
 
 from diffusion_policy.model.vision.crop_randomizer import CropRandomizer
 from diffusion_policy.model.common.module_attr_mixin import ModuleAttrMixin
@@ -228,11 +229,13 @@ class VideoViTEncoder(nn.Module):
 
     def __init__(self, vit_model, temporal_mode, temporal_every_k=3,
                  max_frames=100, temporal_num_heads=6,
-                 temporal_mlp_ratio=4.0, temporal_dropout=0.0):
+                 temporal_mlp_ratio=4.0, temporal_dropout=0.0,
+                 gradient_checkpointing=False):
         super().__init__()
         assert temporal_mode in ("cls_only", "divided_st")
         self.temporal_mode = temporal_mode
         self.temporal_every_k = temporal_every_k
+        self.gradient_checkpointing = gradient_checkpointing
 
         # Steal submodules from the timm ViT
         self.patch_embed = vit_model.patch_embed
@@ -292,7 +295,12 @@ class VideoViTEncoder(nn.Module):
 
         for i in range(self.num_blocks):
             # Standard spatial attention (batched over B*T)
-            x = self.blocks[i](x)
+            # Use gradient checkpointing to avoid storing spatial activations
+            if self.gradient_checkpointing and self.training:
+                x = grad_checkpoint(
+                    self.blocks[i], x, use_reentrant=False)
+            else:
+                x = self.blocks[i](x)
 
             # Temporal attention at insertion points
             if self.temporal_layers[i] is not None:
@@ -373,6 +381,8 @@ class ViTObsEncoder(ModuleAttrMixin):
                  share_rgb_model: bool = False,
                  # Video ViT (D, E)
                  temporal_every_k: int = 3,
+                 # Gradient checkpointing (D, E) — saves memory
+                 gradient_checkpointing: bool = False,
                  ):
         super().__init__()
         assert variant in self.VALID_VARIANTS, \
@@ -461,6 +471,9 @@ class ViTObsEncoder(ModuleAttrMixin):
         _is_video_vit = variant in ("D", "E")
         _temporal_mode = {"D": "cls_only", "E": "divided_st"}.get(variant)
 
+        # Auto-enable gradient checkpointing for frozen D/E (saves memory)
+        _use_grad_ckpt = gradient_checkpointing or (_is_video_vit and vit_freeze)
+
         if share_rgb_model:
             vit = _create_vit()
             self._vit_embed_dim = vit.embed_dim
@@ -471,7 +484,8 @@ class ViTObsEncoder(ModuleAttrMixin):
                     max_frames=max_frames,
                     temporal_num_heads=temporal_num_heads,
                     temporal_mlp_ratio=temporal_mlp_ratio,
-                    temporal_dropout=temporal_dropout)
+                    temporal_dropout=temporal_dropout,
+                    gradient_checkpointing=_use_grad_ckpt)
             for key in rgb_keys:
                 self.vit_encoders[key] = vit  # same reference
         else:
@@ -484,7 +498,8 @@ class ViTObsEncoder(ModuleAttrMixin):
                     max_frames=max_frames,
                     temporal_num_heads=temporal_num_heads,
                     temporal_mlp_ratio=temporal_mlp_ratio,
-                    temporal_dropout=temporal_dropout)
+                    temporal_dropout=temporal_dropout,
+                    gradient_checkpointing=_use_grad_ckpt)
             self.vit_encoders[rgb_keys[0]] = base_vit
             for key in rgb_keys[1:]:
                 self.vit_encoders[key] = copy.deepcopy(base_vit)
