@@ -442,6 +442,10 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
             else:
                 num_obs_tokens = torch.ones(B, dtype=torch.long, device=value.device) * self.max_obs_steps
 
+        # To should be the actual obs step count, not the tensor width
+        # (tensor may be horizon-length with NaN padding beyond obs steps)
+        To = num_obs_tokens[0].item()
+
         # Compute dynamic prediction horizon
         if self.n_past_action_steps is not None:
             past_in_pred = min(self.n_past_action_steps, To)
@@ -494,9 +498,13 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         end = start + self.n_action_steps
         action = action_pred[:, start:end]
 
+        # action_pred starts at this offset in the full horizon
+        action_pred_offset = To - past_in_pred
+
         result = {
             'action': action,
             'action_pred': action_pred,
+            'action_pred_offset': action_pred_offset,
             'num_obs_tokens_used': num_obs_tokens,
         }
         return result

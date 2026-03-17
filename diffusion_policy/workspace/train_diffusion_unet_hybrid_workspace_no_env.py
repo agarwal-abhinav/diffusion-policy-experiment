@@ -525,9 +525,10 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                                     result = policy.predict_action(val_obs_dict, use_DDIM=False, num_obs_tokens=val_batch['sample_metadata']['num_obs_steps'])
                                 else:
                                     result = policy.predict_action(val_obs_dict, use_DDIM=False)
-                                # Compare on extracted action window (robust to dynamic pred horizon)
-                                pred_action = result['action']
-                                val_action = self._extract_gt_action_window(val_gt_action, val_batch, policy)
+                                # Compare full predicted trajectory against GT
+                                pred_action = result['action_pred']
+                                offset = result['action_pred_offset']
+                                val_action = val_gt_action[:, offset:offset + pred_action.shape[1], :]
                                 mse = torch.nn.functional.mse_loss(pred_action, val_action)
                                 step_log[f'val_ddpm_mse_{dataset_idx}'] = mse.item()
                                 val_ddpm_action_mses.append(mse.item())
@@ -538,8 +539,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                                     result = policy.predict_action(val_obs_dict, use_DDIM=True, num_obs_tokens=val_batch['sample_metadata']['num_obs_steps'])
                                 else:
                                     result = policy.predict_action(val_obs_dict, use_DDIM=True)
-                                pred_action = result['action']
-                                val_action = self._extract_gt_action_window(val_gt_action, val_batch, policy)
+                                pred_action = result['action_pred']
+                                offset = result['action_pred_offset']
+                                val_action = val_gt_action[:, offset:offset + pred_action.shape[1], :]
                                 mse = torch.nn.functional.mse_loss(pred_action, val_action)
                                 step_log[f'val_ddim_mse_{dataset_idx}'] = mse.item()
                                 val_ddim_action_mses.append(mse.item())
