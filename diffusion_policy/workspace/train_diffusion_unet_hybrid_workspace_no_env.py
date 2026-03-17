@@ -153,6 +153,54 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         self.scaler = GradScaler("cuda") if self.use_amp else None
         print(f"Mixed precision training: {'enabled' if self.use_amp else 'disabled'}")
 
+    def _should_precompute_vit(self, cfg):
+        """Check if we should pre-compute frozen ViT embeddings."""
+        vit_freeze = getattr(cfg.policy, 'vit_freeze', False)
+        variant = getattr(cfg.policy, 'vit_variant', None)
+        if not vit_freeze or variant is None:
+            return False
+        if variant in ('D', 'E'):
+            return False
+        return True
+
+    def _precompute_or_load_vit_cache(self, cfg, dataset):
+        """
+        Pre-compute ViT embeddings or load from disk cache.
+        Returns (cache_dict, embed_dim).
+        """
+        import hashlib
+
+        # Build cache key from model config + data paths
+        cache_key = (
+            f"{cfg.policy.vit_model_name}_"
+            f"{cfg.policy.vit_pretrained}_"
+            f"{tuple(cfg.policy.crop_shape)}_"
+            f"{sorted(dataset.zarr_paths)}"
+        )
+        cache_hash = hashlib.md5(cache_key.encode()).hexdigest()[:12]
+        cache_dir = os.path.join(self.output_dir, 'vit_cache')
+        cache_path = os.path.join(cache_dir, f'vit_embeddings_{cache_hash}.pt')
+
+        # Try loading from disk
+        if os.path.exists(cache_path):
+            print(f"Loading ViT embedding cache from {cache_path}")
+            cached = torch.load(cache_path, map_location='cpu')
+            print(f"  Loaded cache with embed_dim={cached['embed_dim']}")
+            return cached['cache'], cached['embed_dim']
+
+        # Pre-compute
+        print("Pre-computing frozen ViT embeddings for all frames...")
+        obs_encoder = self.model.obs_encoder
+        cache, embed_dim = obs_encoder.precompute_all_embeddings(
+            dataset.replay_buffers, batch_size=128)
+
+        # Save to disk
+        os.makedirs(cache_dir, exist_ok=True)
+        torch.save({'cache': cache, 'embed_dim': embed_dim}, cache_path)
+        print(f"  Saved ViT embedding cache to {cache_path}")
+
+        return cache, embed_dim
+
     def run(self):
         cfg = copy.deepcopy(self.cfg)
 
@@ -218,6 +266,12 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         dataset: BaseImageDataset
         dataset = hydra.utils.instantiate(cfg.task.dataset)
         assert isinstance(dataset, BaseImageDataset)
+
+        # Pre-compute frozen ViT embeddings (skips ViT during training)
+        if self._should_precompute_vit(cfg):
+            cache, embed_dim = self._precompute_or_load_vit_cache(cfg, dataset)
+            dataset.set_embedding_cache(cache, embed_dim)
+
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
         torch.save(normalizer, os.path.join(self.output_dir, 'normalizer.pt'))
@@ -332,10 +386,11 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
                         batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                        if self.new_type_dataloader: 
+                        if self.new_type_dataloader:
                             # this is done to maintain validity for older code
-                            for key in dataset.rgb_keys: 
-                                batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
+                            for key in dataset.rgb_keys:
+                                if batch['obs'][key].ndim >= 4:  # images, not embeddings
+                                    batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                         batch_size = batch['action'].shape[0]
 
                         # Compute loss via policy (handles dynamic prediction horizon)
@@ -425,10 +480,11 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                                     leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                                 for batch_idx, batch in enumerate(tepoch):
                                     batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                                    if self.new_type_dataloader: 
+                                    if self.new_type_dataloader:
                                         # this is done to maintain validity for older code
-                                        for key in dataset.rgb_keys: 
-                                            batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
+                                        for key in dataset.rgb_keys:
+                                            if batch['obs'][key].ndim >= 4:  # images, not embeddings
+                                                batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                                     if val_sampling_batches[dataset_idx] is None:
                                         val_sampling_batches[dataset_idx] = batch
                                     loss = self.model.compute_loss(batch)

@@ -657,15 +657,25 @@ class ViTObsEncoder(ModuleAttrMixin):
         Per-frame ViT encoding. Returns per-key features (not concatenated).
 
         Args:
-            obs_dict: {rgb_key: (N, C, H, W), low_dim_key: (N, D)}
+            obs_dict: {rgb_key: (N, C, H, W) images OR (N, embed_dim) pre-computed,
+                       low_dim_key: (N, D)}
                 where N is a flat batch (typically B*T).
         Returns: dict of {key: (N, dim)} features
         """
         features = {}
 
         for key in self.rgb_keys:
-            img = obs_dict[key]  # (N, C, H, W)
+            img = obs_dict[key]
 
+            # Pre-computed ViT embeddings: (N, embed_dim) — skip crop/norm/ViT
+            if img.dim() == 2:
+                cls = img
+                if self.variant == "A-small":
+                    cls = self.projectors[key](cls)
+                features[key] = cls
+                continue
+
+            # (N, C, H, W) images — full pipeline
             # Crop augmentation
             if key in self.crop_randomizers:
                 img = self.crop_randomizers[key](img)
@@ -687,6 +697,65 @@ class ViTObsEncoder(ModuleAttrMixin):
             features[key] = obs_dict[key]
 
         return features
+
+    @torch.no_grad()
+    def precompute_all_embeddings(self, replay_buffers, batch_size=128):
+        """
+        Pre-compute frozen ViT CLS tokens for all frames in all replay buffers.
+        Only valid when ViT is frozen and variant is not D/E.
+
+        Args:
+            replay_buffers: list of ReplayBuffer objects
+            batch_size: number of frames to process at once
+
+        Returns:
+            cache: {rgb_key: [Tensor(n_frames, embed_dim) per buffer]}
+            embed_dim: int (ViT embedding dimension before any projection)
+        """
+        assert not self.is_video_vit, \
+            "Cannot precompute for video ViT variants (D/E)"
+
+        was_training = self.training
+        self.eval()  # CropRandomizer uses center crop in eval mode
+
+        device = self.device
+        cache = {key: [] for key in self.rgb_keys}
+
+        for buf_idx, replay_buffer in enumerate(replay_buffers):
+            for key in self.rgb_keys:
+                all_frames = replay_buffer[key]  # (N, H, W, C) uint8
+                n_frames = len(all_frames)
+                embeddings = []
+
+                for start in range(0, n_frames, batch_size):
+                    end = min(start + batch_size, n_frames)
+                    # Convert to (B, C, H, W) float [0, 1]
+                    imgs = torch.from_numpy(
+                        all_frames[start:end].copy()
+                    ).float().to(device)
+                    imgs = imgs.permute(0, 3, 1, 2) / 255.0
+
+                    # Crop (center crop in eval mode)
+                    if key in self.crop_randomizers:
+                        imgs = self.crop_randomizers[key](imgs)
+
+                    # ImageNet normalization
+                    if self.use_imagenet_norm:
+                        imgs = (imgs - self.img_mean) / self.img_std
+
+                    # ViT forward → CLS token (no projection — that's trainable)
+                    cls = self.vit_encoders[key](imgs)  # (B, embed_dim)
+                    embeddings.append(cls.cpu())
+
+                buf_embeddings = torch.cat(embeddings, dim=0)
+                cache[key].append(buf_embeddings)
+                print(f"  Precomputed {key} buffer {buf_idx}: "
+                      f"{n_frames} frames → {buf_embeddings.shape}")
+
+        if was_training:
+            self.train()
+
+        return cache, self._vit_embed_dim
 
     def forward(self, obs_dict):
         """

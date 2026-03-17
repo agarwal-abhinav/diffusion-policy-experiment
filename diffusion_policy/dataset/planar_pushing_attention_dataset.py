@@ -213,6 +213,10 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         self.use_one_hot_encoding = use_one_hot_encoding
         self.one_hot_encoding = None # if val dataset, this will not be None
 
+        # Embedding cache (set via set_embedding_cache)
+        self._embedding_cache = None
+        self._embed_dim = None
+
         print(f"AttentionDataset initialized: horizon={horizon}, n_obs_steps={n_obs_steps}, min_obs_steps={min_obs_steps}")
 
 
@@ -243,16 +247,24 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         val_key_first_k['action'] = self.horizon
         
         val_set.samplers = [ImprovedDatasetSampler(
-            replay_buffer=self.replay_buffers[index], 
+            replay_buffer=self.replay_buffers[index],
             sequence_length=self.horizon,
             shape_meta=self.shape_meta,
-            pad_before=self.pad_before, 
+            pad_before=self.pad_before,
             pad_after=self.pad_after,
             keys=self.rgb_keys + ['state', 'action', 'target'],
             episode_mask=self.val_masks[index],
             key_first_k=val_key_first_k
         )]
-        
+
+        # Propagate embedding cache (re-index so sampler_idx=0 maps correctly)
+        if self._embedding_cache is not None:
+            val_set._embedding_cache = {
+                key: [self._embedding_cache[key][index]]
+                for key in self._embedding_cache
+            }
+            val_set._embed_dim = self._embed_dim
+
         return val_set
     
     def get_normalizer(self, mode='limits', **kwargs):
@@ -345,6 +357,17 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
         """Update training step for progressive curriculum."""
         self.training_step = step
 
+    def set_embedding_cache(self, cache_dict, embed_dim):
+        """
+        Set pre-computed ViT embeddings to use instead of raw images.
+
+        Args:
+            cache_dict: {rgb_key: [Tensor(n_frames, embed_dim) per replay buffer]}
+            embed_dim: ViT embedding dimension (before any projection)
+        """
+        self._embedding_cache = cache_dict
+        self._embed_dim = embed_dim
+
     def _validate_zarr_configs(self, zarr_configs):
         """Validate configuration parameters."""
         num_null_sampling_weights = 0
@@ -405,6 +428,39 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
 
         # ImprovedDatasetSampler handles everything - just pass through data directly
         output_data = data  # No processing needed!
+
+        # Replace RGB arrays with cached ViT embeddings if available
+        if self._embedding_cache is not None:
+            if self.num_datasets == 1:
+                actual_idx = idx
+            else:
+                actual_idx = idx % len(sampler)
+            buffer_start_idx, buffer_end_idx, sample_start_idx, sample_end_idx = \
+                sampler.indices[actual_idx]
+            n_data = buffer_end_idx - buffer_start_idx
+            k_data = min(num_obs_steps, n_data)
+
+            for key in self.rgb_keys:
+                cached = self._embedding_cache[key][sampler_idx]  # (total_frames, embed_dim)
+                emb_slice = cached[buffer_start_idx:buffer_start_idx+k_data].numpy()
+
+                # Build array matching sampler's padding structure
+                emb_sample = np.full(
+                    (n_data, self._embed_dim), fill_value=np.nan, dtype=np.float32)
+                emb_sample[:k_data] = emb_slice
+
+                # Replicate sampler's boundary padding
+                if (sample_start_idx > 0) or (sample_end_idx < self.horizon):
+                    full = np.zeros(
+                        (self.horizon, self._embed_dim), dtype=np.float32)
+                    if sample_start_idx > 0:
+                        full[:sample_start_idx] = emb_sample[0]
+                    if sample_end_idx < self.horizon:
+                        full[sample_end_idx:] = emb_sample[-1]
+                    full[sample_start_idx:sample_end_idx] = emb_sample
+                    emb_sample = full
+
+                output_data['obs'][key] = emb_sample
 
         # Add one-hot encoding if needed
         if self.use_one_hot_encoding:
