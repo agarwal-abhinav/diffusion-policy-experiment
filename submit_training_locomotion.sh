@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=2_mode_32_obs_d_48_dit_light
+#SBATCH --job-name=locomotion_finetune
 #SBATCH --time=55:00:00 
 #SBATCH --cpus-per-task=20 
 #SBATCH --mem=90G 
@@ -47,9 +47,13 @@ echo "[submit_training.sh] Time: $TIME"
 # CONFIG_NAME=80_obs.yaml
 # HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/single_mode/data_24/mode_4/80_obs
 
-CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/dit_cross_attention/two_modes/data_48/mode_4_0_light_model
-CONFIG_NAME=32_obs.yaml
-HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/dit_cross_attention/two_modes/data_48/mode_4_0_light_model/32_obs
+# CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/dit_cross_attention/two_modes/data_48/mode_4_0_light_model
+# CONFIG_NAME=32_obs.yaml
+# HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/gcs-diffusion/data/outputs/iros/long_context_planar_pushing/data_experiments/dit_cross_attention/two_modes/data_48/mode_4_0_light_model/32_obs
+
+CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/vit_cross_attention/two_modes/data_48/mode_4_0
+CONFIG_NAME=80_obs_finetune_vit_b_per_stream_short_horizon.yaml
+HYDRA_RUN_DIR=/data/locomotion/abhi_ag/workspace/diffusion-policy-experiment/data/outputs/iros/long_context_planar_pushing/data_experiments/vit_cross_attention/two_modes/data_48/mode_4_0/80_obs_finetune_vit_b_per_stream_short_horizon
 
 # CONFIG_DIR=config/iros/long_context_planar_pushing/data_experiments/unet_cross_attention/four_modes/data_192/mode_4_0
 # CONFIG_NAME=80_obs.yaml
