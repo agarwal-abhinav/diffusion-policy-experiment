@@ -72,6 +72,8 @@ class DiffusionViTAttentionHybridImagePolicy(BaseImagePolicy):
                  obs_as_global_cond=True,
                  # Prediction horizon control
                  n_past_action_steps=None,
+                 # Inference-only flag (absorbed here, not passed to scheduler)
+                 inference_loading=False,
                  # kwargs passed to scheduler.step
                  **kwargs):
         super().__init__()
