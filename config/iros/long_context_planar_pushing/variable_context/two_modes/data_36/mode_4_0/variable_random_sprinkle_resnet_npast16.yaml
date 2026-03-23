@@ -120,7 +120,7 @@ policy:
   n_past_action_steps: 16
   shape_meta: ${shape_meta}
   pretrained_encoder: false
-  initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
+  initialize_obs_encoder: null
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_attention_dataset.PlanarPushingAttentionDataset
