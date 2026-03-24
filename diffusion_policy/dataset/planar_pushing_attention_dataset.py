@@ -440,19 +440,23 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
             n_data = buffer_end_idx - buffer_start_idx
             k_data = min(num_obs_steps, n_data)
 
+            # embed_dim can be int (CLS) or tuple (patch tokens)
+            embed_shape = (self._embed_dim,) if isinstance(self._embed_dim, int) \
+                else self._embed_dim
+
             for key in self.rgb_keys:
-                cached = self._embedding_cache[key][sampler_idx]  # (total_frames, embed_dim)
+                cached = self._embedding_cache[key][sampler_idx]
                 emb_slice = cached[buffer_start_idx:buffer_start_idx+k_data].numpy()
 
                 # Build array matching sampler's padding structure
                 emb_sample = np.full(
-                    (n_data, self._embed_dim), fill_value=np.nan, dtype=np.float32)
+                    (n_data, *embed_shape), fill_value=np.nan, dtype=np.float32)
                 emb_sample[:k_data] = emb_slice
 
                 # Replicate sampler's boundary padding
                 if (sample_start_idx > 0) or (sample_end_idx < self.horizon):
                     full = np.zeros(
-                        (self.horizon, self._embed_dim), dtype=np.float32)
+                        (self.horizon, *embed_shape), dtype=np.float32)
                     if sample_start_idx > 0:
                         full[:sample_start_idx] = emb_sample[0]
                     if sample_end_idx < self.horizon:

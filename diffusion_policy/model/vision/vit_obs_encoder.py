@@ -27,6 +27,60 @@ from diffusion_policy.model.vision.crop_randomizer import CropRandomizer
 from diffusion_policy.model.common.module_attr_mixin import ModuleAttrMixin
 
 
+class SpatialSoftmaxProjection(nn.Module):
+    """
+    Takes ViT patch tokens on a spatial grid, applies learned channel
+    projection, then spatial softmax to produce (x, y) keypoints.
+
+    Input:  (N, num_patches, embed_dim)  e.g. (N, 49, 768)
+    Output: (N, 2 * num_channels)        e.g. (N, 64) for K=32
+    """
+
+    def __init__(self, embed_dim, grid_size, num_channels,
+                 temperature=1.0, learnable_temperature=False):
+        super().__init__()
+        self.grid_size = grid_size
+        self.num_channels = num_channels
+        num_patches = grid_size * grid_size
+
+        self.channel_proj = nn.Linear(embed_dim, num_channels)
+
+        # Spatial grid coordinates in [-1, 1]
+        pos_y, pos_x = torch.meshgrid(
+            torch.linspace(-1, 1, grid_size),
+            torch.linspace(-1, 1, grid_size),
+            indexing='ij')
+        self.register_buffer('pos_x', pos_x.reshape(1, -1))  # (1, H*W)
+        self.register_buffer('pos_y', pos_y.reshape(1, -1))  # (1, H*W)
+
+        if learnable_temperature:
+            self.temperature = nn.Parameter(
+                torch.ones(1) * temperature)
+        else:
+            self.register_buffer(
+                'temperature', torch.ones(1) * temperature)
+
+    def forward(self, patch_tokens):
+        """
+        Args:
+            patch_tokens: (N, num_patches, embed_dim)
+        Returns:
+            (N, 2 * num_channels) spatial keypoint coordinates
+        """
+        N = patch_tokens.shape[0]
+        # Channel projection: (N, num_patches, embed_dim) -> (N, num_patches, K)
+        x = self.channel_proj(patch_tokens)
+        # Transpose to (N, K, num_patches) for spatial softmax
+        x = x.permute(0, 2, 1)  # (N, K, H*W)
+        # Softmax over spatial positions
+        attention = F.softmax(x / self.temperature, dim=-1)  # (N, K, H*W)
+        # Expected coordinates
+        expected_x = (attention * self.pos_x).sum(dim=-1)  # (N, K)
+        expected_y = (attention * self.pos_y).sum(dim=-1)  # (N, K)
+        # Interleave (x, y) pairs: (N, 2K)
+        return torch.stack([expected_x, expected_y], dim=-1).reshape(N, -1)
+
+
 def _load_vit_weights_from_file(model, weights_path, img_size, patch_size):
     """
     Load ViT weights from a local .pth file, with automatic
@@ -383,11 +437,19 @@ class ViTObsEncoder(ModuleAttrMixin):
                  temporal_every_k: int = 3,
                  # Gradient checkpointing (D, E) — saves memory
                  gradient_checkpointing: bool = False,
+                 # Spatial softmax on patch tokens (replaces CLS)
+                 use_spatial_softmax: bool = False,
+                 spatial_softmax_num_channels: int = 32,
                  ):
         super().__init__()
         assert variant in self.VALID_VARIANTS, \
             f"variant must be one of {self.VALID_VARIANTS}, got '{variant}'"
         self.variant = variant
+        self.use_spatial_softmax = use_spatial_softmax
+
+        if use_spatial_softmax:
+            assert variant not in ("D", "E"), \
+                "Spatial softmax not supported with video ViT variants (D/E)"
 
         # --- Parse shape_meta ---
         rgb_keys = []
@@ -457,6 +519,10 @@ class ViTObsEncoder(ModuleAttrMixin):
             if part.startswith('patch'):
                 _patch_size = int(part.replace('patch', ''))
 
+        # Spatial grid for spatial softmax
+        self._grid_size = crop_shape[0] // _patch_size
+        self._num_patches = self._grid_size * self._grid_size
+
         def _create_vit():
             vit = timm.create_model(
                 vit_model_name, pretrained=timm_pretrained,
@@ -525,9 +591,22 @@ class ViTObsEncoder(ModuleAttrMixin):
                     for param in encoder.parameters():
                         param.requires_grad = False
 
-        # --- Per-camera projection (A-small) ---
+        # --- Spatial softmax on patch tokens ---
+        self.spatial_softmax_projections = nn.ModuleDict()
+        if use_spatial_softmax:
+            per_camera_dim = 2 * spatial_softmax_num_channels
+            for key in rgb_keys:
+                self.spatial_softmax_projections[key] = SpatialSoftmaxProjection(
+                    embed_dim=self._vit_embed_dim,
+                    grid_size=self._grid_size,
+                    num_channels=spatial_softmax_num_channels,
+                )
+
+        # --- Per-camera projection (A-small, mutually exclusive with spatial softmax) ---
         self.projectors = nn.ModuleDict()
-        if variant == "A-small":
+        if use_spatial_softmax:
+            pass  # spatial softmax handles dimensionality
+        elif variant == "A-small":
             per_camera_dim = projection_dim
             for key in rgb_keys:
                 self.projectors[key] = nn.Linear(
@@ -667,12 +746,26 @@ class ViTObsEncoder(ModuleAttrMixin):
             return self._num_perceiver_queries
         return n_obs_steps
 
+    def _extract_patch_tokens(self, vit, imgs):
+        """Extract patch tokens (excluding CLS) from a timm ViT."""
+        x = vit.patch_embed(imgs)
+        cls_token = vit.cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat([cls_token, x], dim=1)
+        x = x + vit.pos_embed
+        x = getattr(vit, 'pos_drop', nn.Identity())(x)
+        for blk in vit.blocks:
+            x = blk(x)
+        x = vit.norm(x)
+        return x[:, 1:]  # (N, num_patches, embed_dim)
+
     def _encode_per_frame(self, obs_dict):
         """
         Per-frame ViT encoding. Returns per-key features (not concatenated).
 
         Args:
-            obs_dict: {rgb_key: (N, C, H, W) images OR (N, embed_dim) pre-computed,
+            obs_dict: {rgb_key: (N, C, H, W) images
+                              OR (N, embed_dim) cached CLS tokens
+                              OR (N, num_patches, embed_dim) cached patch tokens,
                        low_dim_key: (N, D)}
                 where N is a flat batch (typically B*T).
         Returns: dict of {key: (N, dim)} features
@@ -682,7 +775,12 @@ class ViTObsEncoder(ModuleAttrMixin):
         for key in self.rgb_keys:
             img = obs_dict[key]
 
-            # Pre-computed ViT embeddings: (N, embed_dim) — skip crop/norm/ViT
+            # Cached patch tokens: (N, num_patches, embed_dim) → spatial softmax
+            if img.dim() == 3 and self.use_spatial_softmax:
+                features[key] = self.spatial_softmax_projections[key](img)
+                continue
+
+            # Cached CLS tokens: (N, embed_dim) — skip crop/norm/ViT
             if img.dim() == 2:
                 cls = img
                 if self.variant == "A-small":
@@ -699,6 +797,14 @@ class ViTObsEncoder(ModuleAttrMixin):
             if self.use_imagenet_norm:
                 img = (img - self.img_mean) / self.img_std
 
+            # Spatial softmax on live images: extract patch tokens → softmax
+            if self.use_spatial_softmax:
+                patch_tokens = self._extract_patch_tokens(
+                    self.vit_encoders[key], img)
+                features[key] = self.spatial_softmax_projections[key](
+                    patch_tokens)
+                continue
+
             # ViT forward — returns CLS token
             cls = self.vit_encoders[key](img)  # (N, vit_embed_dim)
 
@@ -714,24 +820,30 @@ class ViTObsEncoder(ModuleAttrMixin):
         return features
 
     @torch.no_grad()
-    def precompute_all_embeddings(self, replay_buffers, batch_size=128):
+    def precompute_all_embeddings(self, replay_buffers, batch_size=128,
+                                  train_mode=False):
         """
-        Pre-compute frozen ViT CLS tokens for all frames in all replay buffers.
+        Pre-compute frozen ViT tokens for all frames in all replay buffers.
         Only valid when ViT is frozen and variant is not D/E.
 
         Args:
             replay_buffers: list of ReplayBuffer objects
             batch_size: number of frames to process at once
+            train_mode: if True, use train mode (random crop augmentation);
+                        if False (default), use eval mode (center crop)
 
         Returns:
-            cache: {rgb_key: [Tensor(n_frames, embed_dim) per buffer]}
-            embed_dim: int (ViT embedding dimension before any projection)
+            cache: {rgb_key: [Tensor(n_frames, ...) per buffer]}
+            embed_dim: int for CLS, tuple for patch tokens
         """
         assert not self.is_video_vit, \
             "Cannot precompute for video ViT variants (D/E)"
 
         was_training = self.training
-        self.eval()  # CropRandomizer uses center crop in eval mode
+        if train_mode:
+            self.train()  # CropRandomizer uses random crop in train mode
+        else:
+            self.eval()  # CropRandomizer uses center crop in eval mode
 
         device = self.device
         cache = {key: [] for key in self.rgb_keys}
@@ -758,9 +870,15 @@ class ViTObsEncoder(ModuleAttrMixin):
                     if self.use_imagenet_norm:
                         imgs = (imgs - self.img_mean) / self.img_std
 
-                    # ViT forward → CLS token (no projection — that's trainable)
-                    cls = self.vit_encoders[key](imgs)  # (B, embed_dim)
-                    embeddings.append(cls.cpu())
+                    if self.use_spatial_softmax:
+                        # Extract patch tokens (no projection — that's trainable)
+                        patch_tokens = self._extract_patch_tokens(
+                            self.vit_encoders[key], imgs)  # (B, num_patches, embed_dim)
+                        embeddings.append(patch_tokens.cpu())
+                    else:
+                        # ViT forward → CLS token (no projection — that's trainable)
+                        cls = self.vit_encoders[key](imgs)  # (B, embed_dim)
+                        embeddings.append(cls.cpu())
 
                 buf_embeddings = torch.cat(embeddings, dim=0)
                 cache[key].append(buf_embeddings)
@@ -770,7 +888,12 @@ class ViTObsEncoder(ModuleAttrMixin):
         if was_training:
             self.train()
 
-        return cache, self._vit_embed_dim
+        # embed_dim: int for CLS, tuple for patch tokens
+        if self.use_spatial_softmax:
+            embed_dim = (self._num_patches, self._vit_embed_dim)
+        else:
+            embed_dim = self._vit_embed_dim
+        return cache, embed_dim
 
     def forward(self, obs_dict):
         """

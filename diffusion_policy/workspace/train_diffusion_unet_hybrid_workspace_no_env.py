@@ -165,16 +165,18 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
 
     def _precompute_or_load_vit_cache(self, cfg, dataset):
         """
-        Pre-compute ViT embeddings or load from disk cache.
+        Pre-compute ViT embeddings or load from disk cache (center crop).
         Returns (cache_dict, embed_dim).
         """
         import hashlib
 
         # Build cache key from model config + data paths
+        use_spatial = getattr(cfg.policy, 'use_spatial_softmax', False)
         cache_key = (
             f"{cfg.policy.vit_model_name}_"
             f"{cfg.policy.vit_pretrained}_"
             f"{tuple(cfg.policy.crop_shape)}_"
+            f"spatial={use_spatial}_"
             f"{sorted(dataset.zarr_paths)}"
         )
         cache_hash = hashlib.md5(cache_key.encode()).hexdigest()[:12]
@@ -188,17 +190,28 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             print(f"  Loaded cache with embed_dim={cached['embed_dim']}")
             return cached['cache'], cached['embed_dim']
 
-        # Pre-compute
+        # Pre-compute (center crop — eval mode)
         print("Pre-computing frozen ViT embeddings for all frames...")
         obs_encoder = self.model.obs_encoder
         cache, embed_dim = obs_encoder.precompute_all_embeddings(
-            dataset.replay_buffers, batch_size=128)
+            dataset.replay_buffers, batch_size=128, train_mode=False)
 
         # Save to disk
         os.makedirs(cache_dir, exist_ok=True)
         torch.save({'cache': cache, 'embed_dim': embed_dim}, cache_path)
         print(f"  Saved ViT embedding cache to {cache_path}")
 
+        return cache, embed_dim
+
+    def _recompute_vit_cache(self, dataset):
+        """
+        Recompute ViT embeddings with random crops (train mode).
+        Called at the start of each epoch when random_crop_cache is enabled.
+        Returns (cache_dict, embed_dim).
+        """
+        obs_encoder = self.model.obs_encoder
+        cache, embed_dim = obs_encoder.precompute_all_embeddings(
+            dataset.replay_buffers, batch_size=128, train_mode=True)
         return cache, embed_dim
 
     def run(self):
@@ -268,15 +281,23 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         assert isinstance(dataset, BaseImageDataset)
 
         # Pre-compute frozen ViT embeddings (skips ViT during training)
+        self._use_random_crop_cache = False
         if self._should_precompute_vit(cfg):
+            self._use_random_crop_cache = getattr(
+                cfg.policy, 'random_crop_cache', False)
+            # Always compute center-crop cache first (used by val datasets,
+            # and as initial training cache if random_crop_cache is off)
             cache, embed_dim = self._precompute_or_load_vit_cache(cfg, dataset)
             dataset.set_embedding_cache(cache, embed_dim)
+            self._vit_embed_dim_for_cache = embed_dim
 
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
         torch.save(normalizer, os.path.join(self.output_dir, 'normalizer.pt'))
 
         # configure validation datasets
+        # Val datasets get center-crop cache (set above via get_validation_dataset
+        # propagation). They are never refreshed with random crops.
         self.num_datasets = dataset.get_num_datasets()
         self.sample_probabilities = dataset.get_sample_probabilities()
         val_dataloaders = []
@@ -378,6 +399,12 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         with JsonLogger(log_path) as json_logger:
             for local_epoch_idx in range(resume_epoch, cfg.training.num_epochs):
                 step_log = dict()
+
+                # Recompute ViT cache with fresh random crops each epoch
+                if self._use_random_crop_cache:
+                    cache, _ = self._recompute_vit_cache(dataset)
+                    dataset.set_embedding_cache(cache, self._vit_embed_dim_for_cache)
+
                 # ========= train for this epoch ==========
                 train_losses = list()
                 with tqdm.tqdm(train_dataloader, desc=f"Training epoch {self.epoch}", 
@@ -388,7 +415,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                         if self.new_type_dataloader:
                             # this is done to maintain validity for older code
                             for key in dataset.rgb_keys:
-                                if batch['obs'][key].ndim >= 4:  # images, not embeddings
+                                if batch['obs'][key].ndim == 5:  # images (B,T,H,W,C), not embeddings
                                     batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                         batch_size = batch['action'].shape[0]
 
@@ -482,7 +509,7 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                                     if self.new_type_dataloader:
                                         # this is done to maintain validity for older code
                                         for key in dataset.rgb_keys:
-                                            if batch['obs'][key].ndim >= 4:  # images, not embeddings
+                                            if batch['obs'][key].ndim == 5:  # images (B,T,H,W,C), not embeddings
                                                 batch['obs'][key] = torch.moveaxis(batch['obs'][key], -1, 2) / 255.0
                                     if val_sampling_batches[dataset_idx] is None:
                                         val_sampling_batches[dataset_idx] = batch

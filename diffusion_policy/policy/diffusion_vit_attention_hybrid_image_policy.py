@@ -55,6 +55,10 @@ class DiffusionViTAttentionHybridImagePolicy(BaseImagePolicy):
                  perceiver_depth=2,
                  # Video ViT (D, E)
                  temporal_every_k=3,
+                 # Spatial softmax on patch tokens
+                 use_spatial_softmax=False,
+                 spatial_softmax_num_channels=32,
+                 random_crop_cache=False,
                  # UNet config
                  diffusion_step_embed_dim=256,
                  down_dims=(256, 512, 1024),
@@ -107,6 +111,8 @@ class DiffusionViTAttentionHybridImagePolicy(BaseImagePolicy):
             perceiver_depth=perceiver_depth,
             share_rgb_model=share_rgb_model,
             temporal_every_k=temporal_every_k,
+            use_spatial_softmax=use_spatial_softmax,
+            spatial_softmax_num_channels=spatial_softmax_num_channels,
         )
 
         obs_feature_dim = obs_encoder.output_dim
