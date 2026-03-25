@@ -218,6 +218,51 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
             dataset.replay_buffers, batch_size=128, train_mode=True)
         return cache, embed_dim
 
+    def _recompute_vit_cache_inplace(self, dataset):
+        """
+        Recompute ViT embeddings with random crops, overwriting the existing
+        cache tensors in-place. This avoids holding old + new cache
+        simultaneously (~40 GB spike → 0 GB spike).
+        """
+        obs_encoder = self.model.obs_encoder
+        existing_cache = dataset._embedding_cache
+
+        was_training = obs_encoder.training
+        obs_encoder.train()  # random crop mode
+
+        device = obs_encoder.device
+        for buf_idx, replay_buffer in enumerate(dataset.replay_buffers):
+            for key in obs_encoder.rgb_keys:
+                target = existing_cache[key][buf_idx]  # (n_frames, ...) CPU tensor
+                all_frames = replay_buffer[key]
+                n_frames = len(all_frames)
+
+                for start in range(0, n_frames, 128):
+                    end = min(start + 128, n_frames)
+                    with torch.no_grad():
+                        imgs = torch.from_numpy(
+                            all_frames[start:end].copy()
+                        ).float().to(device)
+                        imgs = imgs.permute(0, 3, 1, 2) / 255.0
+
+                        if key in obs_encoder.crop_randomizers:
+                            imgs = obs_encoder.crop_randomizers[key](imgs)
+                        if obs_encoder.use_imagenet_norm:
+                            imgs = (imgs - obs_encoder.img_mean) / obs_encoder.img_std
+
+                        if obs_encoder.use_spatial_softmax:
+                            tokens = obs_encoder._extract_patch_tokens(
+                                obs_encoder.vit_encoders[key], imgs)
+                        else:
+                            tokens = obs_encoder.vit_encoders[key](imgs)
+
+                        # Overwrite in-place — no new allocation
+                        target[start:end] = tokens.cpu()
+
+        if not was_training:
+            obs_encoder.eval()
+        print(f"  Recomputed cache in-place (random crops)")
+
     def run(self):
         cfg = copy.deepcopy(self.cfg)
 
@@ -404,12 +449,9 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
                 step_log = dict()
 
                 # Recompute ViT cache with fresh random crops each epoch
+                # Overwrite tensors in-place to avoid holding old + new simultaneously
                 if self._use_random_crop_cache:
-                    import gc
-                    dataset.set_embedding_cache(None, None)  # release old cache
-                    gc.collect()
-                    cache, _ = self._recompute_vit_cache(dataset)
-                    dataset.set_embedding_cache(cache, self._vit_embed_dim_for_cache)
+                    self._recompute_vit_cache_inplace(dataset)
 
                 # ========= train for this epoch ==========
                 train_losses = list()
