@@ -20,15 +20,15 @@ checkpoint_interval:
   last_n_steps: 30000
   num_checkpoints: 3
 dataloader:
-  batch_size: 64
+  batch_size: 48
   num_workers: 8
   persistent_workers: false
   pin_memory: true
   shuffle: true
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 80
-horizon: 96
+n_obs_steps: 160
+horizon: 176
 dataset_obs_steps: ${n_obs_steps}
 new_type_dataloader: true
 ema:
@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: frozen_vit_a_spatial_k32_npast16_data_48
+  name: frame_sel_rc16_skip3_npast16_data_48_two_mode
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -52,8 +52,7 @@ logging:
   - pusher
   - hw
   - default
-  - vit
-  - spatial_softmax
+  - frame_selection
 multi_run:
   run_dir: data/outputs/2023.02.12/train_diffusion_unet_hybrid_pusher
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
@@ -90,15 +89,7 @@ shape_meta:
       - 128
       type: rgb
 policy:
-  _target_: diffusion_policy.policy.diffusion_vit_attention_hybrid_image_policy.DiffusionViTAttentionHybridImagePolicy
-  vit_variant: "A-full"
-  vit_model_name: "vit_base_patch16_224.dino"
-  vit_pretrained: true
-  vit_freeze: true
-  imagenet_norm: true
-  use_spatial_softmax: true
-  spatial_softmax_num_channels: 32
-  random_crop_cache: true
+  _target_: diffusion_policy.policy.diffusion_attention_hybrid_image_policy.DiffusionAttentionHybridImagePolicy
   crop_shape:
   - 112
   - 112
@@ -107,6 +98,7 @@ policy:
   - 256
   - 512
   - 1024
+  eval_fixed_crop: true
   horizon: ${horizon}
   kernel_size: 5
   n_action_steps: ${n_action_steps}
@@ -123,9 +115,15 @@ policy:
     variance_type: fixed_small
   num_inference_steps: 100
   obs_as_global_cond: true
+  obs_encoder_group_norm: true
   use_target_cond: false
   n_past_action_steps: 16
+  obs_frame_selection:
+    recent_continuous: 16
+    skip_every: 3
   shape_meta: ${shape_meta}
+  pretrained_encoder: false
+  initialize_obs_encoder: null
 task:
   dataset:
     _target_: diffusion_policy.dataset.planar_pushing_attention_dataset.PlanarPushingAttentionDataset
@@ -134,7 +132,7 @@ task:
     n_obs_steps: ${n_obs_steps}
     min_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 79
+    pad_before: 159
     seed: 42
     use_same_train_masks_across_datasets: true
     zarr_configs:
@@ -179,10 +177,9 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
-  total_train_steps: 100000
-  use_amp: false
+  total_train_steps: 200000
 val_dataloader:
-  batch_size: 64
+  batch_size: 48
   num_workers: 8
   persistent_workers: false
   pin_memory: true

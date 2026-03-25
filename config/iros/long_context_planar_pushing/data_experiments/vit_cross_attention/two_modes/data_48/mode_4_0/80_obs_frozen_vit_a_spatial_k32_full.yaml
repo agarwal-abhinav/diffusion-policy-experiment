@@ -179,7 +179,7 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
-  total_train_steps: 200000
+  total_train_steps: 100000
   use_amp: false
 val_dataloader:
   batch_size: 64

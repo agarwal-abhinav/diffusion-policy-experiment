@@ -56,6 +56,8 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
             freeze_self_trained_obs_encoder=False, 
             inference_loading=False,
             n_past_action_steps=None,
+            # Frame selection (sparse obs conditioning)
+            obs_frame_selection=None,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -174,8 +176,18 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         global_cond_dim = obs_encoder.output_shape()[0]
         obs_feature_dim = global_cond_dim
         
+        # Compute max_global_tokens (may be reduced by frame selection)
+        if obs_frame_selection is not None:
+            rc = obs_frame_selection['recent_continuous']
+            skip = obs_frame_selection['skip_every']
+            n_older = len(range(n_obs_steps - rc - 1, -1, -skip))
+            max_global_tokens = n_older + rc
+        else:
+            max_global_tokens = n_obs_steps
+
         print(f"Input dim: {input_dim}, Global cond dim: {global_cond_dim}")
-        print(f"Max global tokens: {n_obs_steps}")
+        print(f"Max global tokens: {max_global_tokens}"
+              f"{f' (selected from {n_obs_steps} frames)' if obs_frame_selection else ''}")
 
         model = AttentionConditionalUnet1D(
             input_dim=input_dim,
@@ -186,7 +198,7 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
             down_dims=down_dims,
             kernel_size=kernel_size,
             n_groups=n_groups,
-            max_global_tokens=n_obs_steps,
+            max_global_tokens=max_global_tokens,
             num_attention_heads=num_attention_heads,
             attention_dropout=attention_dropout
         )
@@ -235,8 +247,12 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         self.obs_as_global_cond = obs_as_global_cond
         self.one_hot_encoding_dim = one_hot_encoding_dim
         self.use_target_cond = use_target_cond
-        self.max_global_tokens = n_obs_steps
+        self.max_obs_steps = n_obs_steps
         self.kwargs = kwargs
+
+        # --- Frame selection (sparse obs conditioning) ---
+        self.obs_frame_selection = obs_frame_selection
+        self.max_global_tokens = max_global_tokens
 
         # --- Prediction horizon ---
         self._unet_alignment = 4
@@ -328,14 +344,62 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         
         return obs_features, global_mask, temporal_positions
     
-    def _prepare_batch_and_apply_obs_encoding(self, nobs, num_obs_steps_in_this): 
+    def _compute_frame_indices(self, T):
+        """
+        Compute which frames to select from a T-length buffer.
+        Returns sorted index array.
+        """
+        rc = self.obs_frame_selection['recent_continuous']
+        skip = self.obs_frame_selection['skip_every']
+        recent_start = T - rc
+        recent = list(range(recent_start, T))
+        older = list(range(recent_start - 1, -1, -skip))[::-1]
+        return older + recent
+
+    def _prepare_batch_and_apply_obs_encoding(self, nobs, num_obs_steps_in_this):
         B = nobs[next(iter(nobs))].shape[0]
         N = nobs[next(iter(nobs))].shape[1]
 
+        # --- Frame selection: pick subset of frames before encoding ---
+        if self.obs_frame_selection is not None:
+            # For each sample, select frames from [0, K_i) based on its obs count
+            # All samples in a batch use the same selection pattern relative to
+            # their valid frames (right-aligned)
+            K = num_obs_steps_in_this  # (B,)
+            max_K = K.max().item()
+            selected_indices = self._compute_frame_indices(max_K)
+            n_selected = len(selected_indices)
+            sel_tensor = torch.tensor(selected_indices, device=self.device)
+
+            # Select frames: (B, N, ...) -> (B, n_selected, ...)
+            nobs = dict_apply(nobs, lambda x: x[:, sel_tensor])
+
+            # Build mask: a selected index is valid if it < K_i for that sample
+            sel_expanded = sel_tensor.unsqueeze(0)  # (1, n_selected)
+            K_expanded = K.unsqueeze(1)  # (B, 1)
+            global_mask = sel_expanded < K_expanded  # (B, n_selected)
+
+            # Encode selected frames
+            x_flat = dict_apply(nobs, lambda x: x[global_mask])
+            embeddings = self.obs_encoder(x_flat)
+
+            embeddings_full = embeddings.new_zeros((B, n_selected, self.obs_feature_dim))
+            embeddings_full[global_mask] = embeddings
+
+            # Position encoding: use the original temporal indices (right-aligned)
+            # so the UNet knows real temporal spacing
+            position_mask = torch.where(
+                global_mask,
+                sel_expanded + (self.n_obs_steps - K_expanded),
+                torch.zeros(1, dtype=torch.long, device=self.device))
+
+            return embeddings_full, global_mask, position_mask
+
+        # --- Standard path (no frame selection) ---
         K = num_obs_steps_in_this.unsqueeze(1)
 
         arrange_N = torch.arange(N, device=self.device)
-        left_mask = arrange_N.unsqueeze(0) < K 
+        left_mask = arrange_N.unsqueeze(0) < K
 
         x_selected = dict_apply(nobs, lambda x: x[left_mask])
 
@@ -347,9 +411,9 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
 
         global_mask = left_mask[:, :self.n_obs_steps]
 
-        idx = torch.arange(self.n_obs_steps, device=self.device).unsqueeze(0)           # [1, N] -> broadcasts to [B, N]
-        first_k = idx < K                                             # [B, N], True for positions 0..K_b-1
-        position_mask = torch.where(first_k, idx + (self.n_obs_steps - K), torch.zeros_like(idx))  # [B, N], int64
+        idx = torch.arange(self.n_obs_steps, device=self.device).unsqueeze(0)
+        first_k = idx < K
+        position_mask = torch.where(first_k, idx + (self.n_obs_steps - K), torch.zeros_like(idx))
 
         return embeddings_full, global_mask, position_mask
 
