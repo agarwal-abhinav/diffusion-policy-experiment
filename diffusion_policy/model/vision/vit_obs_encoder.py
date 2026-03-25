@@ -440,6 +440,8 @@ class ViTObsEncoder(ModuleAttrMixin):
                  # Spatial softmax on patch tokens (replaces CLS)
                  use_spatial_softmax: bool = False,
                  spatial_softmax_num_channels: int = 32,
+                 # Project CLS before temporal attention (B/C per-stream)
+                 project_before_temporal: bool = False,
                  ):
         super().__init__()
         assert variant in self.VALID_VARIANTS, \
@@ -602,11 +604,18 @@ class ViTObsEncoder(ModuleAttrMixin):
                     num_channels=spatial_softmax_num_channels,
                 )
 
-        # --- Per-camera projection (A-small, mutually exclusive with spatial softmax) ---
+        # --- Per-camera projection ---
+        # Applied for A-small (always) and optionally for B/C per-stream
+        # variants when project_before_temporal=True. Mutually exclusive with spatial softmax.
+        self.use_projection = use_projection = (
+            not use_spatial_softmax and
+            (variant == "A-small" or
+             (variant in ("B-per-stream", "C-per-stream") and project_before_temporal))
+        )
         self.projectors = nn.ModuleDict()
         if use_spatial_softmax:
             pass  # spatial softmax handles dimensionality
-        elif variant == "A-small":
+        elif use_projection:
             per_camera_dim = projection_dim
             for key in rgb_keys:
                 self.projectors[key] = nn.Linear(
@@ -783,7 +792,7 @@ class ViTObsEncoder(ModuleAttrMixin):
             # Cached CLS tokens: (N, embed_dim) — skip crop/norm/ViT
             if img.dim() == 2:
                 cls = img
-                if self.variant == "A-small":
+                if self.use_projection:
                     cls = self.projectors[key](cls)
                 features[key] = cls
                 continue
@@ -808,8 +817,8 @@ class ViTObsEncoder(ModuleAttrMixin):
             # ViT forward — returns CLS token
             cls = self.vit_encoders[key](img)  # (N, vit_embed_dim)
 
-            # Project if A-small
-            if self.variant == "A-small":
+            # Project if enabled (A-small, or per-stream with projection)
+            if self.use_projection:
                 cls = self.projectors[key](cls)
 
             features[key] = cls
