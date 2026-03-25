@@ -372,6 +372,13 @@ class PlanarPushingAttentionDataset(BaseImageDataset):
             cache_dict: {rgb_key: [Tensor(n_frames, embed_dim) per replay buffer]}
             embed_dim: ViT embedding dimension (before any projection)
         """
+        # Move cache tensors to shared memory so DataLoader workers
+        # don't duplicate them via copy-on-write
+        if cache_dict is not None:
+            for key in cache_dict:
+                for i in range(len(cache_dict[key])):
+                    if not cache_dict[key][i].is_shared():
+                        cache_dict[key][i].share_memory_()
         self._embedding_cache = cache_dict
         self._embed_dim = embed_dim
 

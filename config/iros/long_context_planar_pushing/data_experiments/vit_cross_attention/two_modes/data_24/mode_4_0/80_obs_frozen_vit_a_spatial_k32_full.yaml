@@ -21,7 +21,7 @@ checkpoint_interval:
   num_checkpoints: 3
 dataloader:
   batch_size: 64
-  num_workers: 2
+  num_workers: 8
   persistent_workers: false
   pin_memory: true
   shuffle: true
@@ -183,7 +183,7 @@ training:
   use_amp: false
 val_dataloader:
   batch_size: 64
-  num_workers: 2
+  num_workers: 8
   persistent_workers: false
   pin_memory: true
   drop_last: true
