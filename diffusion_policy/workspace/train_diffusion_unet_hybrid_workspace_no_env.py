@@ -183,8 +183,11 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         cache_dir = os.path.join(self.output_dir, 'vit_cache')
         cache_path = os.path.join(cache_dir, f'vit_embeddings_{cache_hash}.pt')
 
-        # Try loading from disk
-        if os.path.exists(cache_path):
+        # Skip disk cache when using random crop (cache changes every epoch)
+        use_random = getattr(cfg.policy, 'random_crop_cache', False)
+
+        # Try loading from disk (only if not using random crop cache)
+        if not use_random and os.path.exists(cache_path):
             print(f"Loading ViT embedding cache from {cache_path}")
             cached = torch.load(cache_path, map_location='cpu')
             print(f"  Loaded cache with embed_dim={cached['embed_dim']}")
@@ -196,10 +199,11 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         cache, embed_dim = obs_encoder.precompute_all_embeddings(
             dataset.replay_buffers, batch_size=128, train_mode=False)
 
-        # Save to disk
-        os.makedirs(cache_dir, exist_ok=True)
-        torch.save({'cache': cache, 'embed_dim': embed_dim}, cache_path)
-        print(f"  Saved ViT embedding cache to {cache_path}")
+        # Save to disk (skip when using random crop — cache changes every epoch)
+        if not use_random:
+            os.makedirs(cache_dir, exist_ok=True)
+            torch.save({'cache': cache, 'embed_dim': embed_dim}, cache_path)
+            print(f"  Saved ViT embedding cache to {cache_path}")
 
         return cache, embed_dim
 
@@ -285,8 +289,8 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         if self._should_precompute_vit(cfg):
             self._use_random_crop_cache = getattr(
                 cfg.policy, 'random_crop_cache', False)
-            # Always compute center-crop cache first (used by val datasets,
-            # and as initial training cache if random_crop_cache is off)
+            # Compute center-crop cache (used by val datasets always,
+            # and by training if random_crop_cache is off)
             cache, embed_dim = self._precompute_or_load_vit_cache(cfg, dataset)
             dataset.set_embedding_cache(cache, embed_dim)
             self._vit_embed_dim_for_cache = embed_dim
@@ -304,6 +308,14 @@ class TrainDiffusionUnetHybridWorkspaceNoEnv(BaseWorkspace):
         for i in range(self.num_datasets):
             val_dataset = dataset.get_validation_dataset(i)
             val_dataloaders.append(DataLoader(val_dataset, **cfg.val_dataloader))
+
+        # If using random crop cache, replace the training dataset's cache
+        # with a random-crop version now. Val datasets already have the
+        # center-crop cache via get_validation_dataset propagation.
+        # This avoids holding two full caches simultaneously later.
+        if self._use_random_crop_cache:
+            cache, _ = self._recompute_vit_cache(dataset)
+            dataset.set_embedding_cache(cache, self._vit_embed_dim_for_cache)
         self._print_dataset_diagnostics(cfg, dataset, train_dataloader, val_dataloaders)
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
