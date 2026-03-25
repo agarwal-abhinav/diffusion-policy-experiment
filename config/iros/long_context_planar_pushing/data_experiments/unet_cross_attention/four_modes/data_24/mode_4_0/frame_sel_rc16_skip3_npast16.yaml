@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: frame_sel_rc16_skip3_full_data_96_four_mode
+  name: frame_sel_rc16_skip3_npast16_data_24_four_mode
   project: long_context_pushing_iros_four_modes
   resume: true
   tags:
@@ -117,7 +117,7 @@ policy:
   obs_as_global_cond: true
   obs_encoder_group_norm: true
   use_target_cond: false
-  n_past_action_steps: null
+  n_past_action_steps: 16
   obs_frame_selection:
     recent_continuous: 16
     skip_every: 3
@@ -137,35 +137,35 @@ task:
     use_same_train_masks_across_datasets: true
     zarr_configs:
     - path: data/iros/long_context_planar_pushing/start_bin_4_sorted.zarr
-      max_train_episodes: 12
+      max_train_episodes: 3
       sampling_weight: null
       val_ratio: 0.025
     - path: data/iros/long_context_planar_pushing/start_bin_4_via_mirror_sorted_reversed.zarr
-      max_train_episodes: 12
+      max_train_episodes: 3
       sampling_weight: null
       val_ratio: 0.025
     - path: data/iros/long_context_planar_pushing/start_bin_0_sorted_reversed.zarr
-      max_train_episodes: 12
+      max_train_episodes: 3
       sampling_weight: null
       val_ratio: 0.025
     - path: data/iros/long_context_planar_pushing/start_bin_0_via_mirror_sorted.zarr
-      max_train_episodes: 12
+      max_train_episodes: 3
       sampling_weight: null
       val_ratio: 0.025
     - path: data/iros/long_context_planar_pushing/start_bin_1_sorted.zarr
-      max_train_episodes: 12
+      max_train_episodes: 3
       sampling_weight: null
       val_ratio: 0.025
     - path: data/iros/long_context_planar_pushing/start_bin_1_via_mirror_sorted_reversed.zarr
-      max_train_episodes: 12
+      max_train_episodes: 3
       sampling_weight: null
       val_ratio: 0.025
     - path: data/iros/long_context_planar_pushing/start_bin_3_sorted_reversed.zarr
-      max_train_episodes: 12
+      max_train_episodes: 3
       sampling_weight: null
       val_ratio: 0.025
     - path: data/iros/long_context_planar_pushing/start_bin_3_via_mirror_sorted.zarr
-      max_train_episodes: 12
+      max_train_episodes: 3
       sampling_weight: null
       val_ratio: 0.025
     training_mode: "random"

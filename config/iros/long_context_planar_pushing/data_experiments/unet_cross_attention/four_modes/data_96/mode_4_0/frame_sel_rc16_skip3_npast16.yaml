@@ -27,8 +27,8 @@ dataloader:
   shuffle: true
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 160
-horizon: 176
+n_obs_steps: 161
+horizon: 177
 dataset_obs_steps: ${n_obs_steps}
 new_type_dataloader: true
 ema:
@@ -132,7 +132,7 @@ task:
     n_obs_steps: ${n_obs_steps}
     min_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 159
+    pad_before: 160
     seed: 42
     use_same_train_masks_across_datasets: true
     zarr_configs:
