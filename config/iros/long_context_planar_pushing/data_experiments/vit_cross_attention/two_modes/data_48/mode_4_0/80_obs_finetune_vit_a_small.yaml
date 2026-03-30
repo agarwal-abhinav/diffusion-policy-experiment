@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: finetune_vit_a_small_dino_obs_80_data_48
+  name: finetune_vit_a_small_data_48
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -53,6 +53,7 @@ logging:
   - hw
   - default
   - vit
+  - finetune
 multi_run:
   run_dir: data/outputs/2023.02.12/train_diffusion_unet_hybrid_pusher
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
@@ -96,6 +97,7 @@ policy:
   vit_freeze: false
   vit_projection_dim: 64
   imagenet_norm: true
+  share_rgb_model: false
   crop_shape:
   - 112
   - 112

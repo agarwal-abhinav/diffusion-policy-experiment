@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: finetune_vit_a_full_data_48
+  name: finetune_vit_a_full_data_48_npast16
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -123,7 +123,7 @@ policy:
   num_inference_steps: 100
   obs_as_global_cond: true
   use_target_cond: false
-  n_past_action_steps: null
+  n_past_action_steps: 16
   shape_meta: ${shape_meta}
 task:
   dataset:

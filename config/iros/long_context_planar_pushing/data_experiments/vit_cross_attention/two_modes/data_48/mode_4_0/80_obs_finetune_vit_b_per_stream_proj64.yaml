@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: finetune_vit_a_full_data_48
+  name: finetune_vit_b_per_stream_proj64_data_48
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -91,13 +91,17 @@ shape_meta:
       type: rgb
 policy:
   _target_: diffusion_policy.policy.diffusion_vit_attention_hybrid_image_policy.DiffusionViTAttentionHybridImagePolicy
-  vit_variant: "A-full"
+  vit_variant: "B-per-stream"
   vit_model_name: "vit_small_patch16_224.dino"
   vit_pretrained: true
   vit_freeze: false
   vit_projection_dim: 64
   imagenet_norm: true
   share_rgb_model: false
+  project_before_temporal: true
+  temporal_depth: 4
+  temporal_num_heads: 8
+  max_frames: 100
   crop_shape:
   - 112
   - 112

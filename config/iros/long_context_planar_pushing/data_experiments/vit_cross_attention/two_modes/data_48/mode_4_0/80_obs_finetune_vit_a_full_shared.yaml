@@ -44,7 +44,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: finetune_vit_a_full_data_48
+  name: finetune_vit_a_full_shared_data_48
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -97,7 +97,7 @@ policy:
   vit_freeze: false
   vit_projection_dim: 64
   imagenet_norm: true
-  share_rgb_model: false
+  share_rgb_model: true
   crop_shape:
   - 112
   - 112
