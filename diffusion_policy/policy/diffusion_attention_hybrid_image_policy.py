@@ -20,6 +20,7 @@ import robomimic.models.base_nets as rmbn
 import robomimic.models.obs_core as rmobsc
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
+from diffusion_policy.model.vision.vit_obs_encoder import TemporalEncoder
 
 
 class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
@@ -58,6 +59,11 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
             n_past_action_steps=None,
             # Frame selection (sparse obs conditioning)
             obs_frame_selection=None,
+            # Per-stream temporal attention on encoder features
+            use_temporal_attention=False,
+            temporal_depth=4,
+            temporal_num_heads=8,
+            temporal_max_frames=100,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -254,6 +260,34 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         self.obs_frame_selection = obs_frame_selection
         self.max_global_tokens = max_global_tokens
 
+        # --- Per-stream temporal attention ---
+        self.use_temporal_attention = use_temporal_attention
+        self.temporal_encoders = nn.ModuleDict()
+        if use_temporal_attention:
+            # Determine per-camera dim from encoder output
+            rgb_keys = sorted([k for k, v in obs_shape_meta.items()
+                               if v.get('type', 'low_dim') == 'rgb'])
+            low_dim_total = sum(
+                obs_shape_meta[k]['shape'][-1] for k, v in obs_shape_meta.items()
+                if v.get('type', 'low_dim') == 'low_dim')
+            per_camera_dim = (obs_feature_dim - low_dim_total) // len(rgb_keys)
+            self._temporal_rgb_keys = rgb_keys
+            self._temporal_low_dim_total = low_dim_total
+            self._temporal_per_camera_dim = per_camera_dim
+
+            for key in rgb_keys:
+                self.temporal_encoders[key] = TemporalEncoder(
+                    dim=per_camera_dim,
+                    depth=temporal_depth,
+                    num_heads=temporal_num_heads,
+                    max_frames=temporal_max_frames,
+                )
+            t_params = sum(p.numel() for enc in self.temporal_encoders.values()
+                           for p in enc.parameters())
+            print(f"Per-stream temporal attention: {len(rgb_keys)} streams × "
+                  f"depth={temporal_depth}, heads={temporal_num_heads}, "
+                  f"dim={per_camera_dim} ({t_params:,} params)")
+
         # --- Prediction horizon ---
         self._unet_alignment = 4
         self.n_past_action_steps = n_past_action_steps
@@ -344,6 +378,38 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         
         return obs_features, global_mask, temporal_positions
     
+    def _apply_per_stream_temporal(self, embeddings_full, global_mask):
+        """
+        Apply per-stream temporal attention to encoded features.
+
+        Args:
+            embeddings_full: (B, T, obs_feature_dim) encoded features
+            global_mask: (B, T) True for valid positions
+        Returns:
+            (B, T, obs_feature_dim) temporally enriched features
+        """
+        B, T, D = embeddings_full.shape
+        low_dim = self._temporal_low_dim_total
+        per_cam = self._temporal_per_camera_dim
+        padding_mask = ~global_mask  # True for PADDED
+
+        # Split: [low_dim, cam1, cam2, ...]
+        parts = []
+        offset = 0
+        # Low-dim features pass through without temporal attention
+        parts.append(embeddings_full[:, :, :low_dim])
+        offset = low_dim
+
+        # Each camera stream gets temporal attention independently
+        for key in self._temporal_rgb_keys:
+            stream = embeddings_full[:, :, offset:offset + per_cam]  # (B, T, per_cam)
+            stream = self.temporal_encoders[key](
+                stream, key_padding_mask=padding_mask)
+            parts.append(stream)
+            offset += per_cam
+
+        return torch.cat(parts, dim=-1)
+
     def _compute_frame_indices(self, T):
         """
         Compute which frames to select from a T-length buffer.
@@ -386,6 +452,11 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
             embeddings_full = embeddings.new_zeros((B, n_selected, self.obs_feature_dim))
             embeddings_full[global_mask] = embeddings
 
+            # Apply per-stream temporal attention if enabled
+            if self.use_temporal_attention:
+                embeddings_full = self._apply_per_stream_temporal(
+                    embeddings_full, global_mask)
+
             # Position encoding: use the original temporal indices (right-aligned)
             # so the UNet knows real temporal spacing
             position_mask = torch.where(
@@ -410,6 +481,11 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         embeddings_full = embeddings_full[:, :self.n_obs_steps, :]
 
         global_mask = left_mask[:, :self.n_obs_steps]
+
+        # Apply per-stream temporal attention if enabled
+        if self.use_temporal_attention:
+            embeddings_full = self._apply_per_stream_temporal(
+                embeddings_full, global_mask)
 
         idx = torch.arange(self.n_obs_steps, device=self.device).unsqueeze(0)
         first_k = idx < K
