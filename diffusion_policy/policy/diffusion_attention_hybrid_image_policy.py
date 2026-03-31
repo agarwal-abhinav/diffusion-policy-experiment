@@ -20,7 +20,7 @@ import robomimic.models.base_nets as rmbn
 import robomimic.models.obs_core as rmobsc
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
-from diffusion_policy.model.vision.vit_obs_encoder import TemporalEncoder
+from diffusion_policy.model.common.temporal_encoder import TemporalEncoder
 
 
 class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
