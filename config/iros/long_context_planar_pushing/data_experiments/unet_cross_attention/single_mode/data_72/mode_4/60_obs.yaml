@@ -8,14 +8,19 @@ checkpoint:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
       k: 5
       mode: min
-      monitor_key: val_loss_0
+      monitor_key: val_loss
+      min_training_steps: 50000
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
       k: 5
       mode: min
-      monitor_key: val_ddim_mse_0
+      monitor_key: val_ddim_mse
+      min_training_steps: 50000
+checkpoint_interval:
+  last_n_steps: 30000
+  num_checkpoints: 3
 dataloader:
   batch_size: 64
   num_workers: 8
@@ -27,7 +32,10 @@ n_latency_steps: 0
 n_obs_steps: 60
 horizon: 76
 dataset_obs_steps: ${n_obs_steps}
-new_type_dataloader: true
+new_type_checkpoint_interval:
+  last_n_steps: 30000
+  num_checkpoints: 3
+dataloader: true
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -164,7 +172,10 @@ training:
   total_train_steps: 200000
 # val_dataloader smaller than train_dataloader
 # since some datasets are very small
-val_dataloader:
+val_checkpoint_interval:
+  last_n_steps: 30000
+  num_checkpoints: 3
+dataloader:
   batch_size: 64
   num_workers: 8
   persistent_workers: false
