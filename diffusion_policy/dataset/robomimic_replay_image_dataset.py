@@ -229,8 +229,8 @@ class RobomimicReplayImageDataset(BaseImageDataset):
         }
         return torch_data
     
-class RobomimicReplayImageImprovedDataset(RobomimicReplayImageDataset): 
-    def __init__(self, 
+class RobomimicReplayImageImprovedDataset(RobomimicReplayImageDataset):
+    def __init__(self,
                  shape_meta: dict,
             dataset_path: str,
             horizon=1,
@@ -242,8 +242,9 @@ class RobomimicReplayImageImprovedDataset(RobomimicReplayImageDataset):
             use_legacy_normalizer=False,
             use_cache=False,
             seed=42,
-            val_ratio=0.0
-                 ): 
+            val_ratio=0.0,
+            max_train_episodes=None
+                 ):
         super().__init__(
             shape_meta=shape_meta,
             dataset_path=dataset_path,
@@ -256,38 +257,65 @@ class RobomimicReplayImageImprovedDataset(RobomimicReplayImageDataset):
             use_legacy_normalizer=use_legacy_normalizer,
             use_cache=use_cache,
             seed=seed,
-            val_ratio=val_ratio
+            val_ratio=val_ratio,
+            max_train_episodes=max_train_episodes
         )
 
-        del self.sampler 
+        del self.sampler
 
         self.sampler = ImprovedDatasetSampler(
-            replay_buffer=self.replay_buffer, 
-            sequence_length=horizon, 
-            shape_meta=shape_meta, 
+            replay_buffer=self.replay_buffer,
+            sequence_length=horizon,
+            shape_meta=shape_meta,
             pad_before=pad_before,
             pad_after=pad_after,
-            key_first_k=self.key_first_k, 
-            episode_mask=self.train_mask, 
+            key_first_k=self.key_first_k,
+            episode_mask=self.train_mask,
         )
 
-    def get_validation_dataset(self):
+        # Compatibility with workspace interface
+        self.samplers = [self.sampler]
+        self.replay_buffers = [self.replay_buffer]
+        self.train_masks = [self.train_mask]
+        self.val_masks = [self.val_mask]
+        self.zarr_paths = [dataset_path]
+
+    def get_num_datasets(self):
+        return 1
+
+    def get_sample_probabilities(self):
+        import numpy as np
+        return np.array([1.0])
+
+    def get_num_episodes(self, index=None):
+        return self.replay_buffer.n_episodes
+
+    def get_validation_dataset(self, index=None):
         val_set = copy.copy(self)
         val_set.sampler = ImprovedDatasetSampler(
-            replay_buffer=self.replay_buffer, 
+            replay_buffer=self.replay_buffer,
             sequence_length=self.horizon,
-            pad_before=self.pad_before, 
+            pad_before=self.pad_before,
             pad_after=self.pad_after,
-            episode_mask=~self.train_mask, 
+            episode_mask=self.val_mask,
             key_first_k=self.key_first_k,
             shape_meta=self.shape_meta
             )
-        val_set.train_mask = ~self.train_mask
+        val_set.train_mask = self.val_mask
+        val_set.samplers = [val_set.sampler]
         return val_set
+
+    def __len__(self):
+        return len(self.sampler)
 
     def __getitem__(self, idx):
         data = self.sampler.sample_data(idx)
         torch_data = dict_apply(data, torch.from_numpy)
+        torch_data['sample_metadata'] = {
+            'num_obs_steps': self.n_obs_steps,
+            'max_obs_steps': self.n_obs_steps,
+            'min_obs_steps': self.n_obs_steps,
+        }
         return torch_data
 
 def _convert_actions(raw_actions, abs_action, rotation_transformer):

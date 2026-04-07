@@ -21,6 +21,9 @@ import robomimic.models.obs_core as rmobsc
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
+# Robomimic 0.2 has CropRandomizer in base_nets, 0.3 moved it to obs_core
+_RobomimicCropRandomizer = getattr(rmobsc, 'CropRandomizer', None) or getattr(rmbn, 'CropRandomizer')
+
 from diffusion_policy.model.transformers.simple_transformer_encoder import AllFeedEmbeddingTransformer, AllTogetherEmbeddingTransformer
 
 def make_cls_causal_mask(L: int, device=None) -> torch.Tensor:
@@ -180,7 +183,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         if eval_fixed_crop:
             replace_submodules(
                 root_module=obs_encoder,
-                predicate=lambda x: isinstance(x, rmobsc.CropRandomizer),
+                predicate=lambda x: isinstance(x, _RobomimicCropRandomizer),
                 func=lambda x: dmvc.CropRandomizer(
                     input_shape=x.input_shape,
                     crop_height=x.crop_height,
