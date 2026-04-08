@@ -35,7 +35,9 @@ def main(checkpoint, output_dir, device):
     cls = hydra.utils.get_class(cfg._target_)
     workspace = cls(cfg, output_dir=output_dir)
     workspace: BaseWorkspace
-    workspace.load_payload(payload, exclude_keys=None, include_keys=None)
+    workspace.load_payload(payload,
+        exclude_keys=['checkpoint_managers', 'optimizer', 'scaler'],
+        include_keys=None)
     
     # get policy from workspace
     policy = workspace.model

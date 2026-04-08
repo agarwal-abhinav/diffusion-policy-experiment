@@ -562,7 +562,7 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         if self.use_target_cond:
             assert 'target' in obs_dict
         assert 'past_action' not in obs_dict # not implemented yet
-        
+
         # normalize input
         nobs = self.normalizer.normalize(obs_dict['obs'])
         ntarget = None

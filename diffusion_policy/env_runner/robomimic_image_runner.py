@@ -289,13 +289,13 @@ class RobomimicImageRunner(BaseImageRunner):
                     lambda x: torch.from_numpy(x).to(
                         device=device))
 
-                # run policy
+                # run policy (wrap in nested format for consistency)
                 with torch.no_grad():
-                    action_dict = policy.predict_action(obs_dict)
+                    action_dict = policy.predict_action({'obs': obs_dict})
 
                 # device_transfer
                 np_action_dict = dict_apply(action_dict,
-                    lambda x: x.detach().to('cpu').numpy())
+                    lambda x: x.detach().to('cpu').numpy() if isinstance(x, torch.Tensor) else x)
 
                 action = np_action_dict['action']
                 if not np.all(np.isfinite(action)):
