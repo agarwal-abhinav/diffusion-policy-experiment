@@ -19,7 +19,10 @@ from robomimic.algo import algo_factory
 from robomimic.algo.algo import PolicyAlgo
 import robomimic.utils.obs_utils as ObsUtils
 import robomimic.models.base_nets as rmbn
-import robomimic.models.obs_core as rmobsc
+try:
+    import robomimic.models.obs_core as rmobsc
+except ImportError:
+    rmobsc = None  # robomimic 0.2.0
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 

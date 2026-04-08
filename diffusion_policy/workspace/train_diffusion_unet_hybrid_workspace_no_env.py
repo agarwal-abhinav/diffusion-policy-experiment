@@ -22,7 +22,10 @@ import dill
 import shutil
 import torch
 from torch.nn.parallel import DataParallel
-from torch.amp import GradScaler, autocast
+try:
+    from torch.amp import GradScaler, autocast  # PyTorch >= 2.0
+except ImportError:
+    from torch.cuda.amp import GradScaler, autocast  # PyTorch < 2.0
 from einops import rearrange, reduce
 import torch.nn.functional as F
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
