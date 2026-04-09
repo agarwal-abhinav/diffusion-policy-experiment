@@ -48,8 +48,10 @@ def main():
     p.add_argument("--output-root", type=Path, default=Path("data/eval_output/robomimic_eval"),
                    help="Root of eval outputs (default: data/eval_output/robomimic_eval)")
     p.add_argument("--dry-run", action="store_true", help="Print commands without running them")
-    p.add_argument("--skip-existing", action="store_true", default=False,
-                   help="Skip checkpoints whose output_dir already exists and is non-empty")
+    p.add_argument("--skip-existing", action="store_true", default=True,
+                   help="Skip checkpoints whose eval_log.json already exists (default: True)")
+    p.add_argument("--no-skip-existing", action="store_false", dest="skip_existing",
+                   help="Re-evaluate all checkpoints even if eval_log.json exists")
     args = p.parse_args()
 
     base = args.path
@@ -75,10 +77,10 @@ def main():
     for i, ckpt in enumerate(ckpts, 1):
         name = checkpoint_name(ckpt)
         outdir = out_base / name
-        # outdir.mkdir(parents=True, exist_ok=True)
+        eval_log = outdir / "eval_log.json"
 
-        if args.skip_existing and any(outdir.iterdir()):
-            print(f"[{i}/{len(ckpts)}] Skipping {ckpt.name} -> {outdir} (already has contents)")
+        if args.skip_existing and eval_log.exists():
+            print(f"[{i}/{len(ckpts)}] Skipping {ckpt.name} -> {outdir} (eval_log.json exists)")
             continue
 
         cmd = [
@@ -86,6 +88,7 @@ def main():
             args.eval_script,
             "--checkpoint", str(ckpt),
             "--output_dir", str(outdir),
+            "--force",
         ]
 
         print(f"[{i}/{len(ckpts)}] Running: {' '.join(cmd)}")
