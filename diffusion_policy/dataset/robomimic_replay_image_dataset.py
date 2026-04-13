@@ -243,7 +243,12 @@ class RobomimicReplayImageImprovedDataset(RobomimicReplayImageDataset):
             use_cache=False,
             seed=42,
             val_ratio=0.0,
-            max_train_episodes=None
+            max_train_episodes=None,
+            # Variable context parameters
+            min_obs_steps=None,
+            training_mode='constant',  # 'constant', 'random', 'random_sprinkle', 'progressive'
+            progressive_steps=1,
+            random_sprinkle_prob=0.1,
                  ):
         super().__init__(
             shape_meta=shape_meta,
@@ -260,6 +265,14 @@ class RobomimicReplayImageImprovedDataset(RobomimicReplayImageDataset):
             val_ratio=val_ratio,
             max_train_episodes=max_train_episodes
         )
+
+        # Variable context config
+        self.training_mode = training_mode
+        self.max_obs_steps = n_obs_steps
+        self.min_obs_steps = min_obs_steps if min_obs_steps is not None else n_obs_steps
+        self.progressive_steps = progressive_steps
+        self.random_sprinkle_prob = random_sprinkle_prob
+        self.training_step = 0
 
         del self.sampler
 
@@ -308,13 +321,44 @@ class RobomimicReplayImageImprovedDataset(RobomimicReplayImageDataset):
     def __len__(self):
         return len(self.sampler)
 
+    def _get_obs_steps(self) -> int:
+        """Get number of observation steps based on training mode."""
+        import random as _random
+        if self.training_mode == 'constant':
+            return self.max_obs_steps
+        elif self.training_mode == 'random':
+            return torch.randint(self.min_obs_steps, self.max_obs_steps + 1, (1,)).item()
+        elif self.training_mode == 'random_sprinkle':
+            if _random.random() < self.random_sprinkle_prob:
+                return torch.randint(self.min_obs_steps, self.max_obs_steps + 1, (1,)).item()
+            else:
+                return self.max_obs_steps
+        elif self.training_mode == 'progressive':
+            progress = min(1.0, self.training_step / max(1, self.progressive_steps))
+            current_max = self.min_obs_steps + int(
+                (self.max_obs_steps - self.min_obs_steps) * progress)
+            current_max = min(current_max, self.max_obs_steps)
+            if progress >= 1.0:
+                if _random.random() < self.random_sprinkle_prob:
+                    return torch.randint(self.min_obs_steps, self.max_obs_steps + 1, (1,)).item()
+                else:
+                    return self.max_obs_steps
+            return torch.randint(self.min_obs_steps, current_max + 1, (1,)).item()
+        else:
+            raise ValueError(f"Unknown training_mode: {self.training_mode}")
+
+    def set_training_step(self, step: int):
+        """Update training step for progressive curriculum."""
+        self.training_step = step
+
     def __getitem__(self, idx):
         data = self.sampler.sample_data(idx)
         torch_data = dict_apply(data, torch.from_numpy)
+        num_obs = self._get_obs_steps()
         torch_data['sample_metadata'] = {
-            'num_obs_steps': self.n_obs_steps,
-            'max_obs_steps': self.n_obs_steps,
-            'min_obs_steps': self.n_obs_steps,
+            'num_obs_steps': num_obs,
+            'max_obs_steps': self.max_obs_steps,
+            'min_obs_steps': self.min_obs_steps,
         }
         return torch_data
 
