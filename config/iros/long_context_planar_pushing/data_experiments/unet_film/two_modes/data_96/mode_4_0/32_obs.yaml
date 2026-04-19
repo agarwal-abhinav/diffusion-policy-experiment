@@ -9,6 +9,7 @@ checkpoint:
       k: 5
       mode: min
       monitor_key: val_loss
+      min_training_steps: 50000
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
@@ -16,6 +17,10 @@ checkpoint:
       k: 5
       mode: min
       monitor_key: val_ddim_mse
+      min_training_steps: 50000
+checkpoint_interval:
+  last_n_steps: 30000
+  num_checkpoints: 3
 dataloader:
   batch_size: 64
   num_workers: 8

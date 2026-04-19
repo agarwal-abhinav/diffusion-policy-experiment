@@ -1,5 +1,3 @@
-# config for target conditioned experiments with image obs
-
 _target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env.TrainDiffusionUnetHybridWorkspaceNoEnv
 checkpoint:
   - save_last_ckpt: true
@@ -29,8 +27,8 @@ dataloader:
   shuffle: true
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 80
-horizon: 96
+n_obs_steps: 16
+horizon: 32
 dataset_obs_steps: ${n_obs_steps}
 new_type_dataloader: true
 ema:
@@ -46,17 +44,16 @@ logging:
   group: null
   id: null
   mode: online
-  name: unet_film_obs_80_data_24
-  project: long_context_pushing_iros_two_modes
+  name: film_obs_16_data_100
+  project: iros_robomimic_square
   resume: true
   tags:
   - train_diffusion_unet_hybrid
-  - pusher
-  - hw
-  - default
+  - square
+  - film
 multi_run:
-  run_dir: data/outputs/2023.02.12/train_diffusion_unet_hybrid_pusher
-  wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
+  run_dir: data/outputs/robomimic/square
+  wandb_name_base: robomimic_square
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -71,29 +68,37 @@ past_action_visible: false
 shape_meta:
   action:
     shape:
-    - 2
+    - 10
   obs:
-    agent_pos:
+    agentview_image:
+      shape:
+      - 3
+      - 84
+      - 84
+      type: rgb
+    robot0_eef_pos:
+      shape:
+      - 3
+      type: low_dim
+    robot0_eef_quat:
+      shape:
+      - 4
+      type: low_dim
+    robot0_eye_in_hand_image:
+      shape:
+      - 3
+      - 84
+      - 84
+      type: rgb
+    robot0_gripper_qpos:
       shape:
       - 2
       type: low_dim
-    overhead_camera:
-      shape:
-      - 3
-      - 128
-      - 128
-      type: rgb
-    wrist_camera:
-      shape:
-      - 3
-      - 128
-      - 128
-      type: rgb
 policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
   crop_shape:
-  - 112
-  - 112
+  - 76
+  - 76
   diffusion_step_embed_dim: 128
   down_dims:
   - 256
@@ -118,42 +123,51 @@ policy:
   obs_as_global_cond: true
   obs_encoder_group_norm: true
   use_target_cond: false
-  # target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
-  # initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
 task:
+  abs_action: true
   dataset:
-    _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
-    shape_meta: ${shape_meta}
+    _target_: diffusion_policy.dataset.robomimic_replay_image_dataset.RobomimicReplayImageImprovedDataset
+    abs_action: true
+    dataset_path: data/robomimic/square/ph/image_abs.hdf5
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 79
+    pad_before: 15
+    rotation_rep: rotation_6d
     seed: 42
-    use_same_train_masks_across_datasets: true
-    zarr_configs:
-    - path: data/iros/long_context_planar_pushing/start_bin_4_sorted.zarr
-      max_train_episodes: 6
-      sampling_weight: null
-      val_ratio: 0.05 # 4 / 40 trajectories
-    - path: data/iros/long_context_planar_pushing/start_bin_4_via_mirror_sorted_reversed.zarr
-      max_train_episodes: 6
-      sampling_weight: null
-      val_ratio: 0.05 # 4 / 40 trajectories
-    - path: data/iros/long_context_planar_pushing/start_bin_0_sorted_reversed.zarr 
-      max_train_episodes: 6
-      sampling_weight: null 
-      val_ratio: 0.05 # 2 / 40 trajectories
-    - path: data/iros/long_context_planar_pushing/start_bin_0_via_mirror_sorted.zarr 
-      max_train_episodes: 6
-      sampling_weight: null 
-      val_ratio: 0.05 # 2 / 40 trajectories
-  name: scene_image
-  shape_meta: ${shape_meta} # not used?
-task_name: planar_pushing
+    shape_meta: ${shape_meta}
+    use_cache: true
+    val_ratio: 0.02
+    max_train_episodes: 100
+  dataset_path: data/robomimic/square/ph/image_abs.hdf5
+  env_runner:
+    _target_: diffusion_policy.env_runner.robomimic_image_runner.RobomimicImageRunner
+    abs_action: true
+    crf: 22
+    dataset_path: data/robomimic/square/ph/image_abs.hdf5
+    fps: 10
+    max_steps: 400
+    n_action_steps: ${n_action_steps}
+    n_envs: 28
+    n_obs_steps: ${n_obs_steps}
+    n_test: 50
+    n_test_vis: 4
+    n_train: 6
+    n_train_vis: 2
+    past_action: false
+    render_obs_key: agentview_image
+    shape_meta: ${shape_meta}
+    test_start_seed: 100000
+    tqdm_interval_sec: 1.0
+    train_start_idx: 0
+  name: square_image
+  shape_meta: ${shape_meta}
+  task_name: square
+task_name: square_image
 training:
-  checkpoint_every: 3
+  checkpoint_every: 5
   debug: false
   device: cuda
   gradient_accumulate_every: 1
@@ -161,7 +175,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 200 # 70 for 50, 2000; 200 for 50, 500
+  num_epochs: 200
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
@@ -173,8 +187,6 @@ training:
   eval_mse_DDPM: true
   eval_mse_DDIM: true
   total_train_steps: 200000
-# val_dataloader smaller than train_dataloader
-# since some datasets are very small
 val_dataloader:
   batch_size: 64
   num_workers: 8

@@ -328,8 +328,23 @@ class BinaryTaskDataset(BaseImageDataset):
             else:
                 return self.max_obs_steps
         elif self.training_mode == 'progressive':
-            raise NotImplementedError("Progressive mode not implemented yet")
-    
+            progress = min(1.0, self.training_step / max(1, self.progressive_steps))
+            current_max = self.min_obs_steps + int(
+                (self.max_obs_steps - self.min_obs_steps) * progress)
+            current_max = min(current_max, self.max_obs_steps)
+            self.current_max = current_max
+            if progress >= 1.0:
+                # Curriculum complete: switch to sprinkle behavior
+                if random.random() < self.random_sprinkle_prob:
+                    return torch.randint(self.min_obs_steps, self.max_obs_steps + 1, (1,)).item()
+                else:
+                    return self.max_obs_steps
+            return torch.randint(self.min_obs_steps, current_max + 1, (1,)).item()
+
+    def set_training_step(self, step: int):
+        """Update training step for progressive curriculum."""
+        self.training_step = step
+
     def _validate_zarr_configs(self, zarr_configs):
         num_null_sampling_weights = 0
         N = len(zarr_configs)

@@ -46,7 +46,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: unet_film_obs_80_data_24
+  name: unet_film_obs_80_npast16_data_96
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -118,6 +118,7 @@ policy:
   obs_as_global_cond: true
   obs_encoder_group_norm: true
   use_target_cond: false
+  n_past_action_steps: 16
   # target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
@@ -134,19 +135,19 @@ task:
     use_same_train_masks_across_datasets: true
     zarr_configs:
     - path: data/iros/long_context_planar_pushing/start_bin_4_sorted.zarr
-      max_train_episodes: 6
+      max_train_episodes: 24
       sampling_weight: null
       val_ratio: 0.05 # 4 / 40 trajectories
     - path: data/iros/long_context_planar_pushing/start_bin_4_via_mirror_sorted_reversed.zarr
-      max_train_episodes: 6
+      max_train_episodes: 24
       sampling_weight: null
       val_ratio: 0.05 # 4 / 40 trajectories
     - path: data/iros/long_context_planar_pushing/start_bin_0_sorted_reversed.zarr 
-      max_train_episodes: 6
+      max_train_episodes: 24
       sampling_weight: null 
       val_ratio: 0.05 # 2 / 40 trajectories
     - path: data/iros/long_context_planar_pushing/start_bin_0_via_mirror_sorted.zarr 
-      max_train_episodes: 6
+      max_train_episodes: 24
       sampling_weight: null 
       val_ratio: 0.05 # 2 / 40 trajectories
   name: scene_image

@@ -46,7 +46,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: unet_film_obs_80_data_24
+  name: unet_film_obs_80_npast16_data_24
   project: long_context_pushing_iros_two_modes
   resume: true
   tags:
@@ -118,6 +118,7 @@ policy:
   obs_as_global_cond: true
   obs_encoder_group_norm: true
   use_target_cond: false
+  n_past_action_steps: 16
   # target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false

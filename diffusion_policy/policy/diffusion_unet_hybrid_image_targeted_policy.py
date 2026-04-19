@@ -230,7 +230,25 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         self.obs_as_global_cond = obs_as_global_cond
         self.one_hot_encoding_dim = one_hot_encoding_dim
         self.use_target_cond = use_target_cond
+
+        # Prediction horizon control (n_past_action_steps)
+        # Pop before storing kwargs, since kwargs gets passed to diffusion scheduler step()
+        n_past_action_steps = kwargs.pop('n_past_action_steps', None)
         self.kwargs = kwargs
+        self.n_past_action_steps = n_past_action_steps
+        self.n_future = horizon - n_obs_steps
+        self._unet_alignment = 4
+
+        if n_past_action_steps is not None:
+            prediction_horizon = n_past_action_steps + self.n_future
+            self.prediction_horizon = prediction_horizon
+            self._action_offset = horizon - prediction_horizon
+            print(f"Prediction horizon: {prediction_horizon} "
+                  f"(past={n_past_action_steps}, future={self.n_future}, "
+                  f"offset={self._action_offset})")
+        else:
+            self.prediction_horizon = horizon
+            self._action_offset = 0
 
         if num_inference_steps is None:
             num_inference_steps = noise_scheduler.config.num_train_timesteps
@@ -285,7 +303,7 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
 
         return trajectory
 
-    def predict_action(self, obs_dict: Dict[str, torch.Tensor], use_DDIM=False) -> Dict[str, torch.Tensor]:
+    def predict_action(self, obs_dict: Dict[str, torch.Tensor], use_DDIM=False, **kwargs) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs"
         - if use_target_cond is true, obs_dict must also include "target"
@@ -302,10 +320,18 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
             ntarget = self.normalizer['target'].normalize(obs_dict['target'])
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
-        T = self.horizon
         Da = self.action_dim
         Do = self.obs_feature_dim
         To = self.n_obs_steps
+
+        # Compute dynamic prediction horizon
+        if self.n_past_action_steps is not None:
+            past_in_pred = min(self.n_past_action_steps, To)
+            T = past_in_pred + self.n_future
+            T = math.ceil(T / self._unet_alignment) * self._unet_alignment
+        else:
+            T = self.prediction_horizon
+            past_in_pred = To
 
         # build input
         device = self.device
@@ -365,13 +391,16 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         action_pred = self.normalizer['action'].unnormalize(naction_pred)
 
         # get action
-        start = To - 1
+        start = past_in_pred - 1
         end = start + self.n_action_steps
         action = action_pred[:,start:end]
-        
+
+        action_pred_offset = To - past_in_pred
+
         result = {
             'action': action,
-            'action_pred': action_pred
+            'action_pred': action_pred,
+            'action_pred_offset': action_pred_offset,
         }
         return result
 
@@ -548,6 +577,13 @@ class DiffusionUnetHybridImageTargetedPolicy(BaseImagePolicy):
         target_cond = None
         if self.use_target_cond:
             target_cond = ntarget.reshape(batch_size, -1) # B, D_t
+
+        # Build dynamic trajectory if n_past_action_steps is set
+        if self.n_past_action_steps is not None:
+            offset = self._action_offset
+            pred_len = self.prediction_horizon
+            trajectory = trajectory[:, offset:offset + pred_len, :]
+            cond_data = trajectory
 
         # generate impainting mask
         condition_mask = self.mask_generator(trajectory.shape)
