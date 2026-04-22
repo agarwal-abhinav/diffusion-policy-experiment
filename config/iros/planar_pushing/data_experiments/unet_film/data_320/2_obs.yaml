@@ -8,14 +8,19 @@ checkpoint:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
       k: 5
       mode: min
-      monitor_key: val_loss_0
+      monitor_key: val_loss
+      min_training_steps: 50000
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
       format_str: epoch={epoch:04d}-val_loss={val_loss:.4f}-val_ddim_mse={val_ddim_mse:.4f}.ckpt
       k: 5
       mode: min
-      monitor_key: val_ddim_mse_0
+      monitor_key: val_ddim_mse
+      min_training_steps: 50000
+checkpoint_interval:
+  last_n_steps: 30000
+  num_checkpoints: 3
 dataloader:
   batch_size: 64
   num_workers: 8
@@ -155,7 +160,7 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
-  total_train_steps: 150000
+  total_train_steps: 200000
   use_variable_lr: false  # Enable variable learning rate for encoder
   encoder_lr_scale: 0.1  # Encoder gets 1/10th the learning rate
 # val_dataloader smaller than train_dataloader

@@ -1,4 +1,4 @@
-# config for target conditioned experiments with image obs
+# config for variable context grasping experiments
 
 _target_: diffusion_policy.workspace.train_diffusion_unet_hybrid_workspace_no_env.TrainDiffusionUnetHybridWorkspaceNoEnv
 checkpoint:
@@ -9,7 +9,7 @@ checkpoint:
       k: 5
       mode: min
       monitor_key: val_loss
-      min_training_steps: 50000
+      min_training_steps: 25000
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
@@ -17,9 +17,9 @@ checkpoint:
       k: 5
       mode: min
       monitor_key: val_ddim_mse
-      min_training_steps: 50000
+      min_training_steps: 25000
 checkpoint_interval:
-  last_n_steps: 30000
+  last_n_steps: 15000
   num_checkpoints: 3
 dataloader:
   batch_size: 64
@@ -27,12 +27,12 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
+new_type_dataloader: true
+dataset_obs_steps: ${n_obs_steps}
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 12
-horizon: 28
-dataset_obs_steps: ${n_obs_steps}
-new_type_dataloader: true
+n_obs_steps: 48
+horizon: 64
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -46,17 +46,16 @@ logging:
   group: null
   id: null
   mode: online
-  name: cross_attention_cl_12_data_320
-  project: iros_t_pushing_data_scaling
+  name: prog_min8_max48_cur25k_data_12
+  project: long_context_grasping_iros_two_modes
   resume: true
   tags:
   - train_diffusion_unet_hybrid
-  - pusher
-  - hw
-  - default
+  - grasping
+  - variable_context
 multi_run:
-  run_dir: data/outputs/2023.02.12/train_diffusion_unet_hybrid_pusher
-  wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
+  run_dir: data/outputs/long_context_grasping/variable_context
+  wandb_name_base: long_context_grasping_variable_context
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -71,11 +70,11 @@ past_action_visible: false
 shape_meta:
   action:
     shape:
-    - 2
+    - 13
   obs:
     agent_pos:
       shape:
-      - 3
+      - 13
       type: low_dim
     overhead_camera:
       shape:
@@ -117,32 +116,37 @@ policy:
   num_inference_steps: 100
   obs_as_global_cond: true
   obs_encoder_group_norm: true
-  use_target_cond: true
-  target_dim: 3
+  use_target_cond: false
+  n_past_action_steps: 16
   shape_meta: ${shape_meta}
   pretrained_encoder: false
+  initialize_obs_encoder: null
 task:
   dataset:
-    _target_: diffusion_policy.dataset.planar_pushing_attention_dataset.PlanarPushingAttentionDataset
+    _target_: diffusion_policy.dataset.binary_task_attention_dataset.BinaryTaskDataset
     shape_meta: ${shape_meta}
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
-    min_obs_steps: ${n_obs_steps}
+    min_obs_steps: 8
     pad_after: 7
-    pad_before: 11
+    pad_before: 47
     seed: 42
     zarr_configs:
-    - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
-      max_train_episodes: 320
+    - path: data/iros/long_context_grasping/two_bins_left_diff_center_diff_return_1_second_middle_time.zarr
+      max_train_episodes: 6
       sampling_weight: null
-      val_ratio: 0.0625 # 10 / 160 trajectories
-    training_mode: "random"
-    progressive_steps: 1
+      val_ratio: 0.05
+    - path: data/iros/long_context_grasping/two_bins_right_diff_center_diff_return_1_second_middle_time.zarr
+      max_train_episodes: 6
+      sampling_weight: null
+      val_ratio: 0.05
+    training_mode: "progressive"
+    progressive_steps: 25000
   name: scene_image
-  shape_meta: ${shape_meta} # not used?
-task_name: planar_pushing
+  shape_meta: ${shape_meta}
+task_name: long_context_grasping
 training:
-  checkpoint_every: 5
+  checkpoint_every: 3
   debug: false
   device: cuda
   gradient_accumulate_every: 1
@@ -150,20 +154,18 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 200 # 70 for 50, 2000; 200 for 50, 500
+  num_epochs: 200
+  total_train_steps: 100000
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
   seed: 42
-  tqdm_interval_sec: 30.0
+  tqdm_interval_sec: 10.0
   use_ema: true
   val_every: 1
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
-  total_train_steps: 200000
-# val_dataloader smaller than train_dataloader
-# since some datasets are very small
 val_dataloader:
   batch_size: 64
   num_workers: 8

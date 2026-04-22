@@ -138,7 +138,7 @@ task:
       sampling_weight: null
       val_ratio: 0.0625
     training_mode: "progressive"
-    progressive_steps: 75000
+    progressive_steps: 100000
   name: scene_image
   shape_meta: ${shape_meta}
 task_name: planar_pushing
@@ -162,7 +162,7 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
-  total_train_steps: 150000
+  total_train_steps: 200000
 val_dataloader:
   batch_size: 64
   num_workers: 8
