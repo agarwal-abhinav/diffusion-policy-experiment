@@ -138,7 +138,13 @@ def main():
     for fname, short_name, epoch, step in checkpoints:
         row = None
 
-        if epoch is not None and "epoch" in df.columns:
+        # latest.ckpt: use the last logged row with val_loss
+        if fname == "latest.ckpt":
+            valid = df.dropna(subset=["val_loss"])
+            if len(valid) > 0:
+                row = valid.iloc[-1]
+
+        if row is None and epoch is not None and "epoch" in df.columns:
             matches = df[df["epoch"] == epoch].dropna(subset=["val_loss"], how="all")
             if len(matches) > 0:
                 row = matches.iloc[-1]
