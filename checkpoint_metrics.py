@@ -108,6 +108,7 @@ def main():
     parser.add_argument("--project", required=True, help="wandb project")
     parser.add_argument("--dir", required=True, help="Training output directory")
     parser.add_argument("--csv", default=None, help="Output CSV path (auto-derived if not given)")
+    parser.add_argument("--output-dir", default=".", help="Directory to save CSV (default: current dir)")
     args = parser.parse_args()
 
     # 1. Find run ID
@@ -193,7 +194,11 @@ def main():
         print(f"Best val_ddim_mse: {best['val_ddim_mse']:.6f} at epoch {int(best['epoch'])}, step {int(best['global_step'])}")
 
     # 6. Save CSV
-    csv_path = args.csv if args.csv else derive_csv_name(args.dir)
+    if args.csv:
+        csv_path = args.csv
+    else:
+        os.makedirs(args.output_dir, exist_ok=True)
+        csv_path = os.path.join(args.output_dir, derive_csv_name(args.dir))
     csv_df = pd.DataFrame(rows)
     csv_df.to_csv(csv_path, index=False)
     print(f"\nSaved CSV to: {csv_path}")
