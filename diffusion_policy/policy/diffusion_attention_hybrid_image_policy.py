@@ -644,6 +644,12 @@ class DiffusionAttentionHybridImagePolicy(BaseImagePolicy):
         end = start + self.n_action_steps
         action = action_pred[:, start:end]
 
+        # Trim UNet-alignment padding so action_pred length matches
+        # `past_in_pred + n_future` (the meaningful trajectory length).
+        if self.n_past_action_steps is not None:
+            valid_len = past_in_pred + self.n_future
+            action_pred = action_pred[:, :valid_len, :]
+
         # action_pred starts at this offset in the full horizon
         action_pred_offset = To - past_in_pred
 
