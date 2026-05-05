@@ -65,12 +65,14 @@ def extract(checkpoint_path: pathlib.Path, target_path: pathlib.Path) -> None:
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading checkpoint: {checkpoint_path}")
-    payload = torch.load(
-        open(checkpoint_path, "rb"),
-        pickle_module=dill,
-        map_location="cpu",
-        weights_only=False,
-    )
+    # `weights_only` was added in torch 2.0; older versions reject the kwarg.
+    # On those versions the default behavior is already weights_only=False.
+    load_kwargs = dict(pickle_module=dill, map_location="cpu")
+    try:
+        payload = torch.load(open(checkpoint_path, "rb"),
+                             weights_only=False, **load_kwargs)
+    except TypeError:
+        payload = torch.load(open(checkpoint_path, "rb"), **load_kwargs)
 
     state_dicts = payload["state_dicts"]
     if "model" not in state_dicts or "ema_model" not in state_dicts:
