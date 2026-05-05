@@ -122,7 +122,7 @@ policy:
   shape_meta: ${shape_meta}
   pretrained_encoder: false
   # TODO: fill in the path to your extracted obs_encoder .pth (use *_ema.pth for the EMA-smoothed weights)
-  initialize_obs_encoder:
+  initialize_obs_encoder: data/pretrained_models/lcpp_8obs_data_48_obs_encoder_ema.pth
   freeze_self_trained_obs_encoder: true
 task:
   dataset:

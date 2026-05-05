@@ -1,6 +1,6 @@
 numpy==1.26.0
 torch==2.7.0
-wandb==0.17.4
+wandb==0.22.3
 robomimic==0.3.0
 zarr==2.18.0
 numba==0.60.0
