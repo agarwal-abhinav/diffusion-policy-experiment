@@ -24,7 +24,7 @@ from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.diffusion_transformer_hybrid_image_policy import DiffusionTransformerHybridImagePolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
-from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
+from diffusion_policy.common.checkpoint_util import TopKCheckpointManager, IntervalCheckpointManager, CheckpointManagers
 from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.model.diffusion.ema_model import EMAModel
@@ -78,12 +78,60 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
     def run(self):
         cfg = copy.deepcopy(self.cfg)
 
+        # configure checkpoint managers BEFORE resume so their state
+        # gets restored from the checkpoint (matches UNet workspace).
+        ckpt_save_dir = os.path.join(self.output_dir, 'checkpoints')
+        if not isinstance(cfg.checkpoint, ListConfig):
+            topk_managers = [TopKCheckpointManager(
+                save_dir=ckpt_save_dir,
+                **cfg.checkpoint.topk
+            )]
+            save_last_ckpt = cfg.checkpoint.save_last_ckpt
+            save_last_snapshot = cfg.checkpoint.save_last_snapshot
+        else:
+            topk_managers = []
+            save_last_ckpt = False
+            save_last_snapshot = False
+            for ckpt_cfg in cfg.checkpoint:
+                topk_managers.append(TopKCheckpointManager(
+                    save_dir=ckpt_save_dir,
+                    **ckpt_cfg.topk
+                ))
+                save_last_ckpt = save_last_ckpt or ckpt_cfg.save_last_ckpt
+                save_last_snapshot = save_last_snapshot or ckpt_cfg.save_last_snapshot
+
+        # interval checkpoint manager (optional, backward compatible)
+        interval_cfg = getattr(cfg, 'checkpoint_interval', None)
+        interval_manager = None
+        if interval_cfg is not None:
+            total_steps = getattr(cfg.training, 'total_train_steps', None)
+            if total_steps is None:
+                print("Warning: interval checkpoints require total_train_steps in config. Skipping.")
+            else:
+                interval_manager = IntervalCheckpointManager(
+                    save_dir=ckpt_save_dir,
+                    total_training_steps=total_steps,
+                    **interval_cfg,
+                )
+                print(f"Interval checkpoints: {interval_manager.num_checkpoints} "
+                      f"checkpoints over last {interval_manager.last_n_steps} steps "
+                      f"(at steps {sorted(interval_manager.save_steps)})")
+
+        # Store on self so BaseWorkspace.save_checkpoint auto-persists state
+        self.checkpoint_managers = CheckpointManagers(
+            topk_managers=topk_managers,
+            interval_manager=interval_manager,
+        )
+
         # resume training
         if cfg.training.resume:
             lastest_ckpt_path = self.get_checkpoint_path()
             if lastest_ckpt_path.is_file():
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
+                # self.epoch was loaded with the last completed epoch
+                # the current epoch is the next epoch (hence += 1)
+                self.epoch += 1
 
         # configure dataset
         dataset: BaseImageDataset
@@ -159,28 +207,11 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
             }
         )
 
-        # configure checkpoint
+        # checkpoint managers were created above; this assert is on the schedule
         assert cfg.training.checkpoint_every % cfg.training.val_every == 0
-        if not isinstance(cfg.checkpoint, ListConfig):
-            # configure single checkpoint manager
-            topk_managers = [TopKCheckpointManager(
-                save_dir=os.path.join(self.output_dir, 'checkpoints'),
-                **cfg.checkpoint.topk
-            )]
-            save_last_ckpt = cfg.checkpoint.save_last_ckpt
-            save_last_snapshot = cfg.checkpoint.save_last_snapshot
-        else:
-            # configure multiple checkpoint managers
-            topk_managers = []
-            save_last_ckpt = False
-            save_last_snapshot = False
-            for ckpt_cfg in cfg.checkpoint:
-                topk_managers.append(TopKCheckpointManager(
-                    save_dir=os.path.join(self.output_dir, 'checkpoints'),
-                    **ckpt_cfg.topk
-                ))
-                save_last_ckpt = save_last_ckpt or ckpt_cfg.save_last_ckpt
-                save_last_snapshot = save_last_snapshot or ckpt_cfg.save_last_snapshot
+        # Retrieve managers from self (state may have been restored on resume)
+        topk_managers = self.checkpoint_managers.topk_managers
+        interval_manager = self.checkpoint_managers.interval_manager
 
         # device transfer
         device = torch.device(cfg.training.device)
@@ -205,8 +236,9 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
 
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
+        resume_epoch = self.epoch
         with JsonLogger(log_path) as json_logger:
-            for local_epoch_idx in range(cfg.training.num_epochs):
+            for local_epoch_idx in range(resume_epoch, cfg.training.num_epochs):
                 step_log = dict()
                 # ========= train for this epoch ==========
                 train_losses = list()
@@ -395,6 +427,13 @@ class TrainDiffusionTransformerHybridWorkspace(BaseWorkspace):
                         if topk_ckpt_path is not None:
                             self.save_checkpoint(path=topk_ckpt_path)
                             break
+
+                    # interval checkpoints (evenly spaced over last N steps)
+                    if interval_manager is not None:
+                        interval_path = interval_manager.get_ckpt_path(metric_dict)
+                        if interval_path is not None:
+                            self.save_checkpoint(path=interval_path)
+                            print(f"Saved interval checkpoint at step {self.global_step}")
                 # last epoch => save last checkpoint
                 if self.epoch == cfg.training.num_epochs-1:
                     self.save_checkpoint()

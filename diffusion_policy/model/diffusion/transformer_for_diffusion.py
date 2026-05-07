@@ -119,22 +119,16 @@ class TransformerForDiffusion(ModuleAttrMixin):
             mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
             mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
             self.register_buffer("mask", mask)
-            
-            if time_as_cond and obs_as_cond:
-                S = T_cond
-                t, s = torch.meshgrid(
-                    torch.arange(T),
-                    torch.arange(S),
-                    indexing='ij'
-                )
-                mask = t >= (s-1) # add one dimension since time is the first token in cond
-                mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-                self.register_buffer('memory_mask', mask)
-            else:
-                self.memory_mask = None
         else:
             self.mask = None
-            self.memory_mask = None
+
+        # Cross-attention `memory_mask` is always disabled. The previous
+        # `t >= s-1` rule was a causal-in-wrong-axis restriction that made
+        # most action positions blind to most obs tokens at long context.
+        # For obs_as_cond=true (the standard path) every action position
+        # should attend to every obs/time token. For obs_as_cond=false there
+        # is no obs memory, so the mask is moot.
+        self.memory_mask = None
 
         # decoder head
         self.ln_f = nn.LayerNorm(n_emb)
