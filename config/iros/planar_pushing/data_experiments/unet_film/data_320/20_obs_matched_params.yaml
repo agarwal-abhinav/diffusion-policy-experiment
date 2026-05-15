@@ -9,7 +9,7 @@ checkpoint:
       k: 5
       mode: min
       monitor_key: val_loss
-      min_training_steps: 25000
+      min_training_steps: 50000
   - save_last_ckpt: true
     save_last_snapshot: false
     topk:
@@ -17,9 +17,9 @@ checkpoint:
       k: 5
       mode: min
       monitor_key: val_ddim_mse
-      min_training_steps: 25000
+      min_training_steps: 50000
 checkpoint_interval:
-  last_n_steps: 15000
+  last_n_steps: 30000
   num_checkpoints: 3
 dataloader:
   batch_size: 64
@@ -37,14 +37,14 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: defaults
-horizon: 20
+horizon: 36
 keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
   mode: online
-  name: unet_film_obs_4_data_48
-  project: long_context_grasping_iros_two_modes
+  name: film_cl_20_matched_params_data_320
+  project: iros_t_pushing_data_scaling
   resume: true
   tags:
   - train_diffusion_unet_hybrid
@@ -56,7 +56,7 @@ multi_run:
   wandb_name_base: 2023.02.12_train_diffusion_unet_hybrid_pusher
 n_action_steps: 8
 n_latency_steps: 0
-n_obs_steps: 4
+n_obs_steps: 20
 name: train_diffusion_unet_hybrid
 obs_as_global_cond: true
 optimizer:
@@ -71,11 +71,11 @@ past_action_visible: false
 shape_meta:
   action:
     shape:
-    - 13
+    - 2
   obs:
     agent_pos:
       shape:
-      - 13
+      - 3
       type: low_dim
     overhead_camera:
       shape:
@@ -91,6 +91,7 @@ shape_meta:
       type: rgb
 policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_targeted_policy.DiffusionUnetHybridImageTargetedPolicy
+  cond_predict_scale: true
   crop_shape:
   - 112
   - 112
@@ -98,7 +99,7 @@ policy:
   down_dims:
   - 256
   - 512
-  - 1024
+  - 1280
   eval_fixed_crop: true
   horizon: ${horizon}
   kernel_size: 5
@@ -117,33 +118,30 @@ policy:
   num_inference_steps: 100
   obs_as_global_cond: true
   obs_encoder_group_norm: true
-  use_target_cond: false
-  # target_dim: 3
+  use_target_cond: true
+  target_dim: 3
   shape_meta: ${shape_meta}
   pretrained_encoder: false
+  # initialize_obs_encoder: data/pretrained_models/robomimic_resnet18_spatialsoftmax_gn.pth
 task:
   dataset:
-    _target_: diffusion_policy.dataset.binary_task_dataset.BinaryTaskDataset
+    _target_: diffusion_policy.dataset.planar_pushing_dataset_improved_sampling.PlanarPushingDataset
     shape_meta: ${shape_meta}
     horizon: ${horizon}
     n_obs_steps: ${n_obs_steps}
     pad_after: 7
-    pad_before: 3
+    pad_before: 19
     seed: 42
     zarr_configs:
-    - path: data/iros/long_context_grasping/two_bins_left_diff_center_diff_return_1_second_middle_time.zarr
-      max_train_episodes: 24
+    - path: data/planar_pushing_cotrain/sim_sim_tee_data_carbon_large.zarr
+      max_train_episodes: 320
       sampling_weight: null
-      val_ratio: 0.05 # 4 / 80 trajectories
-    - path: data/iros/long_context_grasping/two_bins_right_diff_center_diff_return_1_second_middle_time.zarr
-      max_train_episodes: 24
-      sampling_weight: null
-      val_ratio: 0.05 # 4 / 80 trajectories
+      val_ratio: 0.0625 # 10 / 160 trajectories
   name: scene_image
   shape_meta: ${shape_meta} # not used?
 task_name: planar_pushing
 training:
-  checkpoint_every: 3
+  checkpoint_every: 5
   debug: false
   device: cuda
   gradient_accumulate_every: 1
@@ -152,17 +150,19 @@ training:
   max_train_steps: null
   max_val_steps: null
   num_epochs: 200 # 70 for 50, 2000; 200 for 50, 500
-  total_train_steps: 100000
   resume: true
   rollout_every: 5
   sample_every: ${training.checkpoint_every}
   seed: 42
-  tqdm_interval_sec: 10.0
+  tqdm_interval_sec: 30.0
   use_ema: true
   val_every: 1
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
+  total_train_steps: 150000
+  use_variable_lr: false  # Enable variable learning rate for encoder
+  encoder_lr_scale: 0.1  # Encoder gets 1/10th the learning rate
 # val_dataloader smaller than train_dataloader
 # since some datasets are very small
 val_dataloader:

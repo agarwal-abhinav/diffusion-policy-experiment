@@ -160,7 +160,7 @@ training:
   log_val_mse: true
   eval_mse_DDPM: true
   eval_mse_DDIM: true
-  total_train_steps: 200000
+  total_train_steps: 150000
   use_variable_lr: false  # Enable variable learning rate for encoder
   encoder_lr_scale: 0.1  # Encoder gets 1/10th the learning rate
 # val_dataloader smaller than train_dataloader
