@@ -63,9 +63,9 @@ class BinaryTaskDataset(BaseImageDataset):
         
         super().__init__()
         self._validate_zarr_configs(zarr_configs)
+        self.random_sprinkle_prob = random_sprinkle_prob if random_sprinkle_prob is not None else 0.1
         if training_mode == 'random_sprinkle':
             assert random_sprinkle_prob is not None
-            self.random_sprinkle_prob = random_sprinkle_prob
         
         # NEW: Dataset-level variable observation parameters
         self.min_obs_steps = min_obs_steps

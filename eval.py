@@ -16,7 +16,18 @@ import torch
 import dill
 import wandb
 import json
+import numpy as np
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
+
+
+def _json_default(o):
+    if isinstance(o, np.integer):
+        return int(o)
+    if isinstance(o, np.floating):
+        return float(o)
+    if isinstance(o, np.ndarray):
+        return o.tolist()
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
 
 @click.command()
 @click.option('-c', '--checkpoint', required=True)
@@ -67,7 +78,7 @@ def main(checkpoint, output_dir, device, force):
         else:
             json_log[key] = value
     out_path = os.path.join(output_dir, 'eval_log.json')
-    json.dump(json_log, open(out_path, 'w'), indent=2, sort_keys=True)
+    json.dump(json_log, open(out_path, 'w'), indent=2, sort_keys=True, default=_json_default)
 
 if __name__ == '__main__':
     main()
